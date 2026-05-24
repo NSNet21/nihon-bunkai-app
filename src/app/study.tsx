@@ -1,6 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Rating } from 'ts-fsrs';
 
@@ -78,29 +79,25 @@ export default function StudyScreen() {
                 </ThemedText>
               </View>
               <View style={styles.cardRow}>
+                <SideRail
+                  direction="left"
+                  onPress={handlePrev}
+                  disabled={!canPrev}
+                  colors={colors}
+                />
                 <View style={styles.cardSlot}>
                   <Flashcard
                     entry={current}
                     isFlipped={isFlipped}
                     onFlip={() => setIsFlipped((f) => !f)}
                   />
-                  <View style={[styles.circleAnchor, styles.circleLeft]} pointerEvents="box-none">
-                    <CarouselCircle
-                      direction="left"
-                      onPress={handlePrev}
-                      disabled={!canPrev}
-                      colors={colors}
-                    />
-                  </View>
-                  <View style={[styles.circleAnchor, styles.circleRight]} pointerEvents="box-none">
-                    <CarouselCircle
-                      direction="right"
-                      onPress={handleNext}
-                      disabled={!canNext}
-                      colors={colors}
-                    />
-                  </View>
                 </View>
+                <SideRail
+                  direction="right"
+                  onPress={handleNext}
+                  disabled={!canNext}
+                  colors={colors}
+                />
               </View>
               <RatingButtons onRate={handleRate} disabled={!isFlipped} />
             </>
@@ -111,7 +108,7 @@ export default function StudyScreen() {
   );
 }
 
-function CarouselCircle({
+function SideRail({
   direction,
   onPress,
   disabled,
@@ -122,7 +119,7 @@ function CarouselCircle({
   disabled: boolean;
   colors: typeof Colors.light;
 }) {
-  const glyph = direction === 'left' ? '‹' : '›';
+  const Icon = direction === 'left' ? FiChevronLeft : FiChevronRight;
   const accessibilityLabel = direction === 'left' ? 'Previous card' : 'Next card';
   return (
     <Pressable
@@ -131,12 +128,11 @@ function CarouselCircle({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
-        circleStyles.button,
-        { backgroundColor: Accent.base, borderColor: colors.background },
-        pressed && !disabled && circleStyles.pressed,
-        disabled && circleStyles.disabled,
+        railStyles.button,
+        pressed && !disabled && railStyles.pressed,
+        disabled && railStyles.disabled,
       ]}>
-      <Text style={circleStyles.glyph}>{glyph}</Text>
+      <Icon size={56} color={colors.textSecondary} strokeWidth={1.5} />
     </Pressable>
   );
 }
@@ -202,19 +198,12 @@ const styles = StyleSheet.create({
   },
   cardRow: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.two,
   },
-  cardSlot: {
-    position: 'relative',
-  },
-  circleAnchor: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -22,
-    zIndex: 2,
-  },
-  circleLeft: { left: -22 },
-  circleRight: { right: -22 },
+  cardSlot: { flex: 1 },
   center: { flex: 1, gap: Spacing.three, alignItems: 'center', justifyContent: 'center' },
   emptyBody: { textAlign: 'center', maxWidth: 360 },
   completeActions: { gap: Spacing.two, marginTop: Spacing.four, alignItems: 'center' },
@@ -231,22 +220,14 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
 });
 
-const circleStyles = StyleSheet.create({
+const railStyles = StyleSheet.create({
   button: {
-    width: 44,
-    height: 44,
-    borderRadius: Radii.pill,
+    width: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    alignSelf: 'stretch',
+    backgroundColor: 'transparent',
   },
-  glyph: {
-    color: '#ffffff',
-    fontSize: 28,
-    lineHeight: 28,
-    fontWeight: '600',
-    marginTop: -2,
-  },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.94 }] },
-  disabled: { opacity: 0.25 },
+  pressed: { opacity: 0.5 },
+  disabled: { opacity: 0.2 },
 });

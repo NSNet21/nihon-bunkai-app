@@ -141,22 +141,24 @@ export default function BrowseScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.headerWrap}>
-          <ThemedText type="title">Browse</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
-          </ThemedText>
-          <Toolbar
-            onExpandAll={expandAll}
-            onCollapseAll={collapseAll}
-            subsOnly={subsOnly}
-            onToggleSubsOnly={() => setSubsOnly((v) => !v)}
-          />
-        </View>
         <FlashList<Row>
           data={rows}
           keyExtractor={(item) => item.key}
           getItemType={(item) => item.kind}
+          ListHeaderComponent={
+            <View style={styles.headerWrap}>
+              <ThemedText type="title">Browse</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
+              </ThemedText>
+              <Toolbar
+                onExpandAll={expandAll}
+                onCollapseAll={collapseAll}
+                subsOnly={subsOnly}
+                onToggleSubsOnly={() => setSubsOnly((v) => !v)}
+              />
+            </View>
+          }
           renderItem={({ item }) => {
             let inner;
             if (item.kind === 'levelHeader')
@@ -165,16 +167,18 @@ export default function BrowseScreen() {
               inner = <CategoryHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleCategory(`${item.level}/${item.category}`)} />;
             else inner = <DeckRow deck={item.deck} isLast={item.isLast} />;
 
-            /* Headers don't animate (they stay mounted). Decks + sub-headers
-               fade-in on expand, fade-out on collapse. */
-            if (item.kind === 'levelHeader') return inner;
-            return (
-              <Animated.View
-                entering={FadeIn.duration(180).easing(Easing.bezier(0.4, 0, 0.2, 1))}
-                exiting={FadeOut.duration(120)}>
-                {inner}
-              </Animated.View>
+            const row = (
+              <View style={styles.rowWrap}>
+                {item.kind === 'levelHeader' ? inner : (
+                  <Animated.View
+                    entering={FadeIn.duration(180).easing(Easing.bezier(0.4, 0, 0.2, 1))}
+                    exiting={FadeOut.duration(120)}>
+                    {inner}
+                  </Animated.View>
+                )}
+              </View>
             );
+            return row;
           }}
           contentContainerStyle={styles.listContent}
         />
@@ -384,9 +388,13 @@ function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center' },
-  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  container: { flex: 1 },
+  safeArea: { flex: 1, width: '100%' },
+  rowWrap: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   headerWrap: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.six + Spacing.four,
     paddingBottom: Spacing.three,

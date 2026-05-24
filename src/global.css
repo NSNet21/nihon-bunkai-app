@@ -58,10 +58,10 @@
    Adaptive per theme: vivid on light, desaturated on dark (defined as
    --scrollbar-thumb / --scrollbar-track per theme block above). */
 * {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
-*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track {
   background: var(--scrollbar-track);
   border-left: 1px solid var(--border);

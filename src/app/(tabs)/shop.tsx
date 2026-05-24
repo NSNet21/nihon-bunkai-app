@@ -33,7 +33,8 @@ export default function ShopScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollOuter}>
+         <View style={styles.scrollInner}>
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <ThemedText type="title">ร้านค้า</ThemedText>
@@ -100,6 +101,7 @@ export default function ShopScreen() {
               ดูเต็มที่ landing page
             </ThemedText>
           </Pressable>
+         </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -311,9 +313,13 @@ function BuyButton({ onPress }: { onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center' },
-  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
-  scrollContent: {
+  container: { flex: 1 },
+  safeArea: { flex: 1, width: '100%' },
+  scroll: { flex: 1, width: '100%' },
+  scrollOuter: { alignItems: 'center' },
+  scrollInner: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
     padding: Spacing.four,
     paddingTop: Spacing.six + Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,

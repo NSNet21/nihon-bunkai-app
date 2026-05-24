@@ -13,6 +13,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { bundles, buyUrl, LANDING_URL, perLevel, type Product } from '@/data/products';
+import { hasPdfPart, isSkuOwned, PAYHIP_ACCOUNT_URL } from '@/data/sku-coverage';
 import { getZipsForSku } from '@/data/sku-zips';
 import { downloadSku, type ProgressEvent } from '@/lib/download';
 import { importZipsForSku } from '@/lib/deck-import';
@@ -249,7 +250,10 @@ function ProductCard({
   const isFree = product.price === 0;
   const isStarter = product.slug === 'n5-starter';
   const { entitledSkus } = useAuth();
-  const isOwned = product.grantsApp && entitledSkus.has(product.slug);
+  // Ownership includes coverage via bundle SKUs (e.g. Full Bundle covers n4-pdf, n4-csv, n4-bundle).
+  const isOwned = !isFree && isSkuOwned(product.slug, entitledSkus);
+  const canDownloadInApp = isOwned && product.grantsApp;
+  const showPdfHint = isOwned && hasPdfPart(product.slug);
 
   return (
     <ThemedView
@@ -318,11 +322,44 @@ function ProductCard({
           </ThemedText>
         </View>
       ) : isOwned ? (
-        <DownloadSection skuId={product.slug} colors={colors} />
+        <View style={{ gap: Spacing.three }}>
+          {canDownloadInApp && <DownloadSection skuId={product.slug} colors={colors} />}
+          {showPdfHint && <PdfHint colors={colors} alone={!canDownloadInApp} />}
+        </View>
       ) : (
         <BuyButton onPress={() => openExternal(buyUrl(product.slug))} />
       )}
     </ThemedView>
+  );
+}
+
+function PdfHint({ colors, alone }: { colors: typeof Colors.light; alone: boolean }) {
+  return (
+    <Pressable
+      onPress={() => openExternal(PAYHIP_ACCOUNT_URL)}
+      style={({ pressed }) => [
+        styles.pdfHint,
+        {
+          borderColor: alone ? Accent.soft : colors.border,
+          backgroundColor: alone ? Accent.bg : 'transparent',
+        },
+        pressed && { opacity: 0.7 },
+      ]}>
+      <FiFileText size={14} color={alone ? Accent.base : colors.textSecondary} />
+      <View style={{ flex: 1 }}>
+        <ThemedText
+          type={alone ? 'defaultSemiBold' : 'small'}
+          style={{ color: alone ? Accent.base : colors.text, fontSize: alone ? 13 : 12 }}>
+          {alone ? 'PDF อยู่ที่ Payhip · My Purchases' : 'PDF อยู่ที่ Payhip email หรือ My Purchases'}
+        </ThemedText>
+        {alone && (
+          <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 11 }}>
+            เปิดหน้า Payhip account เพื่อโหลด PDF
+          </ThemedText>
+        )}
+      </View>
+      <FiExternalLink size={12} color={alone ? Accent.base : colors.textSecondary} />
+    </Pressable>
   );
 }
 
@@ -718,6 +755,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.four,
+  },
+  pdfHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
   },
   landingLink: {
     flexDirection: 'row',

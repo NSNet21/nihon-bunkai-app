@@ -10,18 +10,10 @@ import type { Deck, Entry, FreeTierData } from './types';
 
 const data = freeTier as unknown as FreeTierData;
 
-/** All free decks, flagged isFree=true. */
+/** All free decks, flagged isFree=true. Paid decks moved to /shop (fetch from Supabase). */
 const freeDecks: Deck[] = data.decks.map((d) => ({ ...d, isFree: true }));
 
-/** Locked paid stubs — surfaced in Browse for upsell. No entries embedded. */
-const lockedStubs: Deck[] = [
-  { id: 'vocab-n5-vol2',  type: 'vocab',   level: 'N5', title: 'Vocab N5 · Vol.2 (locked)',  entryCount: 0, isFree: false, pack: 'vocab-n5-vol2',  tags: ['vocab','n5','vol2','locked'] },
-  { id: 'vocab-n4-vol1',  type: 'vocab',   level: 'N4', title: 'Vocab N4 · Vol.1 (locked)',  entryCount: 0, isFree: false, pack: 'vocab-n4-vol1',  tags: ['vocab','n4','vol1','locked'] },
-  { id: 'kanji-n4',       type: 'kanji',   level: 'N4', title: 'Kanji N4 (locked)',          entryCount: 0, isFree: false, pack: 'kanji-n4',       tags: ['kanji','n4','locked'] },
-  { id: 'grammar-n4',     type: 'grammar', level: 'N4', title: 'Grammar N4 (locked)',        entryCount: 0, isFree: false, pack: 'grammar-n4',     tags: ['grammar','n4','locked'] },
-];
-
-export const decks: Deck[] = [...freeDecks, ...lockedStubs];
+export const decks: Deck[] = freeDecks;
 
 export function entriesForDeck(deckId: string): Entry[] {
   const rows = data.entries[deckId];

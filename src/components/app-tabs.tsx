@@ -1,29 +1,28 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Tabs } from 'expo-router';
 
-import { Colors } from '@/constants/theme';
+import { Accent, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function AppTabs() {
   const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme ?? 'light'];
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Browse</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="study">
-        <NativeTabs.Trigger.Label>Study</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search">
-        <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
-        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: Accent.base,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
+        },
+      }}>
+      <Tabs.Screen name="index"    options={{ title: 'Browse' }} />
+      <Tabs.Screen name="study"    options={{ title: 'Study' }} />
+      <Tabs.Screen name="shop"     options={{ title: 'Shop' }} />
+      <Tabs.Screen name="search"   options={{ title: 'Search' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+    </Tabs>
   );
 }

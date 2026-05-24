@@ -1,8 +1,8 @@
 import { FlashList } from '@shopify/flash-list';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { FiChevronDown, FiChevronsDown, FiChevronsUp } from 'react-icons/fi';
+import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLock } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -10,12 +10,12 @@ import Animated, {
   FadeOut,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/context/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { decks } from '@/data/free-tier';
@@ -39,12 +39,9 @@ function buildRows(
   closedLevels: Set<string>,
   closedCategories: Set<string>,
 ): Row[] {
-  const free = allDecks.filter((d) => d.isFree);
-  const locked = allDecks.filter((d) => !d.isFree);
-
   /* level → category → decks[] */
   const byLevel = new Map<string, Map<Deck['type'], Deck[]>>();
-  for (const d of free) {
+  for (const d of allDecks) {
     const lvl = d.level ?? 'GLOSSARY';
     if (!byLevel.has(lvl)) byLevel.set(lvl, new Map());
     const cat = byLevel.get(lvl)!;
@@ -76,16 +73,6 @@ function buildRows(
 
       catDecks.forEach((d, i) => {
         rows.push({ kind: 'deck', deck: d, key: d.id, isLast: i === catDecks.length - 1 });
-      });
-    }
-  }
-
-  if (locked.length) {
-    const lockedOpen = !closedLevels.has('LOCKED');
-    rows.push({ kind: 'levelHeader', title: 'LOCKED · ปลดล็อกหลังซื้อ', key: 'lvl-locked', level: 'LOCKED', isOpen: lockedOpen, childCount: locked.length });
-    if (lockedOpen) {
-      locked.forEach((d, i) => {
-        rows.push({ kind: 'deck', deck: d, key: d.id, isLast: i === locked.length - 1 });
       });
     }
   }
@@ -157,7 +144,7 @@ export default function BrowseScreen() {
         <View style={styles.headerWrap}>
           <ThemedText type="title">Browse</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {totalFreeEntries} entries · {freePackCount} packs ฟรี · ทักหลังเพื่อปลดล็อกเพิ่ม
+            {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
           </ThemedText>
           <Toolbar
             onExpandAll={expandAll}
@@ -218,7 +205,7 @@ function ScaleButton({
           scale.value = withTiming(0.94, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
         }}
         onPressOut={() => {
-          scale.value = withSpring(1, { damping: 10, stiffness: 220, mass: 0.5 });
+          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
         }}
         accessibilityLabel={accessibilityLabel}
         style={({ pressed }) => [style, pressed && { opacity: 0.85 }]}>
@@ -338,34 +325,61 @@ function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string;
 function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
-  const subtitle = deck.isFree ? `${deck.entryCount} cards` : 'paid · landing page';
+  const router = useRouter();
+  const { status, entitlements } = useAuth();
+
+  const owned = deck.isFree || entitlements.has(deck.id);
+  const showLock = !deck.isFree && !owned;
+
+  const subtitle = deck.isFree
+    ? `${deck.entryCount} cards`
+    : owned
+      ? 'ปลดล็อกแล้ว · พร้อมเรียน'
+      : status === 'signed-in'
+        ? 'ซื้อใน landing page'
+        : 'เข้าสู่ระบบเพื่อปลดล็อก';
+
+  function onPress() {
+    if (!owned) {
+      router.push('/login');
+      return;
+    }
+    router.push({ pathname: '/study', params: { deckId: deck.id } });
+  }
+
   return (
-    <Link href={{ pathname: '/study', params: { deckId: deck.id } }} asChild>
-      <Pressable style={({ pressed }) => [styles.deckCard, pressed && styles.pressed]}>
-        <ThemedView
-          type="backgroundElement"
-          style={[
-            styles.deckCardInner,
-            !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-          ]}>
-          <View style={styles.deckHeader}>
-            <ThemedText type="defaultSemiBold" style={styles.deckTitle}>
-              {deck.title}
-            </ThemedText>
-            {!deck.isFree && (
-              <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
-                <ThemedText type="small" style={{ color: Accent.base }}>
-                  LOCKED
-                </ThemedText>
-              </View>
-            )}
-          </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {subtitle}
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.deckCard, pressed && styles.pressed]}>
+      <ThemedView
+        type="backgroundElement"
+        style={[
+          styles.deckCardInner,
+          !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+        ]}>
+        <View style={styles.deckHeader}>
+          <ThemedText type="defaultSemiBold" style={[styles.deckTitle, showLock && { color: colors.textSecondary }]}>
+            {deck.title}
           </ThemedText>
-        </ThemedView>
-      </Pressable>
-    </Link>
+          {showLock && (
+            <View style={[styles.badge, { backgroundColor: Accent.bg, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              <FiLock size={10} color={Accent.base} />
+              <ThemedText type="small" style={{ color: Accent.base }}>
+                LOCKED
+              </ThemedText>
+            </View>
+          )}
+          {!deck.isFree && owned && (
+            <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
+              <ThemedText type="small" style={{ color: Accent.base }}>
+                OWNED
+              </ThemedText>
+            </View>
+          )}
+        </View>
+        <ThemedText type="small" themeColor="textSecondary">
+          {subtitle}
+        </ThemedText>
+      </ThemedView>
+    </Pressable>
   );
 }
 

@@ -102,8 +102,8 @@ const styles = StyleSheet.create({
   pill: {
     position: 'absolute',
     top: 2,
+    bottom: 2,
     left: 2,
-    height: 52,
     borderRadius: Radii.sm,
   },
   segment: {

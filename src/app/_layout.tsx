@@ -1,9 +1,9 @@
-import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { AuthProvider } from '@/context/auth';
 import { ThemeProvider as AppThemeProvider } from '@/context/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -19,15 +19,20 @@ function ThemedRoot() {
   return (
     <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
-      <AppTabs />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+      </Stack>
     </NavThemeProvider>
   );
 }
 
-export default function TabLayout() {
+export default function RootLayout() {
   return (
     <AppThemeProvider>
-      <ThemedRoot />
+      <AuthProvider>
+        <ThemedRoot />
+      </AuthProvider>
     </AppThemeProvider>
   );
 }

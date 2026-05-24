@@ -9,9 +9,10 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
+
+import { usePersistedState } from '@/hooks/use-persisted-state';
 
 export type ThemeOverride = 'system' | 'light' | 'dark';
 
@@ -24,13 +25,15 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [override, setOverride] = useState<ThemeOverride>('system');
+  const [override, setOverride] = usePersistedState<ThemeOverride>('theme-override', 'system');
 
   const toggle = useCallback(() => {
-    setOverride((prev) => (prev === 'system' ? 'light' : prev === 'light' ? 'dark' : 'system'));
-  }, []);
+    const next: ThemeOverride =
+      override === 'system' ? 'light' : override === 'light' ? 'dark' : 'system';
+    setOverride(next);
+  }, [override, setOverride]);
 
-  const value = useMemo(() => ({ override, setOverride, toggle }), [override, toggle]);
+  const value = useMemo(() => ({ override, setOverride, toggle }), [override, setOverride, toggle]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

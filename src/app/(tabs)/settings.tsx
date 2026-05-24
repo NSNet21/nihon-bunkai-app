@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { FiLogIn, FiLogOut, FiUser } from 'react-icons/fi';
+import { FiCheck, FiLogIn, FiLogOut, FiRefreshCw, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -12,7 +13,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 export default function SettingsScreen() {
-  const { status, user, entitledPacks, entitledSkus, signOut } = useAuth();
+  const { status, user, entitledPacks, entitledSkus, signOut, refreshEntitlements } = useAuth();
   const entitlementCount = entitledPacks.size + entitledSkus.size;
 
   return (
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
               email={user?.email}
               entitlementCount={entitlementCount}
               onSignOut={signOut}
+              onRefresh={refreshEntitlements}
             />
           </View>
 
@@ -67,11 +69,13 @@ function AccountCard({
   email,
   entitlementCount,
   onSignOut,
+  onRefresh,
 }: {
   status: 'loading' | 'signed-in' | 'signed-out';
   email?: string;
   entitlementCount: number;
   onSignOut: () => Promise<void>;
+  onRefresh: () => Promise<void>;
 }) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
@@ -121,14 +125,69 @@ function AccountCard({
           </ThemedText>
         </View>
       </View>
-      <SignOutBtn
-        onPress={async () => {
-          await onSignOut();
-        }}
-        borderColor={colors.border}
-        textColor={colors.text}
-      />
+      <View style={styles.accountActionsRow}>
+        <RestoreBtn onRefresh={onRefresh} borderColor={colors.border} textColor={colors.text} />
+        <SignOutBtn
+          onPress={async () => {
+            await onSignOut();
+          }}
+          borderColor={colors.border}
+          textColor={colors.text}
+        />
+      </View>
     </ThemedView>
+  );
+}
+
+function RestoreBtn({
+  onRefresh,
+  borderColor,
+  textColor,
+}: {
+  onRefresh: () => Promise<void>;
+  borderColor: string;
+  textColor: string;
+}) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  async function handlePress() {
+    if (state === 'loading') return;
+    setState('loading');
+    await onRefresh();
+    setState('done');
+    setTimeout(() => setState('idle'), 1800);
+  }
+
+  const label =
+    state === 'loading' ? 'กำลังตรวจสอบ…' :
+    state === 'done'    ? 'อัพเดทแล้ว' :
+                          'อัพเดทการซื้อ';
+
+  const IconCmp = state === 'done' ? FiCheck : FiRefreshCw;
+  const color = state === 'done' ? Accent.base : textColor;
+
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={() => {
+          scale.value = withTiming(0.96, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
+        }}
+        onPressOut={() => {
+          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+        }}
+        style={({ pressed }) => [
+          styles.signOutBtn,
+          { borderColor, opacity: pressed ? 0.7 : 1 },
+        ]}>
+        <IconCmp size={14} color={color} />
+        <ThemedText type="small" style={{ color }}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -209,6 +268,11 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     borderWidth: 1,
     alignSelf: 'flex-start',
+  },
+  accountActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
   aboutCard: {
     padding: Spacing.three,

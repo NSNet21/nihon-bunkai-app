@@ -1,5 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
 
@@ -48,7 +49,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setEntitledSkus(new Set());
       return;
     }
-    void loadEntitlements(session.user.id);
+    const userId = session.user.id;
+    void loadEntitlements(userId);
+
+    /* Layer 1: Realtime subscription — instant unlock when webhook grants new SKU */
+    const channel = supabase
+      .channel(`entitlements:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'entitlements',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => void loadEntitlements(userId),
+      )
+      .subscribe();
+
+    /* Layer 2: On-focus refetch — safety net when Realtime missed an event */
+    const onFocus = () => void loadEntitlements(userId);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus);
+    }
+
+    return () => {
+      void supabase.removeChannel(channel);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus);
+      }
+    };
   }, [session?.user]);
 
   async function loadEntitlements(userId: string) {

@@ -6,6 +6,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider } from '@/context/auth';
 import { ThemeProvider as AppThemeProvider } from '@/context/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { requestPersistentStorage } from '@/lib/persistent-storage';
 
 function ThemedRoot() {
   const colorScheme = useColorScheme();
@@ -15,6 +16,12 @@ function ThemedRoot() {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     document.documentElement.setAttribute('data-theme', colorScheme === 'dark' ? 'dark' : 'light');
   }, [colorScheme]);
+
+  /* Ask browser to keep IndexedDB cache (paid content) across storage pressure. */
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    void requestPersistentStorage();
+  }, []);
 
   return (
     <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

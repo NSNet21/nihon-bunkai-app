@@ -279,9 +279,9 @@ function ProductCard({
               </View>
             )}
             {isOwned && (
-              <View style={[styles.tag, styles.ownedTag, { borderColor: Accent.strong, backgroundColor: Accent.base }]}>
-                <FiCheckCircle size={10} color="#ffffff" strokeWidth={2.5} />
-                <ThemedText type="small" style={[styles.tagText, { color: '#ffffff', fontWeight: '700' }]}>
+              <View style={[styles.tag, { borderColor: Accent.base, backgroundColor: Accent.bg }]}>
+                <FiCheck size={9} color={Accent.base} />
+                <ThemedText type="small" style={[styles.tagText, { color: Accent.base }]}>
                   OWNED
                 </ThemedText>
               </View>
@@ -455,10 +455,18 @@ function DownloadSection({ skuId, colors }: { skuId: string; colors: typeof Colo
     );
   }
 
-  // idle — give user explicit choice between in-app cache (default) or in-app + save to device
+  // idle — first time after purchase: celebrate the unlock, then offer choice
   return (
-    <View style={{ gap: Spacing.two }}>
-      <DownloadButton onPress={() => startDownload()} label="เก็บในแอป" />
+    <Animated.View
+      entering={FadeIn.duration(280).easing(Easing.bezier(0.4, 0, 0.2, 1))}
+      style={{ gap: Spacing.two }}>
+      <View style={styles.unlockedHint}>
+        <FiCheckCircle size={12} color={Accent.base} strokeWidth={2.5} />
+        <ThemedText type="small" style={{ color: Accent.base, fontWeight: '600' }}>
+          ปลดล็อกแล้ว · พร้อมดาวน์โหลด
+        </ThemedText>
+      </View>
+      <PrimaryDownloadButton onPress={() => startDownload()} />
       <Pressable
         onPress={() => startDownload({ saveToDevice: true })}
         style={({ pressed }) => [styles.reDownloadLink, pressed && { opacity: 0.7 }]}>
@@ -467,7 +475,31 @@ function DownloadSection({ skuId, colors }: { skuId: string; colors: typeof Colo
           หรือ บันทึกลงเครื่องด้วย
         </ThemedText>
       </Pressable>
-    </View>
+    </Animated.View>
+  );
+}
+
+function PrimaryDownloadButton({ onPress }: { onPress: () => void }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        style={({ pressed }) => [
+          styles.primaryDownloadBtn,
+          { backgroundColor: Accent.base, opacity: pressed ? 0.92 : 1 },
+        ]}>
+        <FiDownloadCloud size={18} color="#fff" strokeWidth={2.2} />
+        <View style={{ alignItems: 'center' }}>
+          <ThemedText type="defaultSemiBold" style={styles.primaryDownloadBtnLabel}>
+            ดาวน์โหลด · เปิดในแอป
+          </ThemedText>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -607,15 +639,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     borderWidth: 1,
   },
-  ownedTag: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    shadowColor: '#e0202c',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 2,
-  },
   tagText: { fontSize: 9, letterSpacing: 0.8 },
   priceCol: { alignItems: 'flex-end', gap: 1 },
   wasPrice: { textDecorationLine: 'line-through' },
@@ -649,6 +672,31 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
   },
   buyBtnLabel: { color: '#fff' },
+  unlockedHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    alignSelf: 'flex-start',
+  },
+  primaryDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.three + 2,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radii.sm,
+    shadowColor: '#e0202c',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.30,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  primaryDownloadBtnLabel: {
+    color: '#fff',
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
   progressTrack: {
     height: 6,
     borderRadius: 1,

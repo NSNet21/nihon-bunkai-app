@@ -5,7 +5,7 @@ import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Rating } from 'ts-fsrs';
 
-import { Flashcard } from '@/components/flashcard';
+import { Flashcard, type ColumnVisibility } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -21,6 +21,8 @@ export default function StudyScreen() {
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [results, setResults] = useState<Rating[]>([]);
+  /* Column visibility — session-level (resets on deck switch / refresh) */
+  const [visibility, setVisibility] = useState<ColumnVisibility>({ d: true, p: true, e: true });
 
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
@@ -90,6 +92,8 @@ export default function StudyScreen() {
                     entry={current}
                     isFlipped={isFlipped}
                     onFlip={() => setIsFlipped((f) => !f)}
+                    visibility={visibility}
+                    onVisibilityChange={setVisibility}
                   />
                 </View>
                 <SideRail

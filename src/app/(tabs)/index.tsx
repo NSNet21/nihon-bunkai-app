@@ -18,8 +18,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAllDecks } from '@/hooks/use-decks';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { decks } from '@/data/free-tier';
 import type { Deck } from '@/data/types';
 
 const SCROLL_TOP_THRESHOLD = 400;
@@ -90,21 +90,19 @@ export default function BrowseScreen() {
   const listRef = useRef<FlashList<Row>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
-  /* Pre-compute all group keys once (decks list is static). */
+  const { decks } = useAllDecks();
+
+  /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
     const lvls = new Set<string>();
     const cats = new Set<string>();
     for (const d of decks) {
       const lvl = d.level ?? 'GLOSSARY';
-      if (!d.isFree) {
-        lvls.add('LOCKED');
-        continue;
-      }
       lvls.add(lvl);
       if (d.type !== 'glossary') cats.add(`${lvl}/${d.type}`);
     }
     return { allLevelKeys: Array.from(lvls), allCategoryKeys: Array.from(cats) };
-  }, []);
+  }, [decks]);
 
   function toggleLevel(level: string) {
     setClosedLevels((prev) => {
@@ -136,7 +134,7 @@ export default function BrowseScreen() {
 
   const rows = useMemo(
     () => buildRows(decks, closedLevels, closedCategories),
-    [closedLevels, closedCategories],
+    [decks, closedLevels, closedCategories],
   );
   const totalFreeEntries = decks
     .filter((d) => d.isFree)
@@ -348,18 +346,14 @@ function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const router = useRouter();
-  const { status, entitlements } = useAuth();
 
-  const owned = deck.isFree || entitlements.has(deck.id);
-  const showLock = !deck.isFree && !owned;
+  // Presence in list = ownership (free embedded OR paid imported via IndexedDB).
+  const owned = true;
+  const showLock = false;
 
   const subtitle = deck.isFree
     ? `${deck.entryCount} cards`
-    : owned
-      ? 'ปลดล็อกแล้ว · พร้อมเรียน'
-      : status === 'signed-in'
-        ? 'ซื้อใน landing page'
-        : 'เข้าสู่ระบบเพื่อปลดล็อก';
+    : `${deck.entryCount} cards · ปลดล็อกแล้ว`;
 
   function onPress() {
     if (!owned) {

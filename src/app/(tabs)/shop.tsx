@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiCheck, FiExternalLink, FiFileText, FiGrid, FiList, FiSmartphone, FiZap } from 'react-icons/fi';
+import { FiCheck, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
@@ -13,6 +13,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { bundles, buyUrl, LANDING_URL, perLevel, type Product } from '@/data/products';
+import { getZipsForSku } from '@/data/sku-zips';
+import { downloadSku, type ProgressEvent } from '@/lib/download';
+import { importZipsForSku } from '@/lib/deck-import';
+import { hasAllZipsForSku, saveZipToDevice } from '@/lib/download-store';
 
 const SCROLL_TOP_THRESHOLD = 400;
 
@@ -30,7 +34,7 @@ export default function ShopScreen() {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
-  const { status } = useAuth();
+  const { status, entitledSkus } = useAuth();
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -244,6 +248,8 @@ function ProductCard({
 }) {
   const isFree = product.price === 0;
   const isStarter = product.slug === 'n5-starter';
+  const { entitledSkus } = useAuth();
+  const isOwned = product.grantsApp && entitledSkus.has(product.slug);
 
   return (
     <ThemedView
@@ -269,6 +275,14 @@ function ProductCard({
                 <FiFileText size={9} color={colors.textSecondary} />
                 <ThemedText type="small" style={[styles.tagText, { color: colors.textSecondary }]}>
                   PDF
+                </ThemedText>
+              </View>
+            )}
+            {isOwned && (
+              <View style={[styles.tag, { borderColor: Accent.base, backgroundColor: Accent.bg }]}>
+                <FiCheck size={9} color={Accent.base} />
+                <ThemedText type="small" style={[styles.tagText, { color: Accent.base }]}>
+                  OWNED
                 </ThemedText>
               </View>
             )}
@@ -303,10 +317,177 @@ function ProductCard({
             ใน Browse แล้ว · พร้อมเรียน
           </ThemedText>
         </View>
+      ) : isOwned ? (
+        <DownloadSection skuId={product.slug} colors={colors} />
       ) : (
         <BuyButton onPress={() => openExternal(buyUrl(product.slug))} />
       )}
     </ThemedView>
+  );
+}
+
+type DownloadState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'cached' }
+  | { kind: 'downloading'; loaded: number; total: number; fileIndex: number; fileCount: number }
+  | { kind: 'error'; message: string };
+
+function DownloadSection({ skuId, colors }: { skuId: string; colors: typeof Colors.light }) {
+  const [state, setState] = useState<DownloadState>({ kind: 'checking' });
+  const [saveAfter, setSaveAfter] = useState(false);
+  const zips = getZipsForSku(skuId);
+
+  useEffect(() => {
+    let cancelled = false;
+    void hasAllZipsForSku(skuId, zips).then(async (isCached) => {
+      if (cancelled) return;
+      if (isCached) {
+        // Safety net: zip is cached from a prior version that didn't parse decks yet
+        // (e.g., upgraded after Step 3b). Re-run import — fast (~50-200ms per zip).
+        try {
+          await importZipsForSku(skuId, zips);
+        } catch (e) {
+          console.warn('[shop] re-import failed', e);
+        }
+        if (!cancelled) setState({ kind: 'cached' });
+      } else {
+        setState({ kind: 'idle' });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [skuId, zips]);
+
+  async function startDownload(opts?: { saveToDevice?: boolean }) {
+    setSaveAfter(opts?.saveToDevice === true);
+    setState({ kind: 'downloading', loaded: 0, total: 0, fileIndex: 0, fileCount: zips.length });
+    const result = await downloadSku(skuId, (e: ProgressEvent) => {
+      if (e.kind === 'file-progress') {
+        setState({
+          kind: 'downloading',
+          loaded: e.loaded,
+          total: e.total,
+          fileIndex: e.index,
+          fileCount: e.count,
+        });
+      }
+    });
+    if (result.ok) {
+      setState({ kind: 'cached' });
+      if (opts?.saveToDevice) await saveAllToDevice();
+    } else {
+      setState({ kind: 'error', message: result.error });
+    }
+  }
+
+  async function saveAllToDevice() {
+    for (const z of zips) {
+      await saveZipToDevice(z);
+      // Tiny gap so the browser shows separate save prompts cleanly
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+
+  if (state.kind === 'checking') {
+    return (
+      <View style={[styles.actionRow, { backgroundColor: colors.background }]}>
+        <ThemedText type="small" themeColor="textSecondary">กำลังตรวจสอบ…</ThemedText>
+      </View>
+    );
+  }
+
+  if (state.kind === 'cached') {
+    const saveLabel = zips.length > 1 ? `บันทึก ${zips.length} ไฟล์ลงเครื่อง` : 'บันทึก .zip ลงเครื่อง';
+    return (
+      <View style={{ gap: Spacing.two }}>
+        <View style={[styles.actionRow, { backgroundColor: Accent.bg }]}>
+          <FiCheck size={14} color={Accent.base} />
+          <ThemedText type="small" style={{ color: Accent.base }}>
+            ดาวน์โหลดแล้ว · พร้อมใช้ในแอป
+          </ThemedText>
+        </View>
+        <View style={styles.cachedActionsRow}>
+          <Pressable
+            onPress={saveAllToDevice}
+            style={({ pressed }) => [styles.reDownloadLink, pressed && { opacity: 0.7 }]}>
+            <FiHardDrive size={11} color={colors.textSecondary} />
+            <ThemedText type="small" themeColor="textSecondary">{saveLabel}</ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => startDownload()}
+            style={({ pressed }) => [styles.reDownloadLink, pressed && { opacity: 0.7 }]}>
+            <FiRefreshCw size={11} color={colors.textSecondary} />
+            <ThemedText type="small" themeColor="textSecondary">ดาวน์โหลดซ้ำ</ThemedText>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (state.kind === 'downloading') {
+    const pct = state.total > 0 ? Math.round((state.loaded / state.total) * 100) : 0;
+    return (
+      <View style={{ gap: Spacing.two }}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: Accent.base }]} />
+        </View>
+        <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 11 }}>
+          {saveAfter ? 'ดาวน์โหลด + บันทึกลงเครื่อง' : 'ดาวน์โหลด'} · ไฟล์ {state.fileIndex + 1}/{state.fileCount} · {pct}%
+        </ThemedText>
+      </View>
+    );
+  }
+
+  if (state.kind === 'error') {
+    return (
+      <View style={{ gap: Spacing.two }}>
+        <View style={[styles.actionRow, { backgroundColor: colors.background }]}>
+          <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 11 }}>
+            ❌ {state.message}
+          </ThemedText>
+        </View>
+        <DownloadButton onPress={() => startDownload()} label="ลองอีกครั้ง" />
+      </View>
+    );
+  }
+
+  // idle — give user explicit choice between in-app cache (default) or in-app + save to device
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <DownloadButton onPress={() => startDownload()} label="เก็บในแอป" />
+      <Pressable
+        onPress={() => startDownload({ saveToDevice: true })}
+        style={({ pressed }) => [styles.reDownloadLink, pressed && { opacity: 0.7 }]}>
+        <FiHardDrive size={11} color={colors.textSecondary} />
+        <ThemedText type="small" themeColor="textSecondary">
+          หรือ บันทึกลงเครื่องด้วย
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+function DownloadButton({ onPress, label }: { onPress: () => void; label?: string }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        style={({ pressed }) => [
+          styles.buyBtn,
+          { backgroundColor: Accent.base, opacity: pressed ? 0.88 : 1 },
+        ]}>
+        <FiDownload size={14} color="#fff" />
+        <ThemedText type="defaultSemiBold" style={styles.buyBtnLabel}>
+          {label ?? 'ดาวน์โหลด'}
+        </ThemedText>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -447,6 +628,23 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
   },
   buyBtnLabel: { color: '#fff' },
+  progressTrack: {
+    height: 6,
+    borderRadius: 1,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 1,
+  },
+  reDownloadLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingVertical: Spacing.one,
+    alignSelf: 'flex-start',
+  },
   landingLink: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -9,7 +9,10 @@ type AuthContextValue = {
   status: AuthStatus;
   session: Session | null;
   user: User | null;
-  entitlements: Set<string>;
+  /** Free-pack ownership (pack_id) — embedded free decks granted on signup. */
+  entitledPacks: Set<string>;
+  /** Paid-SKU ownership (sku_id) — Payhip purchases, drives Shop Download buttons. */
+  entitledSkus: Set<string>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirm: boolean }>;
@@ -22,7 +25,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
-  const [entitlements, setEntitlements] = useState<Set<string>>(new Set());
+  const [entitledPacks, setEntitledPacks] = useState<Set<string>>(new Set());
+  const [entitledSkus, setEntitledSkus] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -40,7 +44,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!session?.user) {
-      setEntitlements(new Set());
+      setEntitledPacks(new Set());
+      setEntitledSkus(new Set());
       return;
     }
     void loadEntitlements(session.user.id);
@@ -49,13 +54,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function loadEntitlements(userId: string) {
     const { data, error } = await supabase
       .from('entitlements')
-      .select('pack_id')
+      .select('pack_id, sku_id')
       .eq('user_id', userId);
     if (error) {
       console.warn('[auth] loadEntitlements failed', error.message);
       return;
     }
-    setEntitlements(new Set((data ?? []).map((r) => r.pack_id)));
+    const packs = new Set<string>();
+    const skus = new Set<string>();
+    for (const row of data ?? []) {
+      if (row.pack_id) packs.add(row.pack_id);
+      if (row.sku_id) skus.add(row.sku_id);
+    }
+    setEntitledPacks(packs);
+    setEntitledSkus(skus);
   }
 
   const value: AuthContextValue = useMemo(
@@ -63,7 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status,
       session,
       user: session?.user ?? null,
-      entitlements,
+      entitledPacks,
+      entitledSkus,
       async signInWithMagicLink(email) {
         const redirectTo =
           typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
@@ -92,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) await loadEntitlements(session.user.id);
       },
     }),
-    [status, session, entitlements],
+    [status, session, entitledPacks, entitledSkus],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -12,7 +12,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 export default function SettingsScreen() {
-  const { status, user, entitlements, signOut } = useAuth();
+  const { status, user, entitledPacks, entitledSkus, signOut } = useAuth();
+  const entitlementCount = entitledPacks.size + entitledSkus.size;
 
   return (
     <ThemedView style={styles.container}>
@@ -32,7 +33,7 @@ export default function SettingsScreen() {
             <AccountCard
               status={status}
               email={user?.email}
-              entitlementCount={entitlements.size}
+              entitlementCount={entitlementCount}
               onSignOut={signOut}
             />
           </View>

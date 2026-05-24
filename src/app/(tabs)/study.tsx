@@ -1,5 +1,5 @@
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,12 +11,28 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { decks as sampleDecks, entriesForDeck } from '@/data/free-tier';
+import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
+import type { Entry } from '@/data/types';
 
 export default function StudyScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
-  const deck = deckId ? sampleDecks.find((d) => d.id === deckId) : undefined;
-  const entries = deckId ? entriesForDeck(deckId) : [];
+  const { decks: allDecks } = useAllDecks();
+  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const [entries, setEntries] = useState<Entry[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!deckId) {
+      setEntries([]);
+      return;
+    }
+    void entriesForDeckAsync(deckId).then((rows) => {
+      if (!cancelled) setEntries(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [deckId]);
 
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);

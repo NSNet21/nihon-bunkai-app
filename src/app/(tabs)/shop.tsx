@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
+import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiHelpCircle, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
@@ -20,6 +20,8 @@ import { importZipsForSku } from '@/lib/deck-import';
 import { hasAllZipsForSku, saveZipToDevice } from '@/lib/download-store';
 
 const SCROLL_TOP_THRESHOLD = 400;
+const SUPPORT_EMAIL = 'hi@nihon-bunkai.com';
+const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('ซื้อแล้วแต่ไม่เห็นในแอป')}&body=${encodeURIComponent('สวัสดีครับ\n\nเลขที่ออเดอร์ Payhip: \nEmail ที่ใช้ซื้อ: \nสินค้าที่ซื้อ: \nEmail ในแอปนี้: \n\nรายละเอียดเพิ่มเติม:\n')}`;
 
 function openExternal(url: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -116,12 +118,26 @@ export default function ShopScreen() {
             </View>
           </View>
 
-          <Pressable onPress={() => openExternal(LANDING_URL)} style={styles.landingLink}>
-            <FiExternalLink size={14} color={colors.textSecondary} />
-            <ThemedText type="small" themeColor="textSecondary">
-              ดูเต็มที่ landing page
-            </ThemedText>
-          </Pressable>
+          <View style={styles.footerLinks}>
+            <Pressable onPress={() => openExternal(LANDING_URL)} style={styles.landingLink}>
+              <FiExternalLink size={14} color={colors.textSecondary} />
+              <ThemedText type="small" themeColor="textSecondary">
+                ดูเต็มที่ landing page
+              </ThemedText>
+            </Pressable>
+            <Pressable onPress={() => openExternal(PAYHIP_ACCOUNT_URL)} style={styles.landingLink}>
+              <FiFileText size={14} color={colors.textSecondary} />
+              <ThemedText type="small" themeColor="textSecondary">
+                ตรวจสอบการซื้อที่ Payhip · My Purchases
+              </ThemedText>
+            </Pressable>
+            <Pressable onPress={() => openExternal(SUPPORT_MAILTO)} style={styles.landingLink}>
+              <FiHelpCircle size={14} color={colors.textSecondary} />
+              <ThemedText type="small" themeColor="textSecondary">
+                ซื้อแล้วแต่ไม่เห็น? · ติดต่อเรา
+              </ThemedText>
+            </Pressable>
+          </View>
          </View>
         </ScrollView>
       </SafeAreaView>
@@ -771,6 +787,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.two,
     paddingVertical: Spacing.three,
+  },
+  footerLinks: {
+    flexDirection: 'column',
+    gap: Spacing.one,
     marginTop: Spacing.four,
   },
 });

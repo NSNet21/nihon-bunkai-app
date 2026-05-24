@@ -43,3 +43,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Supabase CLI cache + link state (project_id is in linked-project.json, not for git)
+supabase/.temp/
+supabase/.branches/

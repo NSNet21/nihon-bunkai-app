@@ -1,6 +1,6 @@
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLock } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
@@ -20,6 +21,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { decks } from '@/data/free-tier';
 import type { Deck } from '@/data/types';
+
+const SCROLL_TOP_THRESHOLD = 400;
 
 type Row =
   | { kind: 'levelHeader';    title: string; key: string; level: string; isOpen: boolean; childCount: number }
@@ -84,6 +87,8 @@ export default function BrowseScreen() {
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
+  const listRef = useRef<FlashList<Row>>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   /* Pre-compute all group keys once (decks list is static). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
@@ -142,9 +147,18 @@ export default function BrowseScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<Row>
+          ref={listRef}
           data={rows}
           keyExtractor={(item) => item.key}
           getItemType={(item) => item.kind}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y;
+            setShowScrollTop((prev) => {
+              const next = y > SCROLL_TOP_THRESHOLD;
+              return prev === next ? prev : next;
+            });
+          }}
+          scrollEventThrottle={100}
           ListHeaderComponent={
             <View style={styles.headerWrap}>
               <ThemedText type="title">Browse</ThemedText>
@@ -183,6 +197,10 @@ export default function BrowseScreen() {
           contentContainerStyle={styles.listContent}
         />
       </SafeAreaView>
+      <ScrollToTop
+        visible={showScrollTop}
+        onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
+      />
     </ThemedView>
   );
 }

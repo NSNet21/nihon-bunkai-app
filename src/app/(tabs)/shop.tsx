@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { FiCheck, FiExternalLink, FiFileText, FiGrid, FiList, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
+import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
@@ -12,6 +13,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { bundles, buyUrl, LANDING_URL, perLevel, type Product } from '@/data/products';
+
+const SCROLL_TOP_THRESHOLD = 400;
 
 function openExternal(url: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -29,11 +32,24 @@ export default function ShopScreen() {
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
   const { status } = useAuth();
   const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollOuter}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollOuter}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y;
+            setShowScrollTop((prev) => {
+              const next = y > SCROLL_TOP_THRESHOLD;
+              return prev === next ? prev : next;
+            });
+          }}
+          scrollEventThrottle={100}>
          <View style={styles.scrollInner}>
           <View style={styles.header}>
             <View style={styles.headerTop}>
@@ -104,6 +120,10 @@ export default function ShopScreen() {
          </View>
         </ScrollView>
       </SafeAreaView>
+      <ScrollToTop
+        visible={showScrollTop}
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+      />
     </ThemedView>
   );
 }

@@ -21,6 +21,11 @@ export default function StudyScreen() {
   const [entries, setEntries] = useState<Entry[]>([]);
 
   useEffect(() => {
+    // Reset session state on deck switch — fresh front-card start every time.
+    setIndex(0);
+    setIsFlipped(false);
+    setResults([]);
+
     let cancelled = false;
     if (!deckId) {
       setEntries([]);

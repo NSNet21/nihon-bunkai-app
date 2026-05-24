@@ -15,7 +15,7 @@ import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
 
 export default function StudyScreen() {
-  const { deckId } = useLocalSearchParams<{ deckId?: string }>();
+  const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -32,12 +32,18 @@ export default function StudyScreen() {
       return;
     }
     void entriesForDeckAsync(deckId).then((rows) => {
-      if (!cancelled) setEntries(rows);
+      if (cancelled) return;
+      setEntries(rows);
+      // Jump to entryId if provided (from Search tap-through).
+      if (entryId) {
+        const jumpTo = rows.findIndex((r) => r.id === entryId);
+        if (jumpTo >= 0) setIndex(jumpTo);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [deckId]);
+  }, [deckId, entryId]);
 
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);

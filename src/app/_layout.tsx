@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { SearchShortcut } from '@/components/search-shortcut';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/context/auth';
 import { ThemeProvider as AppThemeProvider } from '@/context/theme';
@@ -27,6 +28,7 @@ function ThemedRoot() {
   return (
     <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
+      <SearchShortcut />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />

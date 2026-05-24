@@ -1,0 +1,62 @@
+/**
+ * Search hook — owns the global search index across free + paid decks.
+ *
+ * Rebuilds when:
+ *   - free deck list is ready (mount)
+ *   - paid decks change (DECKS_IMPORTED_EVENT / focus — bubbled through useAllDecks)
+ *
+ * Index is held in a ref + a "ready" flag so consumers don't re-render
+ * while it's still loading.
+ */
+
+import Fuse from 'fuse.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { buildIndex, search, toSearchable, type SearchResult, type SearchableEntry } from '@/lib/search-index';
+
+interface UseSearchIndex {
+  ready: boolean;
+  totalEntries: number;
+  run: (query: string, limit?: number) => SearchResult[];
+}
+
+export function useSearchIndex(): UseSearchIndex {
+  const { decks, loading: decksLoading } = useAllDecks();
+  const fuseRef = useRef<Fuse<SearchableEntry> | null>(null);
+  const [ready, setReady] = useState(false);
+  const [totalEntries, setTotalEntries] = useState(0);
+
+  /* Stable join of deck IDs — rebuild trigger. */
+  const deckKey = useMemo(() => decks.map((d) => d.id).sort().join('|'), [decks]);
+
+  useEffect(() => {
+    if (decksLoading) return;
+    let cancelled = false;
+
+    async function build() {
+      setReady(false);
+      const flat: SearchableEntry[] = [];
+      for (const deck of decks) {
+        const entries = await entriesForDeckAsync(deck.id);
+        for (const e of entries) {
+          flat.push(toSearchable(e, deck.id, deck.title));
+        }
+      }
+      if (cancelled) return;
+      fuseRef.current = buildIndex(flat);
+      setTotalEntries(flat.length);
+      setReady(true);
+    }
+
+    void build();
+    return () => { cancelled = true; };
+  }, [deckKey, decksLoading]);
+
+  const run = useCallback((query: string, limit = 50): SearchResult[] => {
+    if (!fuseRef.current) return [];
+    return search(fuseRef.current, query, limit);
+  }, []);
+
+  return { ready, totalEntries, run };
+}

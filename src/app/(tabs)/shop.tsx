@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiCheck, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
+import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
@@ -279,9 +279,9 @@ function ProductCard({
               </View>
             )}
             {isOwned && (
-              <View style={[styles.tag, { borderColor: Accent.base, backgroundColor: Accent.bg }]}>
-                <FiCheck size={9} color={Accent.base} />
-                <ThemedText type="small" style={[styles.tagText, { color: Accent.base }]}>
+              <View style={[styles.tag, styles.ownedTag, { borderColor: Accent.strong, backgroundColor: Accent.base }]}>
+                <FiCheckCircle size={10} color="#ffffff" strokeWidth={2.5} />
+                <ThemedText type="small" style={[styles.tagText, { color: '#ffffff', fontWeight: '700' }]}>
                   OWNED
                 </ThemedText>
               </View>
@@ -402,12 +402,14 @@ function DownloadSection({ skuId, colors }: { skuId: string; colors: typeof Colo
     const saveLabel = zips.length > 1 ? `บันทึก ${zips.length} ไฟล์ลงเครื่อง` : 'บันทึก .zip ลงเครื่อง';
     return (
       <View style={{ gap: Spacing.two }}>
-        <View style={[styles.actionRow, { backgroundColor: Accent.bg }]}>
-          <FiCheck size={14} color={Accent.base} />
-          <ThemedText type="small" style={{ color: Accent.base }}>
+        <Animated.View
+          entering={FadeIn.duration(280).easing(Easing.bezier(0.4, 0, 0.2, 1))}
+          style={[styles.actionRow, styles.cachedBadge, { backgroundColor: Accent.bg, borderColor: Accent.soft }]}>
+          <FiCheckCircle size={16} color={Accent.base} strokeWidth={2.5} />
+          <ThemedText type="defaultSemiBold" style={{ color: Accent.base, fontSize: 13 }}>
             ดาวน์โหลดแล้ว · พร้อมใช้ในแอป
           </ThemedText>
-        </View>
+        </Animated.View>
         <View style={styles.cachedActionsRow}>
           <Pressable
             onPress={saveAllToDevice}
@@ -605,6 +607,15 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     borderWidth: 1,
   },
+  ownedTag: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    shadowColor: '#e0202c',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   tagText: { fontSize: 9, letterSpacing: 0.8 },
   priceCol: { alignItems: 'flex-end', gap: 1 },
   wasPrice: { textDecorationLine: 'line-through' },
@@ -617,6 +628,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
     alignSelf: 'flex-start',
+  },
+  cachedBadge: {
+    borderWidth: 1,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    shadowColor: '#e0202c',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
   buyBtn: {
     flexDirection: 'row',
@@ -644,6 +665,11 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingVertical: Spacing.one,
     alignSelf: 'flex-start',
+  },
+  cachedActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.four,
   },
   landingLink: {
     flexDirection: 'row',

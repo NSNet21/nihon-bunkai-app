@@ -50,8 +50,13 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
   }));
 
   function toggleColumn(key: keyof ColumnVisibility) {
-    onVisibilityChange({ ...visibility, [key]: !visibility[key] });
+    const next = { ...visibility, [key]: !visibility[key] };
+    /* Always keep at least one column visible — no-op if this would hide all */
+    if (!next.d && !next.p && !next.e) return;
+    onVisibilityChange(next);
   }
+
+  const visibleCount = (visibility.d ? 1 : 0) + (visibility.p ? 1 : 0) + (visibility.e ? 1 : 0);
 
   return (
     <>
@@ -121,11 +126,6 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
                   <Markdown style={markdownStyles(colors)}>{entry.e}</Markdown>
                 </View>
               )}
-              {!visibility.d && !visibility.e && !visibility.p && (
-                <ThemedText type="small" themeColor="textSecondary" style={styles.allHiddenHint}>
-                  ทุกคอลัมน์ถูกซ่อน — แตะ icon ↗ เพื่อเลือกที่จะแสดง
-                </ThemedText>
-              )}
             </ScrollView>
           </Animated.View>
         </View>
@@ -137,6 +137,7 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
         visibility={visibility}
         onToggle={toggleColumn}
         colors={colors}
+        visibleCount={visibleCount}
       />
     </>
   );
@@ -150,13 +151,17 @@ function VisibilityPopup({
   visibility,
   onToggle,
   colors,
+  visibleCount,
 }: {
   visible: boolean;
   onClose: () => void;
   visibility: ColumnVisibility;
   onToggle: (k: keyof ColumnVisibility) => void;
   colors: typeof Colors.light;
+  visibleCount: number;
 }) {
+  /* When only 1 column is visible, that one is locked (can't uncheck → can't hide all) */
+  const isLocked = (checked: boolean) => checked && visibleCount === 1;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={popupStyles.overlay} onPress={onClose}>
@@ -178,6 +183,7 @@ function VisibilityPopup({
           <View style={popupStyles.rows}>
             <CheckRow
               checked={visibility.d}
+              locked={isLocked(visibility.d)}
               onPress={() => onToggle('d')}
               colors={colors}
               label="D · ความหมาย (Thai)"
@@ -185,6 +191,7 @@ function VisibilityPopup({
             />
             <CheckRow
               checked={visibility.p}
+              locked={isLocked(visibility.p)}
               onPress={() => onToggle('p')}
               colors={colors}
               label="P · คำอ่าน (Pronunciation)"
@@ -192,6 +199,7 @@ function VisibilityPopup({
             />
             <CheckRow
               checked={visibility.e}
+              locked={isLocked(visibility.e)}
               onPress={() => onToggle('e')}
               colors={colors}
               label="E · คำอธิบาย (Explanation)"
@@ -210,31 +218,39 @@ function VisibilityPopup({
 
 function CheckRow({
   checked,
+  locked,
   onPress,
   colors,
   label,
   hint,
 }: {
   checked: boolean;
+  locked: boolean;
   onPress: () => void;
   colors: typeof Colors.light;
   label: string;
   hint: string;
 }) {
   const Icon = checked ? FiCheckSquare : FiSquare;
+  const iconColor = locked ? colors.textHint : checked ? Accent.base : colors.text;
   return (
     <Pressable
       onPress={onPress}
+      disabled={locked}
       style={({ pressed }) => [
         popupStyles.row,
-        { borderColor: colors.border, backgroundColor: checked ? Accent.bg : 'transparent' },
-        pressed && { opacity: 0.85 },
+        {
+          borderColor: colors.border,
+          backgroundColor: locked ? colors.backgroundSelected : checked ? Accent.bg : 'transparent',
+        },
+        pressed && !locked && { opacity: 0.85 },
+        locked && { opacity: 0.85 },
       ]}>
-      <Icon size={22} color={checked ? Accent.base : colors.text} strokeWidth={2} />
+      <Icon size={22} color={iconColor} strokeWidth={2} />
       <View style={{ flex: 1, gap: 2 }}>
         <ThemedText type="defaultSemiBold">{label}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          {hint}
+          {locked ? 'ล็อกไว้ — ต้องมีอย่างน้อย 1 คอลัมน์เปิด' : hint}
         </ThemedText>
       </View>
     </Pressable>

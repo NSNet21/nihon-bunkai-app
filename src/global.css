@@ -50,6 +50,24 @@
   --rate-easy-fg:  #5a7a4a; --rate-easy-bg:  #e0e8d4;
 }
 
+/* Editorial scrollbar — crimson accent stripe, sharp edges (no radius).
+   Matches Nihon Bunkai brand: right-edge accent feel from prototype HTML. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--surface-2);
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track {
+  background: var(--surface-2);
+  border-left: 1px solid var(--border);
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 0;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); }
+*::-webkit-scrollbar-corner { background: var(--surface-2); }
+
 /* Dark (Editorial warm-charcoal) — toggle */
 [data-theme="dark"] {
   --bg: #141210;

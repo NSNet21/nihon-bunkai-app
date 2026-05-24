@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -61,10 +61,11 @@ export function Flashcard({ entry, isFlipped, onFlip }: Props) {
         <Animated.View
           style={[
             styles.face,
+            styles.faceCenter,
             { backgroundColor: colors.backgroundElement },
             frontStyle,
           ]}>
-          <View style={styles.faceContent}>
+          <View style={styles.frontContent}>
             <ThemedText style={styles.term}>{entry.t}</ThemedText>
             <ThemedText type="default" themeColor="textSecondary" style={styles.pronunciation}>
               {entry.p}
@@ -75,52 +76,59 @@ export function Flashcard({ entry, isFlipped, onFlip }: Props) {
           </View>
         </Animated.View>
 
-        {/* Back face */}
+        {/* Back face — scrollable when content > card height */}
         <Animated.View
           style={[
             styles.face,
             { backgroundColor: colors.backgroundElement },
             backStyle,
           ]}>
-          <View style={styles.faceContent}>
+          <ScrollView
+            style={styles.backScroll}
+            contentContainerStyle={styles.backScrollContent}
+            showsVerticalScrollIndicator={true}>
             <ThemedText type="title" style={styles.meaning}>
               {entry.d}
             </ThemedText>
-            <View style={styles.markdownWrap}>
-              <Markdown style={markdownStyles(colors)}>{entry.e}</Markdown>
-            </View>
-          </View>
+            <Markdown style={markdownStyles(colors)}>{entry.e}</Markdown>
+          </ScrollView>
         </Animated.View>
       </View>
     </Pressable>
   );
 }
 
-const CARD_MIN_HEIGHT = 360;
-
 const styles = StyleSheet.create({
-  cardPress: { width: '100%' },
+  cardPress: { width: '100%', flex: 1 },
   pressed: { opacity: 0.95 },
   cardWrapper: {
     width: '100%',
-    minHeight: CARD_MIN_HEIGHT,
+    flex: 1,
+    minHeight: 320,
   },
   face: {
     position: 'absolute',
-    width: '100%',
-    minHeight: CARD_MIN_HEIGHT,
-    padding: Spacing.six,
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
     borderRadius: Radii.md,
     backfaceVisibility: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
   },
-  faceContent: { gap: Spacing.three, alignItems: 'center', justifyContent: 'center' },
+  /* Front uses center justification; back uses ScrollView fill */
+  faceCenter: { justifyContent: 'center', alignItems: 'center', padding: Spacing.six },
+  frontContent: { gap: Spacing.three, alignItems: 'center' },
   term: { fontSize: 64, lineHeight: 80, textAlign: 'center' },
   pronunciation: { fontSize: 18 },
   hint: { opacity: 0.6, marginTop: Spacing.two },
+  backScroll: { flex: 1, alignSelf: 'stretch' },
+  backScrollContent: {
+    padding: Spacing.six,
+    gap: Spacing.three,
+    alignItems: 'stretch',
+  },
   meaning: { textAlign: 'center', marginBottom: Spacing.two },
-  markdownWrap: { alignSelf: 'stretch' },
 });
 
 /* Markdown styles — adapt to active theme */

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { sampleDecks } from '@/data/sample';
+import { decks as sampleDecks } from '@/data/free-tier';
 
 export default function BrowseScreen() {
   return (

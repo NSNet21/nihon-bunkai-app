@@ -1,4 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
@@ -7,6 +9,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function ThemedRoot() {
   const colorScheme = useColorScheme();
+
+  /* Sync React theme → HTML data-theme so CSS variables (scrollbar, markdown) switch. */
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.documentElement.setAttribute('data-theme', colorScheme === 'dark' ? 'dark' : 'light');
+  }, [colorScheme]);
+
   return (
     <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />

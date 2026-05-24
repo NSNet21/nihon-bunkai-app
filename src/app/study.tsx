@@ -11,7 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { entriesForDeck, sampleDecks } from '@/data/sample';
+import { decks as sampleDecks, entriesForDeck } from '@/data/free-tier';
 
 export default function StudyScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
@@ -199,11 +199,11 @@ const styles = StyleSheet.create({
   cardRow: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
     gap: Spacing.two,
   },
-  cardSlot: { flex: 1 },
+  cardSlot: { flex: 1, alignSelf: 'stretch' },
   center: { flex: 1, gap: Spacing.three, alignItems: 'center', justifyContent: 'center' },
   emptyBody: { textAlign: 'center', maxWidth: 360 },
   completeActions: { gap: Spacing.two, marginTop: Spacing.four, alignItems: 'center' },

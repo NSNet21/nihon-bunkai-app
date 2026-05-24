@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/context/auth';
 import { ThemeProvider as AppThemeProvider } from '@/context/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -38,7 +39,9 @@ export default function RootLayout() {
   return (
     <AppThemeProvider>
       <AuthProvider>
-        <ThemedRoot />
+        <ToastProvider>
+          <ThemedRoot />
+        </ToastProvider>
       </AuthProvider>
     </AppThemeProvider>
   );

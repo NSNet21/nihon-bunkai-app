@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiHelpCircle, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
@@ -8,6 +8,7 @@ import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withSpring,
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -22,6 +23,26 @@ import { hasAllZipsForSku, saveZipToDevice } from '@/lib/download-store';
 const SCROLL_TOP_THRESHOLD = 400;
 const SUPPORT_EMAIL = 'hi@nihon-bunkai.com';
 const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('ซื้อแล้วแต่ไม่เห็นในแอป')}&body=${encodeURIComponent('สวัสดีครับ\n\nเลขที่ออเดอร์ Payhip: \nEmail ที่ใช้ซื้อ: \nสินค้าที่ซื้อ: \nEmail ในแอปนี้: \n\nรายละเอียดเพิ่มเติม:\n')}`;
+const BUYING_TIMEOUT_MS = 5 * 60 * 1000; // 5 min auto-revert if no entitlement received
+
+type BuyingState = {
+  startedAt: number;
+  productName: string;
+};
+
+type BuyingContextValue = {
+  buying: Record<string, BuyingState>;
+  startBuying: (slug: string, productName: string) => void;
+  cancelBuying: (slug: string) => void;
+};
+
+const BuyingContext = createContext<BuyingContextValue | null>(null);
+
+function useBuyingContext(): BuyingContextValue {
+  const ctx = useContext(BuyingContext);
+  if (!ctx) throw new Error('useBuyingContext must be used inside <BuyingContext.Provider>');
+  return ctx;
+}
 
 function openExternal(url: string) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -39,10 +60,76 @@ export default function ShopScreen() {
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
   const { status, entitledSkus } = useAuth();
   const router = useRouter();
+  const { showToast } = useToast();
   const scrollRef = useRef<ScrollView>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  // SKUs that the user just clicked "Buy" on — awaiting webhook confirmation
+  const [buying, setBuying] = useState<Record<string, BuyingState>>({});
+  const prevEntitledRef = useRef<Set<string>>(new Set(entitledSkus));
+
+  const startBuying = useCallback((slug: string, productName: string) => {
+    setBuying((prev) => ({ ...prev, [slug]: { startedAt: Date.now(), productName } }));
+    openExternal(buyUrl(slug));
+  }, []);
+
+  const cancelBuying = useCallback((slug: string) => {
+    setBuying((prev) => {
+      const { [slug]: _, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  // Toast on new entitlement (covers Realtime + on-focus + Restore paths uniformly)
+  useEffect(() => {
+    const prev = prevEntitledRef.current;
+    const newlyGranted: string[] = [];
+    for (const sku of entitledSkus) {
+      if (!prev.has(sku)) newlyGranted.push(sku);
+    }
+    if (newlyGranted.length > 0) {
+      for (const sku of newlyGranted) {
+        const pendingMeta = buying[sku];
+        const label = pendingMeta?.productName ?? sku;
+        showToast(`🎉 ซื้อสำเร็จ! ${label} ปลดล็อกแล้ว`, { kind: 'success', durationMs: 4500 });
+      }
+      // Clear buying for granted SKUs
+      setBuying((prev) => {
+        const next = { ...prev };
+        for (const sku of newlyGranted) delete next[sku];
+        return next;
+      });
+    }
+    prevEntitledRef.current = new Set(entitledSkus);
+  }, [entitledSkus, buying, showToast]);
+
+  // Auto-revert buying state after timeout (5 min) if no entitlement arrived
+  useEffect(() => {
+    if (Object.keys(buying).length === 0) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setBuying((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [slug, state] of Object.entries(prev)) {
+          if (now - state.startedAt > BUYING_TIMEOUT_MS) {
+            delete next[slug];
+            changed = true;
+            showToast(
+              `ยังไม่ได้รับข้อมูลการซื้อ ${state.productName} · กด อัพเดทการซื้อ ใน Settings`,
+              { kind: 'info', durationMs: 6000 },
+            );
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 30_000); // poll every 30s
+    return () => clearInterval(interval);
+  }, [buying, showToast]);
+
+  const buyingApi: BuyingContextValue = { buying, startBuying, cancelBuying };
 
   return (
+    <BuyingContext.Provider value={buyingApi}>
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
@@ -146,6 +233,7 @@ export default function ShopScreen() {
         onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
       />
     </ThemedView>
+    </BuyingContext.Provider>
   );
 }
 
@@ -266,10 +354,12 @@ function ProductCard({
   const isFree = product.price === 0;
   const isStarter = product.slug === 'n5-starter';
   const { entitledSkus } = useAuth();
+  const { buying, startBuying, cancelBuying } = useBuyingContext();
   // Ownership includes coverage via bundle SKUs (e.g. Full Bundle covers n4-pdf, n4-csv, n4-bundle).
   const isOwned = !isFree && isSkuOwned(product.slug, entitledSkus);
   const canDownloadInApp = isOwned && product.grantsApp;
   const showPdfHint = isOwned && hasPdfPart(product.slug);
+  const isBuying = !!buying[product.slug];
 
   return (
     <ThemedView
@@ -342,10 +432,62 @@ function ProductCard({
           {canDownloadInApp && <DownloadSection skuId={product.slug} colors={colors} />}
           {showPdfHint && <PdfHint colors={colors} alone={!canDownloadInApp} />}
         </View>
+      ) : isBuying ? (
+        <BuyingPendingBanner
+          productName={product.name}
+          onCancel={() => cancelBuying(product.slug)}
+          onReopen={() => openExternal(buyUrl(product.slug))}
+          colors={colors}
+        />
       ) : (
-        <BuyButton onPress={() => openExternal(buyUrl(product.slug))} />
+        <BuyButton onPress={() => startBuying(product.slug, product.name)} />
       )}
     </ThemedView>
+  );
+}
+
+function BuyingPendingBanner({
+  productName,
+  onCancel,
+  onReopen,
+  colors,
+}: {
+  productName: string;
+  onCancel: () => void;
+  onReopen: () => void;
+  colors: typeof Colors.light;
+}) {
+  return (
+    <Animated.View
+      entering={FadeIn.duration(220).easing(Easing.bezier(0.4, 0, 0.2, 1))}
+      style={{ gap: Spacing.two }}>
+      <View style={[styles.pendingBanner, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+        <Animated.View
+          entering={FadeIn.duration(220)}
+          style={styles.pendingDot} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <ThemedText type="defaultSemiBold" style={{ color: Accent.base, fontSize: 13 }}>
+            กำลังตรวจสอบการซื้อ…
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 11 }}>
+            จ่ายเงินที่ Payhip แล้วกลับมา · จะ unlock ภายในไม่กี่วินาที
+          </ThemedText>
+        </View>
+      </View>
+      <View style={styles.pendingActions}>
+        <Pressable
+          onPress={onReopen}
+          style={({ pressed }) => [styles.reDownloadLink, pressed && { opacity: 0.7 }]}>
+          <FiExternalLink size={11} color={colors.textSecondary} />
+          <ThemedText type="small" themeColor="textSecondary">เปิด Payhip อีกครั้ง</ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={onCancel}
+          style={({ pressed }) => [styles.reDownloadLink, pressed && { opacity: 0.7 }]}>
+          <ThemedText type="small" themeColor="textSecondary">ยกเลิก</ThemedText>
+        </Pressable>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -780,6 +922,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
     borderWidth: 1,
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+  pendingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e0202c',
+  },
+  pendingActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.four,
   },
   landingLink: {
     flexDirection: 'row',

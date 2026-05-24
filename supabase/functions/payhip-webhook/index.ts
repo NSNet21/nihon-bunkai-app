@@ -211,33 +211,18 @@ Deno.serve(async (req) => {
   return jsonResponse({ ok: true, granted, pending });
 });
 
-// ─── Signature verification — try common Payhip patterns ────────────────
+// ─── Signature verification ──────────────────────────────────────────────
+// Per Payhip docs (https://help.payhip.com/article/115-webhooks):
+//   signature = hash('sha256', $apiKey)
+// i.e. plain SHA256 of the API key alone. Static per key. Verifies that
+// the sender knows the API key (not payload integrity — that's Payhip's
+// design, weak but documented).
 
 async function tryVerify(payload: PayhipPayload, apiKey: string): Promise<boolean> {
   const received = (payload.signature || "").toLowerCase();
   if (!received) return false;
-
-  // Pattern A: sha256(id + apiKey) — common transaction-id-based scheme
-  const candidates = [
-    `${payload.id ?? ""}${apiKey}`,
-    `${payload.items?.[0]?.product_permalink ?? ""}${apiKey}`,
-    `${payload.items?.[0]?.product_key ?? ""}${apiKey}`,
-    `${payload.email ?? ""}${apiKey}`,
-    apiKey,
-  ];
-
-  for (const input of candidates) {
-    const computed = await sha256Hex(input);
-    if (computed === received) return true;
-  }
-
-  // Pattern B: HMAC-SHA256 of full body using apiKey as secret
-  try {
-    const hmac = await hmacSha256Hex(JSON.stringify(payload), apiKey);
-    if (hmac === received) return true;
-  } catch { /* noop */ }
-
-  return false;
+  const expected = await sha256Hex(apiKey);
+  return expected === received;
 }
 
 async function sha256Hex(input: string): Promise<string> {

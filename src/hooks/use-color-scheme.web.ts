@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useColorScheme as useRNColorScheme } from 'react-native';
 
+import { useThemeOverride } from '@/context/theme';
+
 /**
- * To support static rendering, this value needs to be re-calculated on the client side for web
+ * Web variant — same override-aware behavior, plus hydration guard to keep
+ * SSR output consistent with client (boilerplate behavior preserved).
  */
 export function useColorScheme() {
   const [hasHydrated, setHasHydrated] = useState(false);
@@ -11,11 +14,10 @@ export function useColorScheme() {
     setHasHydrated(true);
   }, []);
 
-  const colorScheme = useRNColorScheme();
+  const { override } = useThemeOverride();
+  const system = useRNColorScheme();
 
-  if (hasHydrated) {
-    return colorScheme;
-  }
-
-  return 'light';
+  if (!hasHydrated) return 'light';
+  if (override === 'light' || override === 'dark') return override;
+  return system;
 }

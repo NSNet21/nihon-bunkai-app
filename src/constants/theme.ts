@@ -54,20 +54,20 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
-/* FSRS rating semantic — 4 buttons (landing ports 3, "easy" added here).
-   ลืม / ยาก / เข้าใจ / ง่าย */
+/* FSRS rating semantic — 4 buttons. Per design/handoff-app/README:
+   Easy uses brand accent (top mastery = reward color). ลืม / ยาก / เข้าใจ / ง่าย */
 export const RateColors = {
   light: {
     againFg: '#b5604a', againBg: '#f5e8e3',
     hardFg:  '#b58c40', hardBg:  '#f5ecdb',
     goodFg:  '#6f8056', goodBg:  '#ecefe1',
-    easyFg:  '#5a7a4a', easyBg:  '#e0e8d4', // TBD — pending GPT review
+    easyFg:  '#e0202c', easyBg:  'rgba(224, 32, 44, 0.14)',
   },
   dark: {
     againFg: '#ff6855', againBg: 'rgba(181, 96, 74, 0.16)',
     hardFg:  '#e0aa55', hardBg:  'rgba(181, 140, 64, 0.16)',
     goodFg:  '#a8c080', goodBg:  'rgba(168, 192, 128, 0.12)',
-    easyFg:  '#88a868', easyBg:  'rgba(90, 122, 74, 0.16)',
+    easyFg:  '#e0202c', easyBg:  'rgba(224, 32, 44, 0.14)',
   },
 } as const;
 

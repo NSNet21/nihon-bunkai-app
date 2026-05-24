@@ -1,15 +1,24 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
+import { ThemeProvider as AppThemeProvider } from '@/context/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export default function TabLayout() {
+function ThemedRoot() {
   const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
       <AppTabs />
-    </ThemeProvider>
+    </NavThemeProvider>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <AppThemeProvider>
+      <ThemedRoot />
+    </AppThemeProvider>
   );
 }

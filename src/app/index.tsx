@@ -2,7 +2,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiChevronDown, FiChevronRight, FiChevronsDown, FiChevronsUp } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -87,6 +87,23 @@ function buildRows(
 export default function BrowseScreen() {
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
+  const [subsOnly, setSubsOnly] = useState(false);
+
+  /* Pre-compute all group keys once (decks list is static). */
+  const { allLevelKeys, allCategoryKeys } = useMemo(() => {
+    const lvls = new Set<string>();
+    const cats = new Set<string>();
+    for (const d of decks) {
+      const lvl = d.level ?? 'GLOSSARY';
+      if (!d.isFree) {
+        lvls.add('LOCKED');
+        continue;
+      }
+      lvls.add(lvl);
+      if (d.type !== 'glossary') cats.add(`${lvl}/${d.type}`);
+    }
+    return { allLevelKeys: Array.from(lvls), allCategoryKeys: Array.from(cats) };
+  }, []);
 
   function toggleLevel(level: string) {
     setClosedLevels((prev) => {
@@ -106,6 +123,16 @@ export default function BrowseScreen() {
     });
   }
 
+  function expandAll() {
+    if (!subsOnly) setClosedLevels(new Set());
+    setClosedCategories(new Set());
+  }
+
+  function collapseAll() {
+    if (!subsOnly) setClosedLevels(new Set(allLevelKeys));
+    setClosedCategories(new Set(allCategoryKeys));
+  }
+
   const rows = useMemo(
     () => buildRows(decks, closedLevels, closedCategories),
     [closedLevels, closedCategories],
@@ -123,6 +150,12 @@ export default function BrowseScreen() {
           <ThemedText type="small" themeColor="textSecondary">
             {totalFreeEntries} entries · {freePackCount} packs ฟรี · ทักหลังเพื่อปลดล็อกเพิ่ม
           </ThemedText>
+          <Toolbar
+            onExpandAll={expandAll}
+            onCollapseAll={collapseAll}
+            subsOnly={subsOnly}
+            onToggleSubsOnly={() => setSubsOnly((v) => !v)}
+          />
         </View>
         <FlashList<Row>
           data={rows}
@@ -139,6 +172,59 @@ export default function BrowseScreen() {
         />
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function Toolbar({
+  onExpandAll,
+  onCollapseAll,
+  subsOnly,
+  onToggleSubsOnly,
+}: {
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
+  subsOnly: boolean;
+  onToggleSubsOnly: () => void;
+}) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  return (
+    <View style={styles.toolbar}>
+      <Pressable
+        onPress={onExpandAll}
+        style={({ pressed }) => [
+          styles.toolBtn,
+          { borderColor: colors.border },
+          pressed && styles.toolBtnPressed,
+        ]}>
+        <FiChevronsDown size={14} color={colors.text} />
+        <ThemedText type="small" themeColor="textSecondary">ขยาย</ThemedText>
+      </Pressable>
+      <Pressable
+        onPress={onCollapseAll}
+        style={({ pressed }) => [
+          styles.toolBtn,
+          { borderColor: colors.border },
+          pressed && styles.toolBtnPressed,
+        ]}>
+        <FiChevronsUp size={14} color={colors.text} />
+        <ThemedText type="small" themeColor="textSecondary">ย่อ</ThemedText>
+      </Pressable>
+      <Pressable
+        onPress={onToggleSubsOnly}
+        style={({ pressed }) => [
+          styles.toolBtn,
+          {
+            borderColor: subsOnly ? Accent.base : colors.border,
+            backgroundColor: subsOnly ? Accent.bg : 'transparent',
+          },
+          pressed && styles.toolBtnPressed,
+        ]}>
+        <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
+          เฉพาะหมวด
+        </ThemedText>
+      </Pressable>
+    </View>
   );
 }
 
@@ -222,8 +308,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.six + Spacing.four,
     paddingBottom: Spacing.three,
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
+  toolbar: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+    flexWrap: 'wrap',
+  },
+  toolBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+  toolBtnPressed: { opacity: 0.6 },
   listContent: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,

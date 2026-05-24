@@ -1,9 +1,70 @@
+/* NIHON BUNKAI — Companion App web tokens.
+   Ported from landing/src/styles/tokens.css (v3 LOCKED).
+   Native side reads matching values from src/constants/theme.ts. */
+
 :root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+  /* Fonts — multi-script stacks */
+  --ff-jp:      "Noto Serif JP", serif;
+  --ff-th:      "Sarabun", "Inter", sans-serif;
+  --ff-ui:      "Inter", "Sarabun", system-ui, sans-serif;
+  --ff-display: "Oswald", "Arial Narrow", Impact, sans-serif;
+  --ff-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* Boilerplate-compat (themed-text uses these) */
+  --font-display: var(--ff-ui);
+  --font-mono:    var(--ff-mono);
+  --font-rounded: var(--ff-ui);
+  --font-serif:   var(--ff-jp);
+
+  /* Accent — locked crimson */
+  --accent:        #e0202c;
+  --accent-strong: #c01825;
+  --accent-bg:     rgba(224, 32, 44, 0.14);
+  --accent-soft:   rgba(224, 32, 44, 0.40);
+
+  /* Spacing */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  /* Radii — sharp only */
+  --r-sm: 3px; --r-md: 4px; --r-pill: 999px;
+}
+
+/* Light (Wabi cream) — default */
+:root,
+[data-theme="light"] {
+  --bg: #faf6f0;
+  --surface: #ffffff;
+  --surface-2: #f3eee6;
+  --surface-3: #ebe4d7;
+  --border: #d8d1c4;
+  --border-strong: #b8af9e;
+  --text: #14110e;
+  --text-muted: #5e564e;
+  --text-hint: #8a8278;
+  --shadow-sm: 0 2px 6px rgba(20, 17, 14, 0.06);
+  --shadow-md: 0 4px 14px rgba(20, 17, 14, 0.08);
+  --rate-again-fg: #b5604a; --rate-again-bg: #f5e8e3;
+  --rate-hard-fg:  #b58c40; --rate-hard-bg:  #f5ecdb;
+  --rate-good-fg:  #6f8056; --rate-good-bg:  #ecefe1;
+  --rate-easy-fg:  #5a7a4a; --rate-easy-bg:  #e0e8d4;
+}
+
+/* Dark (Editorial warm-charcoal) — toggle */
+[data-theme="dark"] {
+  --bg: #141210;
+  --surface: #1b1816;
+  --surface-2: #211d1a;
+  --surface-3: #2a2620;
+  --border: #3a342e;
+  --border-strong: #524a42;
+  --text: #f0ebe2;
+  --text-muted: #bfb8ae;
+  --text-hint: #78726a;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.50);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.65);
+  --rate-again-fg: #ff6855; --rate-again-bg: rgba(181, 96, 74, 0.16);
+  --rate-hard-fg:  #e0aa55; --rate-hard-bg:  rgba(181, 140, 64, 0.16);
+  --rate-good-fg:  #a8c080; --rate-good-bg:  rgba(168, 192, 128, 0.12);
+  --rate-easy-fg:  #88a868; --rate-easy-bg:  rgba(90, 122, 74, 0.16);
 }

@@ -1,98 +1,87 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { sampleDecks } from '@/data/sample';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-export default function HomeScreen() {
+export default function BrowseScreen() {
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <ThemedText type="title">Browse Decks</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              เลือก deck เพื่อเริ่มเรียน
+            </ThemedText>
+          </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
+          <View style={styles.deckGrid}>
+            {sampleDecks.map((deck) => (
+              <Link
+                key={deck.id}
+                href={{ pathname: '/study', params: { deckId: deck.id } }}
+                asChild>
+                <Pressable
+                  style={({ pressed }) => [styles.deckCard, pressed && styles.pressed]}>
+                  <ThemedView type="backgroundElement" style={styles.deckCardInner}>
+                    <View style={styles.deckHeader}>
+                      <ThemedText type="defaultSemiBold" style={styles.deckTitle}>
+                        {deck.title}
+                      </ThemedText>
+                      {!deck.isFree && (
+                        <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
+                          <ThemedText type="small" style={{ color: Accent.base }}>
+                            LOCKED
+                          </ThemedText>
+                        </View>
+                      )}
+                    </View>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {deck.entryCount} entries
+                    </ThemedText>
+                  </ThemedView>
+                </Pressable>
+              </Link>
+            ))}
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
+  container: { flex: 1, alignItems: 'center' },
+  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  scrollContent: {
+    padding: Spacing.four,
+    paddingTop: Spacing.six + Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
+  header: { gap: Spacing.one },
+  deckGrid: { gap: Spacing.three },
+  deckCard: { borderRadius: Radii.md },
+  deckCardInner: {
+    padding: Spacing.four,
+    borderRadius: Radii.md,
+    gap: Spacing.two,
   },
-  code: {
-    textTransform: 'uppercase',
+  deckHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  deckTitle: { flex: 1 },
+  badge: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+    borderRadius: Radii.sm,
   },
+  pressed: { opacity: 0.7 },
 });

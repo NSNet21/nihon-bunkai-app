@@ -1,18 +1,21 @@
 import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { FiChevronDown, FiChevronRight } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { decks } from '@/data/free-tier';
 import type { Deck } from '@/data/types';
 
 type Row =
-  | { kind: 'levelHeader';    title: string; key: string }
-  | { kind: 'categoryHeader'; title: string; key: string }
-  | { kind: 'deck';           deck: Deck;    key: string };
+  | { kind: 'levelHeader';    title: string; key: string; level: string; isOpen: boolean; childCount: number }
+  | { kind: 'categoryHeader'; title: string; key: string; level: string; category: Deck['type']; isOpen: boolean; childCount: number }
+  | { kind: 'deck';           deck: Deck;    key: string; isLast: boolean };
 
 const CATEGORY_ORDER: Deck['type'][] = ['kanji', 'grammar', 'vocab', 'glossary'];
 const CATEGORY_LABEL: Record<Deck['type'], string> = {
@@ -22,9 +25,11 @@ const CATEGORY_LABEL: Record<Deck['type'], string> = {
   glossary: 'GLOSSARY',
 };
 
-/* Group: JLPT level (big) → Category (sub) → Packs (decks).
-   Glossary has no level → goes under its own big-group. */
-function buildRows(allDecks: Deck[]): Row[] {
+function buildRows(
+  allDecks: Deck[],
+  closedLevels: Set<string>,
+  closedCategories: Set<string>,
+): Row[] {
   const free = allDecks.filter((d) => d.isFree);
   const locked = allDecks.filter((d) => !d.isFree);
 
@@ -39,36 +44,76 @@ function buildRows(allDecks: Deck[]): Row[] {
   }
 
   const rows: Row[] = [];
-  /* Render levels in order N5 → N4 → ... → GLOSSARY (standalone) */
   const levelOrder = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
   for (const lvl of levelOrder) {
     const cats = byLevel.get(lvl);
     if (!cats) continue;
-    rows.push({ kind: 'levelHeader', title: lvl, key: `lvl-${lvl}` });
+    const levelOpen = !closedLevels.has(lvl);
+    const totalChildren = Array.from(cats.values()).reduce((s, arr) => s + arr.length, 0);
+    rows.push({ kind: 'levelHeader', title: lvl, key: `lvl-${lvl}`, level: lvl, isOpen: levelOpen, childCount: totalChildren });
+    if (!levelOpen) continue;
+
     for (const cat of CATEGORY_ORDER) {
-      const decks = cats.get(cat);
-      if (!decks?.length) continue;
-      /* Skip category sub-header if the level only has one category (Glossary case) */
-      if (cats.size > 1) {
-        rows.push({ kind: 'categoryHeader', title: CATEGORY_LABEL[cat], key: `cat-${lvl}-${cat}` });
+      const catDecks = cats.get(cat);
+      if (!catDecks?.length) continue;
+      const catKey = `${lvl}/${cat}`;
+      const showCategoryHeader = cats.size > 1;
+      const categoryOpen = !closedCategories.has(catKey);
+
+      if (showCategoryHeader) {
+        rows.push({ kind: 'categoryHeader', title: CATEGORY_LABEL[cat], key: `cat-${catKey}`, level: lvl, category: cat, isOpen: categoryOpen, childCount: catDecks.length });
+        if (!categoryOpen) continue;
       }
-      for (const d of decks) rows.push({ kind: 'deck', deck: d, key: d.id });
+
+      catDecks.forEach((d, i) => {
+        rows.push({ kind: 'deck', deck: d, key: d.id, isLast: i === catDecks.length - 1 });
+      });
     }
   }
 
   if (locked.length) {
-    rows.push({ kind: 'levelHeader', title: 'LOCKED · ปลดล็อกหลังซื้อ', key: 'lvl-locked' });
-    for (const d of locked) rows.push({ kind: 'deck', deck: d, key: d.id });
+    const lockedOpen = !closedLevels.has('LOCKED');
+    rows.push({ kind: 'levelHeader', title: 'LOCKED · ปลดล็อกหลังซื้อ', key: 'lvl-locked', level: 'LOCKED', isOpen: lockedOpen, childCount: locked.length });
+    if (lockedOpen) {
+      locked.forEach((d, i) => {
+        rows.push({ kind: 'deck', deck: d, key: d.id, isLast: i === locked.length - 1 });
+      });
+    }
   }
 
   return rows;
 }
 
 export default function BrowseScreen() {
-  const rows = buildRows(decks);
+  const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
+  const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
+
+  function toggleLevel(level: string) {
+    setClosedLevels((prev) => {
+      const next = new Set(prev);
+      if (next.has(level)) next.delete(level);
+      else next.add(level);
+      return next;
+    });
+  }
+
+  function toggleCategory(key: string) {
+    setClosedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const rows = useMemo(
+    () => buildRows(decks, closedLevels, closedCategories),
+    [closedLevels, closedCategories],
+  );
   const totalFreeEntries = decks
     .filter((d) => d.isFree)
     .reduce((s, d) => s + d.entryCount, 0);
+  const freePackCount = decks.filter((d) => d.isFree).length;
 
   return (
     <ThemedView style={styles.container}>
@@ -76,7 +121,7 @@ export default function BrowseScreen() {
         <View style={styles.headerWrap}>
           <ThemedText type="title">Browse</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {totalFreeEntries} entries · {decks.filter((d) => d.isFree).length} packs ฟรี · ทักหลังเพื่อปลดล็อกเพิ่ม
+            {totalFreeEntries} entries · {freePackCount} packs ฟรี · ทักหลังเพื่อปลดล็อกเพิ่ม
           </ThemedText>
         </View>
         <FlashList<Row>
@@ -84,9 +129,11 @@ export default function BrowseScreen() {
           keyExtractor={(item) => item.key}
           getItemType={(item) => item.kind}
           renderItem={({ item }) => {
-            if (item.kind === 'levelHeader')    return <LevelHeader title={item.title} />;
-            if (item.kind === 'categoryHeader') return <CategoryHeader title={item.title} />;
-            return <DeckRow deck={item.deck} />;
+            if (item.kind === 'levelHeader')
+              return <LevelHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleLevel(item.level)} />;
+            if (item.kind === 'categoryHeader')
+              return <CategoryHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleCategory(`${item.level}/${item.category}`)} />;
+            return <DeckRow deck={item.deck} isLast={item.isLast} />;
           }}
           contentContainerStyle={styles.listContent}
         />
@@ -95,33 +142,58 @@ export default function BrowseScreen() {
   );
 }
 
-function LevelHeader({ title }: { title: string }) {
+function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const Chevron = isOpen ? FiChevronDown : FiChevronRight;
   return (
-    <View style={styles.levelHeader}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.levelHeader, pressed && styles.headerPressed]}>
       <View style={styles.levelRule} />
       <ThemedText type="defaultSemiBold" style={[styles.levelTitle, { color: Accent.base }]}>
         {title}
       </ThemedText>
-    </View>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.countBadge}>
+        {childCount}
+      </ThemedText>
+      <View style={styles.chevronWrap}>
+        <Chevron size={18} color={colors.textSecondary} strokeWidth={2} />
+      </View>
+    </Pressable>
   );
 }
 
-function CategoryHeader({ title }: { title: string }) {
+function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const Chevron = isOpen ? FiChevronDown : FiChevronRight;
   return (
-    <View style={styles.categoryHeader}>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.categoryHeader, pressed && styles.headerPressed]}>
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.categoryTitle}>
         {title}
       </ThemedText>
-    </View>
+      <ThemedText type="small" themeColor="textHint" style={styles.countBadge}>
+        {childCount}
+      </ThemedText>
+      <View style={styles.chevronWrap}>
+        <Chevron size={14} color={colors.textHint} strokeWidth={2} />
+      </View>
+    </Pressable>
   );
 }
 
-function DeckRow({ deck }: { deck: Deck }) {
+function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const subtitle = deck.isFree ? `${deck.entryCount} cards` : 'paid · landing page';
   return (
     <Link href={{ pathname: '/study', params: { deckId: deck.id } }} asChild>
       <Pressable style={({ pressed }) => [styles.deckCard, pressed && styles.pressed]}>
-        <ThemedView type="backgroundElement" style={styles.deckCardInner}>
+        <ThemedView
+          type="backgroundElement"
+          style={[
+            styles.deckCardInner,
+            !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+          ]}>
           <View style={styles.deckHeader}>
             <ThemedText type="defaultSemiBold" style={styles.deckTitle}>
               {deck.title}
@@ -166,13 +238,19 @@ const styles = StyleSheet.create({
   levelTitle: { fontSize: 18, letterSpacing: 1.5 },
   levelRule: { width: 28, height: 2, backgroundColor: Accent.base },
   categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.one,
     paddingLeft: Spacing.three,
   },
   categoryTitle: { letterSpacing: 1.2 },
-  deckCard: { borderRadius: Radii.md, marginBottom: Spacing.two },
-  deckCardInner: { padding: Spacing.three, borderRadius: Radii.md, gap: 2 },
+  countBadge: { marginLeft: Spacing.one },
+  chevronWrap: { marginLeft: 'auto' },
+  headerPressed: { opacity: 0.6 },
+  deckCard: { borderRadius: 0 },
+  deckCardInner: { padding: Spacing.three, gap: 2 },
   deckHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,9 +1,18 @@
 import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { FiChevronDown, FiChevronRight, FiChevronsDown, FiChevronsUp } from 'react-icons/fi';
+import { FiChevronDown, FiChevronsDown, FiChevronsUp } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -162,16 +171,60 @@ export default function BrowseScreen() {
           keyExtractor={(item) => item.key}
           getItemType={(item) => item.kind}
           renderItem={({ item }) => {
+            let inner;
             if (item.kind === 'levelHeader')
-              return <LevelHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleLevel(item.level)} />;
-            if (item.kind === 'categoryHeader')
-              return <CategoryHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleCategory(`${item.level}/${item.category}`)} />;
-            return <DeckRow deck={item.deck} isLast={item.isLast} />;
+              inner = <LevelHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleLevel(item.level)} />;
+            else if (item.kind === 'categoryHeader')
+              inner = <CategoryHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleCategory(`${item.level}/${item.category}`)} />;
+            else inner = <DeckRow deck={item.deck} isLast={item.isLast} />;
+
+            /* Headers don't animate (they stay mounted). Decks + sub-headers
+               fade-in on expand, fade-out on collapse. */
+            if (item.kind === 'levelHeader') return inner;
+            return (
+              <Animated.View
+                entering={FadeIn.duration(180).easing(Easing.bezier(0.4, 0, 0.2, 1))}
+                exiting={FadeOut.duration(120)}>
+                {inner}
+              </Animated.View>
+            );
           }}
           contentContainerStyle={styles.listContent}
         />
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+/** Mobile-convention press scale: 1 → 0.94 on press, springs back on release. */
+function ScaleButton({
+  onPress,
+  children,
+  style,
+  accessibilityLabel,
+}: {
+  onPress: () => void;
+  children: React.ReactNode;
+  style?: any;
+  accessibilityLabel?: string;
+}) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => {
+          scale.value = withTiming(0.94, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
+        }}
+        onPressOut={() => {
+          scale.value = withSpring(1, { damping: 10, stiffness: 220, mass: 0.5 });
+        }}
+        accessibilityLabel={accessibilityLabel}
+        style={({ pressed }) => [style, pressed && { opacity: 0.85 }]}>
+        {children}
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -190,48 +243,64 @@ function Toolbar({
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   return (
     <View style={styles.toolbar}>
-      <Pressable
+      <ScaleButton
         onPress={onExpandAll}
-        style={({ pressed }) => [
-          styles.toolBtn,
-          { borderColor: colors.border },
-          pressed && styles.toolBtnPressed,
-        ]}>
-        <FiChevronsDown size={14} color={colors.text} />
-        <ThemedText type="small" themeColor="textSecondary">ขยาย</ThemedText>
-      </Pressable>
-      <Pressable
+        accessibilityLabel="ขยายทั้งหมด"
+        style={[styles.toolBtn, { borderColor: colors.border }]}>
+        <View style={styles.toolBtnContent}>
+          <FiChevronsDown size={14} color={colors.text} />
+          <ThemedText type="small" themeColor="textSecondary">ขยาย</ThemedText>
+        </View>
+      </ScaleButton>
+      <ScaleButton
         onPress={onCollapseAll}
-        style={({ pressed }) => [
-          styles.toolBtn,
-          { borderColor: colors.border },
-          pressed && styles.toolBtnPressed,
-        ]}>
-        <FiChevronsUp size={14} color={colors.text} />
-        <ThemedText type="small" themeColor="textSecondary">ย่อ</ThemedText>
-      </Pressable>
-      <Pressable
+        accessibilityLabel="ย่อทั้งหมด"
+        style={[styles.toolBtn, { borderColor: colors.border }]}>
+        <View style={styles.toolBtnContent}>
+          <FiChevronsUp size={14} color={colors.text} />
+          <ThemedText type="small" themeColor="textSecondary">ย่อ</ThemedText>
+        </View>
+      </ScaleButton>
+      <ScaleButton
         onPress={onToggleSubsOnly}
-        style={({ pressed }) => [
+        accessibilityLabel="สลับโหมดเฉพาะหมวด"
+        style={[
           styles.toolBtn,
           {
             borderColor: subsOnly ? Accent.base : colors.border,
             backgroundColor: subsOnly ? Accent.bg : 'transparent',
           },
-          pressed && styles.toolBtnPressed,
         ]}>
-        <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
-          เฉพาะหมวด
-        </ThemedText>
-      </Pressable>
+        <View style={styles.toolBtnContent}>
+          <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
+            เฉพาะหมวด
+          </ThemedText>
+        </View>
+      </ScaleButton>
     </View>
+  );
+}
+
+/** Chevron rotates 0deg → -90deg when group collapses (mobile-convention) */
+function AnimatedChevron({ isOpen, size, color }: { isOpen: boolean; size: number; color: string }) {
+  const rotation = useSharedValue(isOpen ? 0 : -90);
+  useEffect(() => {
+    rotation.value = withTiming(isOpen ? 0 : -90, {
+      duration: 220,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    });
+  }, [isOpen, rotation]);
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value}deg` }] }));
+  return (
+    <Animated.View style={style}>
+      <FiChevronDown size={size} color={color} strokeWidth={2} />
+    </Animated.View>
   );
 }
 
 function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
-  const Chevron = isOpen ? FiChevronDown : FiChevronRight;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.levelHeader, pressed && styles.headerPressed]}>
       <View style={styles.levelRule} />
@@ -242,7 +311,7 @@ function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; is
         {childCount}
       </ThemedText>
       <View style={styles.chevronWrap}>
-        <Chevron size={18} color={colors.textSecondary} strokeWidth={2} />
+        <AnimatedChevron isOpen={isOpen} size={18} color={colors.textSecondary} />
       </View>
     </Pressable>
   );
@@ -251,7 +320,6 @@ function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; is
 function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
-  const Chevron = isOpen ? FiChevronDown : FiChevronRight;
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.categoryHeader, pressed && styles.headerPressed]}>
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.categoryTitle}>
@@ -261,7 +329,7 @@ function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string;
         {childCount}
       </ThemedText>
       <View style={styles.chevronWrap}>
-        <Chevron size={14} color={colors.textHint} strokeWidth={2} />
+        <AnimatedChevron isOpen={isOpen} size={14} color={colors.textHint} />
       </View>
     </Pressable>
   );
@@ -317,15 +385,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   toolBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     paddingVertical: 4,
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
     borderWidth: 1,
   },
-  toolBtnPressed: { opacity: 0.6 },
+  toolBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   listContent: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,

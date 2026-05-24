@@ -48,25 +48,30 @@
   --rate-hard-fg:  #b58c40; --rate-hard-bg:  #f5ecdb;
   --rate-good-fg:  #6f8056; --rate-good-bg:  #ecefe1;
   --rate-easy-fg:  #5a7a4a; --rate-easy-bg:  #e0e8d4;
+  /* Scrollbar — vivid crimson on cream */
+  --scrollbar-thumb:       rgba(224, 32, 44, 0.85);
+  --scrollbar-thumb-hover: rgba(192, 24, 37, 1);
+  --scrollbar-track:       var(--surface-2);
 }
 
 /* Editorial scrollbar — crimson accent stripe, sharp edges (no radius).
-   Matches Nihon Bunkai brand: right-edge accent feel from prototype HTML. */
+   Adaptive per theme: vivid on light, desaturated on dark (defined as
+   --scrollbar-thumb / --scrollbar-track per theme block above). */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--accent) var(--surface-2);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track {
-  background: var(--surface-2);
+  background: var(--scrollbar-track);
   border-left: 1px solid var(--border);
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--accent);
+  background: var(--scrollbar-thumb);
   border-radius: 0;
 }
-*::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); }
-*::-webkit-scrollbar-corner { background: var(--surface-2); }
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+*::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
 
 /* Dark (Editorial warm-charcoal) — toggle */
 [data-theme="dark"] {
@@ -84,5 +89,9 @@
   --rate-again-fg: #ff6855; --rate-again-bg: rgba(181, 96, 74, 0.16);
   --rate-hard-fg:  #e0aa55; --rate-hard-bg:  rgba(181, 140, 64, 0.16);
   --rate-good-fg:  #a8c080; --rate-good-bg:  rgba(168, 192, 128, 0.12);
-  --rate-easy-fg:  #88a868; --rate-easy-bg:  rgba(90, 122, 74, 0.16);
+  --rate-easy-fg:  #e0202c; --rate-easy-bg:  rgba(224, 32, 44, 0.14);
+  /* Scrollbar — desaturated crimson on dark, gentler on eyes */
+  --scrollbar-thumb:       rgba(224, 32, 44, 0.45);
+  --scrollbar-thumb-hover: rgba(224, 32, 44, 0.7);
+  --scrollbar-track:       var(--surface-2);
 }

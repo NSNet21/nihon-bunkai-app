@@ -16,18 +16,28 @@ export interface CsvRow {
   e: string;   // Extended markdown (sections / examples / notes)
 }
 
-/** App entry = CSV row + minimal metadata for navigation / filtering. */
+/** App entry = CSV row + deck/pack metadata + tags. */
 export interface Entry extends CsvRow {
-  id: string;            // e.g. "vocab-n5-1"  (synthesized from type+level+no)
+  id: string;             // e.g. "vocab-n5-pack01-3"
   type: ContentType;
   level: JlptLevel | null;
+  pack: string;           // e.g. "vocab-n5-pack01"
+  tags: string[];         // ['vocab', 'n5', 'vocab-n5-pack01'] — for filter/search
 }
 
 export interface Deck {
-  id: string;            // e.g. "vocab-n5"
+  id: string;             // = pack id
   type: ContentType;
   level: JlptLevel | null;
-  title: string;         // display name e.g. "Vocab · N5"
+  title: string;          // e.g. "Vocab N5 · Pack 01"
   entryCount: number;
-  isFree: boolean;       // included in Model C-refined free tier
+  isFree: boolean;
+  pack: string;
+  tags: string[];
+}
+
+/** Shape of the build-generated free-tier.json. */
+export interface FreeTierData {
+  decks: Omit<Deck, 'isFree'>[];
+  entries: Record<string, CsvRow[]>;
 }

@@ -35,7 +35,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStatus(data.session ? 'signed-in' : 'signed-out');
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (__DEV__) {
+        console.log('[auth] event:', event, '· user:', next?.user?.email ?? 'none');
+      }
       setSession(next);
       setStatus(next ? 'signed-in' : 'signed-out');
     });

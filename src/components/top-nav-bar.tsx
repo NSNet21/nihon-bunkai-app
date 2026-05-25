@@ -29,7 +29,7 @@ function BackButton({ onPress, colors }: { onPress: () => void; colors: typeof C
           opacity.value = withTiming(0.85, { duration: 90 });
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+          scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) });
           opacity.value = withTiming(1, { duration: 220 });
         }}
         style={[styles.backBtn, { borderColor: colors.border }]}
@@ -82,7 +82,7 @@ function BrandLink({ onPress, colors }: { onPress: () => void; colors: typeof Co
         // @ts-ignore web tooltip
         title="Browse"
         onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed, hovered }: any) => [
           styles.brand,
           hovered && { opacity: 0.7 },

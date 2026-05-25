@@ -21,12 +21,6 @@ export const supabase = createClient(url, key, {
   },
 });
 
-if (typeof window !== 'undefined') {
-  supabase.auth.onAuthStateChange((event, session) => {
-    console.log('[supabase] auth event:', event, '· user:', session?.user?.email ?? 'none');
-  });
-}
-
 export type Pack = {
   pack_id: string;
   sku_id: string | null;

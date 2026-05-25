@@ -432,7 +432,7 @@ function RestoreBtn({
           scale.value = withTiming(0.96, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+          scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) });
         }}
         style={({ pressed }) => [
           styles.signOutBtn,
@@ -466,7 +466,7 @@ function SignOutBtn({
           scale.value = withTiming(0.96, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+          scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) });
         }}
         style={({ pressed }) => [
           styles.signOutBtn,

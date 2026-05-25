@@ -229,7 +229,7 @@ function ScaleButton({
           scale.value = withTiming(0.94, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+          scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) });
         }}
         accessibilityLabel={accessibilityLabel}
         style={({ pressed }) => [style, pressed && { opacity: 0.85 }]}>

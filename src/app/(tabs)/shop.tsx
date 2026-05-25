@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiHelpCircle, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
@@ -296,10 +296,12 @@ function ViewToggle({
   const pillX = useSharedValue(selectedIndex * TOGGLE_SEGMENT_WIDTH);
 
   useEffect(() => {
-    pillX.value = withSpring(selectedIndex * TOGGLE_SEGMENT_WIDTH, {
-      damping: 18,
-      stiffness: 220,
-      mass: 0.6,
+    /* Match the theme-toggle pattern: 180ms timing reads as "instant" while
+       still smoothing the slide. Reanimated 4 changed withSpring semantics
+       (energyThreshold, perceptual duration ×1.5) — timing keeps it predictable. */
+    pillX.value = withTiming(selectedIndex * TOGGLE_SEGMENT_WIDTH, {
+      duration: 180,
+      easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
     });
   }, [selectedIndex, pillX]);
 
@@ -682,7 +684,7 @@ function PrimaryDownloadButton({ onPress }: { onPress: () => void }) {
       <Pressable
         onPress={onPress}
         onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed }) => [
           styles.primaryDownloadBtn,
           { backgroundColor: Accent.base, opacity: pressed ? 0.92 : 1 },
@@ -706,7 +708,7 @@ function DownloadButton({ onPress, label }: { onPress: () => void; label?: strin
       <Pressable
         onPress={onPress}
         onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed }) => [
           styles.buyBtn,
           { backgroundColor: Accent.base, opacity: pressed ? 0.88 : 1 },
@@ -728,7 +730,7 @@ function BuyButton({ onPress }: { onPress: () => void }) {
       <Pressable
         onPress={onPress}
         onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed }) => [
           styles.buyBtn,
           { backgroundColor: Accent.base, opacity: pressed ? 0.88 : 1 },

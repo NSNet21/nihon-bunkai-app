@@ -16,20 +16,21 @@ type NbPersistedDetail = { key: string; value: unknown };
 export function usePersistedState<T>(name: string, initial: T): [T, (next: T) => void] {
   const key = `nb.${name}`;
 
-  const [value, setValue] = useState<T>(() => {
-    if (typeof window === 'undefined') return initial;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (raw === null) return initial;
-      return JSON.parse(raw) as T;
-    } catch {
-      return initial;
-    }
-  });
+  /* Always start with `initial` so SSG output matches the first client render.
+     Hydration from localStorage happens in the effect below — one frame after
+     mount. Without this, expo export -p web (output: "static") would mismatch
+     server HTML vs. client state and React 19 would warn loudly in prod. */
+  const [value, setValue] = useState<T>(initial);
 
-  /* Re-sync from storage if another tab updates it. */
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    /* Hydrate from localStorage AFTER mount — keeps SSG/SSR output stable. */
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw !== null) setValue(JSON.parse(raw) as T);
+    } catch {
+      /* ignore parse errors */
+    }
     const onStorage = (e: StorageEvent) => {
       if (e.key !== key || e.newValue === null) return;
       try {

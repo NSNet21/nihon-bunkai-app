@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { createElement, useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { FiLock, FiMail } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -112,33 +112,35 @@ export default function LoginScreen() {
           {phase === 'sent' ? (
             <SuccessCard message={errMsg ?? `ส่งลิ้งค์ไปที่ ${email.trim()} แล้ว ✓`} onBack={() => router.replace('/')} />
           ) : (
-            <View style={styles.form}>
-              <EmailField value={email} onChange={(t) => { setEmail(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} />
-              {mode === 'password' && (
-                <PasswordField value={password} onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} />
-              )}
+            <WebForm onSubmit={mode === 'magic' ? onMagicLink : onPasswordSignIn}>
+              <View style={styles.form}>
+                <EmailField value={email} onChange={(t) => { setEmail(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} />
+                {mode === 'password' && (
+                  <PasswordField value={password} onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} />
+                )}
 
-              {errMsg && (
-                <ThemedText type="small" style={{ color: Accent.base }}>
-                  {errMsg}
+                {errMsg && (
+                  <ThemedText type="small" style={{ color: Accent.base }}>
+                    {errMsg}
+                  </ThemedText>
+                )}
+
+                {mode === 'magic' ? (
+                  <PrimaryButton onPress={onMagicLink} disabled={phase === 'sending'} label={phase === 'sending' ? 'กำลังส่ง…' : 'ส่งลิ้งค์'} />
+                ) : (
+                  <View style={styles.passwordActions}>
+                    <PrimaryButton onPress={onPasswordSignIn} disabled={phase === 'sending'} label="เข้าสู่ระบบ" />
+                    <SecondaryButton onPress={onPasswordSignUp} disabled={phase === 'sending'} label="สมัครใหม่" />
+                  </View>
+                )}
+
+                <ThemedText type="small" themeColor="textHint" style={styles.fineprint}>
+                  {mode === 'magic'
+                    ? 'การกดส่งลิ้งค์ = ยอมรับเงื่อนไขใน landing page'
+                    : 'การสมัคร = ยอมรับเงื่อนไขใน landing page'}
                 </ThemedText>
-              )}
-
-              {mode === 'magic' ? (
-                <PrimaryButton onPress={onMagicLink} disabled={phase === 'sending'} label={phase === 'sending' ? 'กำลังส่ง…' : 'ส่งลิ้งค์'} />
-              ) : (
-                <View style={styles.passwordActions}>
-                  <PrimaryButton onPress={onPasswordSignIn} disabled={phase === 'sending'} label="เข้าสู่ระบบ" />
-                  <SecondaryButton onPress={onPasswordSignUp} disabled={phase === 'sending'} label="สมัครใหม่" />
-                </View>
-              )}
-
-              <ThemedText type="small" themeColor="textHint" style={styles.fineprint}>
-                {mode === 'magic'
-                  ? 'การกดส่งลิ้งค์ = ยอมรับเงื่อนไขใน landing page'
-                  : 'การสมัคร = ยอมรับเงื่อนไขใน landing page'}
-              </ThemedText>
-            </View>
+              </View>
+            </WebForm>
           )}
 
           <Pressable onPress={() => router.replace('/')} style={styles.cancel}>
@@ -149,6 +151,30 @@ export default function LoginScreen() {
         </View>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+/* Web-only <form> wrapper — enables browser password manager + autofill +
+   Enter-to-submit. On native, transparent passthrough.
+   `display: contents` keeps RN's flex layout intact while still making the
+   TextInput <input> elements DOM children of <form>. Hidden submit button
+   guarantees implicit Enter submission with multiple text inputs. */
+function WebForm({ onSubmit, children }: { onSubmit: () => void; children: React.ReactNode }) {
+  if (Platform.OS !== 'web') return <>{children}</>;
+  return createElement(
+    'form',
+    {
+      onSubmit: (e: any) => { e.preventDefault(); onSubmit(); },
+      style: { display: 'contents' },
+    },
+    children,
+    createElement('button', {
+      key: 'submit',
+      type: 'submit',
+      style: { display: 'none' },
+      'aria-hidden': true,
+      tabIndex: -1,
+    }),
   );
 }
 
@@ -242,7 +268,7 @@ function PrimaryButton({ onPress, disabled, label }: { onPress: () => void; disa
         onPress={onPress}
         disabled={disabled}
         onPressIn={() => { scale.value = withTiming(0.96, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed }) => [styles.primaryBtn, { backgroundColor: Accent.base, opacity: disabled ? 0.6 : pressed ? 0.88 : 1 }]}>
         <ThemedText type="defaultSemiBold" style={styles.primaryBtnLabel}>
           {label}
@@ -263,7 +289,7 @@ function SecondaryButton({ onPress, disabled, label }: { onPress: () => void; di
         onPress={onPress}
         disabled={disabled}
         onPressIn={() => { scale.value = withTiming(0.96, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
-        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) }); }}
+        onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed }) => [styles.secondaryBtn, { borderColor: colors.border, opacity: disabled ? 0.6 : pressed ? 0.88 : 1 }]}>
         <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>{label}</ThemedText>
       </Pressable>

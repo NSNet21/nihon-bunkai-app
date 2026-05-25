@@ -62,7 +62,7 @@ export function ScrollToTop({ visible, onPress }: Props) {
           });
         }}
         onPressOut={() => {
-          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+          scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) });
         }}
         accessibilityLabel="กลับสู่ด้านบน"
         /* @ts-ignore web tooltip */

@@ -149,7 +149,10 @@ interface RowProps {
 
 function ResultRow({ result, onPress, themeColor: c }: RowProps) {
   const { entry } = result;
-  const showP = entry.p && entry.p !== entry.t;
+  /* p is the expanded variants array; show the first reading (cleaned, no Kunyomi: prefix).
+     Skip if it duplicates the term itself (kana entries where T == P). */
+  const displayReading = entry.p[0] ?? '';
+  const showP = displayReading && displayReading !== entry.t;
 
   return (
     <Pressable
@@ -166,7 +169,7 @@ function ResultRow({ result, onPress, themeColor: c }: RowProps) {
         <ThemedText type="default" style={styles.term}>{entry.t}</ThemedText>
         {showP ? (
           <ThemedText type="small" themeColor="textHint" style={styles.reading}>
-            {entry.p}
+            {displayReading}
           </ThemedText>
         ) : null}
         {entry.d ? (

@@ -6,8 +6,6 @@ import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLock } from 'react-icons
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
-  FadeIn,
-  FadeOut,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -196,18 +194,7 @@ export default function BrowseScreen() {
               inner = <CategoryHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleCategory(`${item.level}/${item.category}`)} />;
             else inner = <DeckRow deck={item.deck} isLast={item.isLast} />;
 
-            const row = (
-              <View style={styles.rowWrap}>
-                {item.kind === 'levelHeader' ? inner : (
-                  <Animated.View
-                    entering={FadeIn.duration(180).easing(Easing.bezier(0.4, 0, 0.2, 1))}
-                    exiting={FadeOut.duration(120)}>
-                    {inner}
-                  </Animated.View>
-                )}
-              </View>
-            );
-            return row;
+            return <View style={styles.rowWrap}>{inner}</View>;
           }}
           contentContainerStyle={styles.listContent}
         />

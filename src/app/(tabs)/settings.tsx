@@ -1,15 +1,17 @@
 import { Link } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { FiCheck, FiLogIn, FiLogOut, FiRefreshCw, FiUser } from 'react-icons/fi';
+import { useEffect, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FiCheck, FiCheckSquare, FiChevronRight, FiLogIn, FiLogOut, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import type { ColumnVisibility } from '@/components/flashcard';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 export default function SettingsScreen() {
@@ -19,7 +21,11 @@ export default function SettingsScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator>
+          <View style={styles.content}>
           <View style={styles.header}>
             <ThemedText type="title">Settings</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
@@ -49,6 +55,14 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              การ์ด
+            </ThemedText>
+            <CardMetaToggle />
+            <CardColumnsRow />
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
               ABOUT
             </ThemedText>
             <ThemedView type="backgroundElement" style={styles.aboutCard}>
@@ -58,11 +72,253 @@ export default function SettingsScreen() {
               </ThemedText>
             </ThemedView>
           </View>
-        </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
 }
+
+function CardMetaToggle() {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const [showMeta, setShowMeta] = usePersistedState<boolean>('show-card-meta', true);
+  const Icon = showMeta ? FiCheckSquare : FiSquare;
+  const iconColor = showMeta ? Accent.base : colors.text;
+  return (
+    <Pressable
+      onPress={() => setShowMeta(!showMeta)}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: showMeta }}
+      accessibilityLabel="แสดง Badge ที่มุมบนซ้ายของการ์ด"
+      style={({ pressed }) => [
+        styles.cardMetaRow,
+        { borderColor: colors.border, backgroundColor: showMeta ? Accent.bg : 'transparent' },
+        pressed && { opacity: 0.85 },
+      ]}>
+      <Icon size={22} color={iconColor} strokeWidth={2} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <ThemedText type="defaultSemiBold">Badge บนการ์ด</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          ป้ายมุมบนซ้าย แสดงลำดับการ์ดและชื่อ deck
+        </ThemedText>
+        <ThemedText type="small" themeColor="textHint" style={{ marginTop: 2 }}>
+          {showMeta ? 'กำลังแสดงอยู่ · แตะเพื่อซ่อน' : 'กำลังซ่อนอยู่ · แตะเพื่อแสดง'}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Compact summary row in Settings with inline accordion — tap to expand
+ *  the full ColumnsConfig below the row. Reuses persisted visibility so
+ *  Settings ↔ per-card popup stay in sync. */
+function CardColumnsRow() {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const [vis] = usePersistedState<ColumnVisibility>(
+    'visibility',
+    { t: true, pf: true, pb: true, d: true, e: true },
+  );
+  const [expanded, setExpanded] = useState(false);
+
+  const frontTokens = [vis.t && 'T', vis.pf && 'Pf'].filter(Boolean) as string[];
+  const backTokens  = [vis.d && 'D', vis.pb && 'Pb', vis.e && 'E'].filter(Boolean) as string[];
+  const summary = `${frontTokens.join(' · ') || '—'}  /  ${backTokens.join(' · ') || '—'}`;
+
+  /* Chevron rotates 90° as the accordion expands — smooth deliberate motion
+     that mirrors the panel reveal below. */
+  const rot = useSharedValue(0);
+  useEffect(() => {
+    rot.value = withTiming(expanded ? 90 : 0, { duration: 220, easing: Easing.bezier(0.455, 0.03, 0.515, 0.955) });
+  }, [expanded, rot]);
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rot.value}deg` }],
+  }));
+
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <Pressable
+        onPress={() => setExpanded((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel="ตั้งค่าคอลัมน์ที่แสดงบนการ์ด"
+        style={({ pressed }) => [
+          styles.cardMetaRow,
+          { borderColor: colors.border },
+          pressed && { opacity: 0.85 },
+        ]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <ThemedText type="defaultSemiBold">คอลัมน์ที่แสดง</ThemedText>
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={{
+              fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+              letterSpacing: 0.6,
+            } as any}>
+            {summary}
+          </ThemedText>
+        </View>
+        <Animated.View style={chevronStyle}>
+          <FiChevronRight size={18} color={colors.textHint} />
+        </Animated.View>
+      </Pressable>
+      {expanded && (
+        <Animated.View
+          style={{ paddingLeft: Spacing.two }}
+          entering={FadeIn.duration(180).easing(Easing.bezier(0.25, 0.46, 0.45, 0.94))}
+          exiting={FadeOut.duration(130)}>
+          <ColumnsConfig />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+/** Persisted column visibility config — same storage key as Study screen so
+ *  Settings ↔ per-card popup stay in sync. Each face must keep ≥ 1 column. */
+function ColumnsConfig() {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const [vis, setVis] = usePersistedState<ColumnVisibility>(
+    'visibility',
+    { t: true, pf: true, pb: true, d: true, e: true },
+  );
+
+  const frontCount = (vis.t ? 1 : 0) + (vis.pf ? 1 : 0);
+  const backCount  = (vis.d ? 1 : 0) + (vis.pb ? 1 : 0) + (vis.e ? 1 : 0);
+
+  function toggle(key: keyof ColumnVisibility) {
+    const next = { ...vis, [key]: !vis[key] };
+    if (!next.t && !next.pf) return;                       // front must keep ≥ 1
+    if (!next.d && !next.pb && !next.e) return;            // back must keep ≥ 1
+    setVis(next);
+  }
+
+  return (
+    <View style={{ gap: Spacing.two }}>
+      {/* ─── ด้านหน้า ─── */}
+      <View style={{ gap: Spacing.one }}>
+        <ThemedText style={[columnsStyles.subhead, { color: colors.textHint }]}>
+          // FRONT · ด้านหน้า
+        </ThemedText>
+        <ColumnRow
+          checked={vis.t}
+          locked={vis.t && frontCount === 1}
+          colors={colors}
+          onPress={() => toggle('t')}
+          label="คำศัพท์ (T)"
+          hint="คันจิ / คะนะ ด้านหน้า"
+        />
+        <ColumnRow
+          checked={vis.pf}
+          locked={vis.pf && frontCount === 1}
+          colors={colors}
+          onPress={() => toggle('pf')}
+          label="คำอ่าน ด้านหน้า (Pf)"
+          hint="ปิดถ้าอยากบังคับให้นึก"
+        />
+      </View>
+
+      {/* ─── ด้านหลัง ─── */}
+      <View style={{ gap: Spacing.one }}>
+        <ThemedText style={[columnsStyles.subhead, { color: colors.textHint }]}>
+          // BACK · ด้านหลัง
+        </ThemedText>
+        <ColumnRow
+          checked={vis.d}
+          locked={vis.d && backCount === 1}
+          colors={colors}
+          onPress={() => toggle('d')}
+          label="ความหมาย (D)"
+          hint="คำแปลไทยขนาด title"
+        />
+        <ColumnRow
+          checked={vis.pb}
+          locked={vis.pb && backCount === 1}
+          colors={colors}
+          onPress={() => toggle('pb')}
+          label="คำอ่าน ด้านหลัง (Pb)"
+          hint="ตั้งแยกจากด้านหน้า"
+        />
+        <ColumnRow
+          checked={vis.e}
+          locked={vis.e && backCount === 1}
+          colors={colors}
+          onPress={() => toggle('e')}
+          label="คำอธิบาย (E)"
+          hint="Breakdown / Examples ของแต่ละข้อ"
+        />
+      </View>
+    </View>
+  );
+}
+
+function ColumnRow({
+  checked,
+  locked,
+  colors,
+  onPress,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  locked: boolean;
+  colors: typeof Colors.light;
+  onPress: () => void;
+  label: string;
+  hint: string;
+}) {
+  const Icon = checked ? FiCheckSquare : FiSquare;
+  const iconColor = locked ? colors.textHint : checked ? Accent.base : colors.text;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={locked}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked, disabled: locked }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        columnsStyles.row,
+        {
+          borderColor: colors.border,
+          backgroundColor: locked
+            ? colors.backgroundSelected
+            : checked
+              ? Accent.bg
+              : 'transparent',
+        },
+        pressed && !locked && { opacity: 0.85 },
+        locked && { opacity: 0.85 },
+      ]}>
+      <Icon size={16} color={iconColor} strokeWidth={2} />
+      <ThemedText type="defaultSemiBold" style={{ marginRight: 4 }}>{label}</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary" style={{ flex: 1 }} numberOfLines={1}>
+        · {locked ? 'ล็อก — ต้องมี ≥ 1 คอลัมน์' : hint}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+const columnsStyles = StyleSheet.create({
+  subhead: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+});
 
 function AccountCard({
   status,
@@ -226,34 +482,47 @@ function SignOutBtn({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center' },
-  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
-  content: {
+  /* Container + safeArea fill the viewport (no maxWidth) so the ScrollView
+     scrollbar sits flush against the right edge of the viewport. The
+     centered max-width clamp lives on `content` instead. */
+  container: { flex: 1 },
+  safeArea: { flex: 1, width: '100%' },
+  scroll: {
     flex: 1,
+    alignSelf: 'stretch',
+    /* Reserve space for the scrollbar so toggling the accordion doesn't
+       shift the layout sideways when the scrollbar appears/disappears. */
+    ...(Platform.OS === 'web' ? ({ scrollbarGutter: 'stable' } as object) : null),
+  } as any,
+  /* contentContainer wraps everything inside the scroll — centers it. */
+  contentContainer: { alignItems: 'center' },
+  content: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
     padding: Spacing.four,
-    paddingTop: Spacing.six + Spacing.four,
+    paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,
-    gap: Spacing.six,
+    gap: Spacing.four,
   },
-  header: { gap: Spacing.one },
+  header: { gap: Spacing.one, marginBottom: Spacing.two },
   section: { gap: Spacing.two },
   sectionLabel: {
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   accountCard: {
-    padding: Spacing.three,
-    borderRadius: Radii.md,
-    gap: Spacing.three,
+    padding: Spacing.two,
+    borderRadius: Radii.sm,
+    gap: Spacing.two,
   },
   accountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   avatar: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
@@ -262,9 +531,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.one,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,
     borderWidth: 1,
     alignSelf: 'flex-start',
@@ -275,8 +544,17 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   aboutCard: {
-    padding: Spacing.three,
+    padding: Spacing.two,
     borderRadius: 4,
-    gap: Spacing.one,
+    gap: 2,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
   },
 });

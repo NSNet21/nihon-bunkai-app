@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Rating } from 'ts-fsrs';
@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
 
@@ -48,11 +49,14 @@ export default function StudyScreen() {
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [results, setResults] = useState<Rating[]>([]);
-  /* Column visibility — session-level (resets on deck switch / refresh).
-     Pf / Pb are independent: user might want P shown on back (as confirmation)
-     while hidden on front (force recall) — or any other combo. */
-  const [visibility, setVisibility] = useState<ColumnVisibility>({ t: true, pf: true, pb: true, d: true, e: true });
-  const [frontHero, setFrontHero] = useState<FrontHero>('t');
+  /* Column visibility — persisted globally (Settings ↔ per-card popup share
+     the same source). Pf / Pb are independent: user might want P shown on
+     back (as confirmation) while hidden on front (force recall). */
+  const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
+    'visibility',
+    { t: true, pf: true, pb: true, d: true, e: true },
+  );
+  const [frontHero, setFrontHero] = usePersistedState<FrontHero>('front-hero', 't');
 
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
@@ -126,6 +130,9 @@ export default function StudyScreen() {
                     onVisibilityChange={setVisibility}
                     frontHero={frontHero}
                     onFrontHeroChange={setFrontHero}
+                    index={index}
+                    total={entries.length}
+                    deckTitle={deck.title}
                   />
                 </View>
                 <SideRail
@@ -136,11 +143,23 @@ export default function StudyScreen() {
                 />
               </View>
               <RatingButtons onRate={handleRate} disabled={!isFlipped} />
+              <BrandStrip colors={colors} />
             </>
           )}
         </View>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+/** Editorial footer mark — anchors the study session in the brand. */
+function BrandStrip({ colors }: { colors: typeof Colors.light }) {
+  return (
+    <View style={brandStyles.row} pointerEvents="none">
+      <ThemedText style={[brandStyles.text, { color: colors.textHint }]}>
+        NIHON BUNKAI · 鍛練精進
+      </ThemedText>
+    </View>
   );
 }
 
@@ -266,4 +285,19 @@ const railStyles = StyleSheet.create({
   },
   pressed: { opacity: 0.5 },
   disabled: { opacity: 0.2 },
+});
+
+const brandStyles = StyleSheet.create({
+  row: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: Spacing.three,
+  },
+  text: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
 });

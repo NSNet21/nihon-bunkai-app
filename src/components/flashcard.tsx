@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 
 import { ThemedText } from './themed-text';
 
@@ -38,16 +39,23 @@ type Props = {
   onVisibilityChange: (next: ColumnVisibility) => void;
   frontHero: FrontHero;
   onFrontHeroChange: (next: FrontHero) => void;
+  /** Optional session position — drives top-meta + foot-dots progress. */
+  index?: number;
+  total?: number;
+  /** Optional deck title — appended to top meta (e.g. "Kanji N5 · Pack 01"). */
+  deckTitle?: string;
 };
 
 const FLIP_DURATION = 500;
 
-export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityChange, frontHero, onFrontHeroChange }: Props) {
+export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityChange, frontHero, onFrontHeroChange, index, total, deckTitle }: Props) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
   const rotation = useSharedValue(isFlipped ? 180 : 0);
-  const [popupOpen, setPopupOpen] = useState(false);
+  /* Which face's config popup is open, if any — split per-face so each icon
+     only manages the columns of its own face (locked decision 2026-05-25). */
+  const [popupOpen, setPopupOpen] = useState<'front' | 'back' | null>(null);
 
   useEffect(() => {
     rotation.value = withTiming(isFlipped ? 180 : 0, {
@@ -97,6 +105,15 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
   const secondaryVisible = heroKey === 't' ? visibility.pf : visibility.t;
   const secondaryValue   = secondaryKey === 't' ? entry.t : entry.p;
 
+  const hasProgress = typeof index === 'number' && typeof total === 'number' && total > 0;
+  /* Editorial top meta — `CARD 01 / 20 // KANJI N5 · PACK 01`.
+     Falls back gracefully if either piece is missing. Hidden when the
+     user toggles it off in Settings (persisted under nb.show-card-meta). */
+  const [showMeta] = usePersistedState<boolean>('show-card-meta', true);
+  const metaText = hasProgress && showMeta
+    ? `CARD ${String(index! + 1).padStart(2, '0')} / ${total}${deckTitle ? ` // ${deckTitle.toUpperCase()}` : ''}`
+    : null;
+
   return (
     <>
       <Pressable
@@ -104,24 +121,6 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
         style={({ pressed }) => [styles.cardPress, pressed && styles.pressed]}
         accessibilityLabel={isFlipped ? 'แตะเพื่อกลับด้านหน้า' : 'แตะเพื่อดูคำตอบ'}>
         <View style={styles.cardWrapper}>
-          {/* Settings (visibility) icon — top-right, sits above both faces */}
-          <View style={styles.cardSettingsAnchor} pointerEvents="box-none">
-            <Pressable
-              onPress={(e) => {
-                e.stopPropagation?.();
-                setPopupOpen(true);
-              }}
-              style={({ pressed }) => [
-                styles.settingsBtn,
-                { borderColor: colors.border, backgroundColor: colors.background },
-                pressed && styles.settingsBtnPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
-              <FiSliders size={16} color={colors.text} strokeWidth={2} />
-            </Pressable>
-          </View>
-
           {/* Front face — hero (T or P) + (optionally) the other as secondary */}
           <Animated.View
             style={[
@@ -132,6 +131,8 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             ]}>
             {/* Top crimson stripe — editorial frame edge */}
             <View style={styles.topStripe} pointerEvents="none" />
+            {metaText && <GlassMeta text={metaText} colors={colors} />}
+            <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} />
             <View style={styles.frontContent}>
               <ThemedText style={styles.term}>{heroValue}</ThemedText>
               {secondaryVisible && secondaryValue ? (
@@ -156,8 +157,6 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
               style={styles.backScroll}
               contentContainerStyle={styles.backScrollContent}
               showsVerticalScrollIndicator>
-              {/* Top stripe — scrolls with content (not pinned) per user request. */}
-              <View style={styles.backScrollStripe} pointerEvents="none" />
               {visibility.d && (
                 <ThemedText type="title" style={styles.meaning}>
                   {entry.d}
@@ -174,13 +173,28 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
                 </View>
               )}
             </ScrollView>
+            {/* Top crimson stripe — rendered AFTER ScrollView so it cleanly
+                covers the scrollbar's top edge (otherwise scrollbar shows
+                the stripe red bleeding through). */}
+            <View style={styles.topStripe} pointerEvents="none" />
+            {/* Glass meta — absolute-positioned overlay; scrolling content
+                slides UNDER it (backdrop-blur for the frosted editorial edge). */}
+            {metaText && <GlassMeta text={metaText} colors={colors} />}
+            <FaceSettingsButton colors={colors} side="back" onPress={(s) => setPopupOpen(s)} />
           </Animated.View>
+        </View>
+
+        {/* Overlay layer — sits OUTSIDE the 3D context of cardWrapper so the
+            foot-dots progress stays flat and fades over the flip rather than
+            disappearing edge-on at 90°. */}
+        <View style={styles.cardOverlay} pointerEvents="box-none">
+          {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
         </View>
       </Pressable>
 
       <VisibilityPopup
-        visible={popupOpen}
-        onClose={() => setPopupOpen(false)}
+        face={popupOpen}
+        onClose={() => setPopupOpen(null)}
         visibility={visibility}
         onToggle={toggleColumn}
         colors={colors}
@@ -193,6 +207,181 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
   );
 }
 
+/* ─── face settings button ───────────────────────────────────────────── */
+
+/** Settings icon sitting INSIDE a face so it rotates with the card during
+ *  the flip ("stuck to the card"). Front face uses the normal right inset;
+ *  back face is shifted inward to clear the ScrollView scrollbar. */
+function FaceSettingsButton({
+  colors,
+  side,
+  onPress,
+}: {
+  colors: typeof Colors.light;
+  side: 'front' | 'back';
+  onPress: (side: 'front' | 'back') => void;
+}) {
+  const rightOffset = side === 'front' ? Spacing.three : Spacing.three + 14;
+  return (
+    <View
+      style={[faceSettingsStyles.anchor, { right: rightOffset }]}
+      pointerEvents="box-none">
+      <Pressable
+        onPress={(e) => {
+          e.stopPropagation?.();
+          onPress(side);
+        }}
+        style={({ pressed }) => [
+          styles.settingsBtn,
+          { borderColor: colors.border, backgroundColor: colors.background },
+          pressed && styles.settingsBtnPressed,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
+        <FiSliders size={16} color={colors.text} strokeWidth={2} />
+      </Pressable>
+    </View>
+  );
+}
+
+const faceSettingsStyles = StyleSheet.create({
+  anchor: {
+    position: 'absolute',
+    top: Spacing.three,
+    zIndex: 10,
+  },
+});
+
+/* ─── glass meta ─────────────────────────────────────────────────────── */
+
+/** Editorial meta pill — frosted-glass bg, sharp corners, mono caps.
+ *  Sits inside each face so it flips with the card. Two variants:
+ *  - `overlay` (default): absolute-positioned top-left inside the front face
+ *  - `inline`: flows as a normal block at the top of the back ScrollView */
+function GlassMeta({
+  text,
+  colors,
+  variant = 'overlay',
+}: {
+  text: string;
+  colors: typeof Colors.light;
+  variant?: 'overlay' | 'inline';
+}) {
+  const isDark = colors.background === Colors.dark.background;
+  /* Warm cream / warm charcoal alpha + backdrop blur — the editorial glass
+     pill. Stays fixed at top of each face while scrolled content passes
+     underneath, blurred. The leak-through-3D issue is solved at the
+     cardWrapper level (transformStyle: preserve-3d) — see styles below. */
+  const bg = isDark ? 'rgba(28, 24, 22, 0.55)' : 'rgba(252, 248, 238, 0.55)';
+  const border = isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.08)';
+  const webGlass = Platform.OS === 'web'
+    ? ({ backdropFilter: 'blur(8px) saturate(140%)', WebkitBackdropFilter: 'blur(8px) saturate(140%)' } as any)
+    : null;
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        glassStyles.pill,
+        variant === 'overlay' ? glassStyles.overlay : glassStyles.inline,
+        { backgroundColor: bg, borderColor: border },
+        webGlass,
+      ]}>
+      <ThemedText style={[glassStyles.text, { color: colors.textSecondary }]}>{text}</ThemedText>
+    </View>
+  );
+}
+
+const glassStyles = StyleSheet.create({
+  pill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 0,           // sharp — editorial
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+  },
+  /* Compact pill in the top-left corner of each face, sits below red stripe. */
+  overlay: {
+    position: 'absolute',
+    top: 8,
+    left: 10,
+    zIndex: 7,
+  },
+  inline: {
+    marginBottom: Spacing.three,
+  },
+  text: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 8,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+});
+
+/* ─── foot dots ──────────────────────────────────────────────────────── */
+
+/** 5-quintile progress indicator overlaid bottom-left.
+ *  Filled crimson once the card index passes each fifth of the deck.
+ *  Fades out and back in when the card flips so the motion reads as part
+ *  of the same gesture (explicit 500ms sequence — deliberate, not
+ *  cos-tied so the dwell at 0 is perceptible). */
+function FootDots({
+  index,
+  total,
+  colors,
+  isFlipped,
+}: {
+  index: number;
+  total: number;
+  colors: typeof Colors.light;
+  isFlipped: boolean;
+}) {
+  const progress = (index + 1) / total;
+  const opacity = useSharedValue(1);
+  const mounted = useSharedValue(false);
+  useEffect(() => {
+    /* Skip the first run so the initial render doesn't fade. */
+    if (!mounted.value) { mounted.value = true; return; }
+    opacity.value = withSequence(
+      withTiming(0, { duration: 350, easing: Easing.bezier(0.455, 0.03, 0.515, 0.955) }),
+      withTiming(1, { duration: 350, easing: Easing.bezier(0.455, 0.03, 0.515, 0.955) }),
+    );
+  }, [isFlipped, opacity, mounted]);
+  const aStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return (
+    <Animated.View style={[footDotsStyles.row, aStyle]} pointerEvents="none">
+      {[0, 1, 2, 3, 4].map((i) => {
+        const filled = (i + 1) / 5 <= progress;
+        return (
+          <View
+            key={i}
+            style={[
+              footDotsStyles.dot,
+              { backgroundColor: filled ? Accent.base : colors.border },
+            ]}
+          />
+        );
+      })}
+    </Animated.View>
+  );
+}
+
+const footDotsStyles = StyleSheet.create({
+  row: {
+    position: 'absolute',
+    bottom: 10,
+    left: 12,
+    flexDirection: 'row',
+    gap: 4,
+    zIndex: 6,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+  },
+});
+
 /* ─── pulse dot ──────────────────────────────────────────────────────── */
 
 function PulseDot() {
@@ -201,16 +390,16 @@ function PulseDot() {
   useEffect(() => {
     op.value = withRepeat(
       withSequence(
-        withTiming(0.3, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1,   { duration: 900, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.3, { duration: 900, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
+        withTiming(1,   { duration: 900, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
       ),
       -1,
       false,
     );
     scale.value = withRepeat(
       withSequence(
-        withTiming(0.6, { duration: 900, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1,   { duration: 900, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.6, { duration: 900, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
+        withTiming(1,   { duration: 900, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
       ),
       -1,
       false,
@@ -223,26 +412,30 @@ function PulseDot() {
 /* ─── popup ──────────────────────────────────────────────────────────── */
 
 function VisibilityPopup({
-  visible,
+  face,
   onClose,
   visibility,
   onToggle,
   colors,
   visibleFrontCount,
   visibleBackCount,
-  frontHero,
-  onSwapHero,
 }: {
-  visible: boolean;
+  face: 'front' | 'back' | null;
   onClose: () => void;
   visibility: ColumnVisibility;
   onToggle: (k: keyof ColumnVisibility) => void;
   colors: typeof Colors.light;
   visibleFrontCount: number;
   visibleBackCount: number;
-  frontHero: FrontHero;
-  onSwapHero: () => void;
+  /* frontHero / onSwapHero accepted to keep call-site stable; UX moved out. */
+  frontHero?: FrontHero;
+  onSwapHero?: () => void;
 }) {
+  const visible = face !== null;
+  const title   = face === 'front' ? 'ด้านหน้า' : 'ด้านหลัง';
+  const sublabel = face === 'front'
+    ? 'เลือกคอลัมน์ที่จะแสดงด้านหน้า'
+    : 'เลือกคอลัมน์ที่จะแสดงด้านหลัง';
   /* Lock the last-remaining column on each face so the user can't blank it. */
   const frontOnly = visibleFrontCount === 1;
   const backOnly  = visibleBackCount === 1;
@@ -260,74 +453,73 @@ function VisibilityPopup({
           onPress={(e) => e.stopPropagation?.()}>
           <View style={popupStyles.header}>
             <View>
-              <ThemedText type="defaultSemiBold">การแสดงผลคอลัมน์</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                เลือกที่จะซ่อน/แสดงในการ์ดนี้
-              </ThemedText>
+              <ThemedText type="defaultSemiBold">การแสดงผลคอลัมน์ · {title}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">{sublabel}</ThemedText>
             </View>
             <Pressable onPress={onClose} style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
               <FiX size={20} color={colors.text} strokeWidth={2} />
             </Pressable>
           </View>
 
-          {/* Front face — T + Pf (independent from back) */}
-          <View style={popupStyles.sectionBlock}>
-            <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
-              // FRONT · ด้านหน้า
-            </ThemedText>
-            <View style={popupStyles.rows}>
-              <CheckRow
-                checked={visibility.t}
-                locked={tLocked}
-                onPress={() => onToggle('t')}
-                colors={colors}
-                label="T · คำศัพท์ (Term)"
-                hint="คันจิ / คะนะ"
-              />
-              <CheckRow
-                checked={visibility.pf}
-                locked={pfLocked}
-                onPress={() => onToggle('pf')}
-                colors={colors}
-                label="P · คำอ่าน (Pronunciation)"
-                hint="ตั้งแยกจากด้านหลัง"
-              />
+          {face === 'front' && (
+            <View style={popupStyles.sectionBlock}>
+              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+                // FRONT · ด้านหน้า
+              </ThemedText>
+              <View style={popupStyles.rows}>
+                <CheckRow
+                  checked={visibility.t}
+                  locked={tLocked}
+                  onPress={() => onToggle('t')}
+                  colors={colors}
+                  label="T · คำศัพท์ (Term)"
+                  hint="คันจิ / คะนะ"
+                />
+                <CheckRow
+                  checked={visibility.pf}
+                  locked={pfLocked}
+                  onPress={() => onToggle('pf')}
+                  colors={colors}
+                  label="P · คำอ่าน (Pronunciation)"
+                  hint="ตั้งแยกจากด้านหลัง"
+                />
+              </View>
             </View>
-            {/* Swap hero — moved to external UX (Browse / session config) per user. */}
-          </View>
+          )}
 
-          {/* Back face — D + Pb + E (independent from front) */}
-          <View style={popupStyles.sectionBlock}>
-            <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
-              // BACK · ด้านหลัง
-            </ThemedText>
-            <View style={popupStyles.rows}>
-              <CheckRow
-                checked={visibility.d}
-                locked={dLocked}
-                onPress={() => onToggle('d')}
-                colors={colors}
-                label="D · ความหมาย (Thai)"
-                hint="แสดงเป็น title หลังพลิกการ์ด"
-              />
-              <CheckRow
-                checked={visibility.pb}
-                locked={pbLocked}
-                onPress={() => onToggle('pb')}
-                colors={colors}
-                label="P · คำอ่าน (Pronunciation)"
-                hint="ตั้งแยกจากด้านหน้า"
-              />
-              <CheckRow
-                checked={visibility.e}
-                locked={eLocked}
-                onPress={() => onToggle('e')}
-                colors={colors}
-                label="E · คำอธิบาย (Explanation)"
-                hint="markdown sections — Breakdown / Examples"
-              />
+          {face === 'back' && (
+            <View style={popupStyles.sectionBlock}>
+              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+                // BACK · ด้านหลัง
+              </ThemedText>
+              <View style={popupStyles.rows}>
+                <CheckRow
+                  checked={visibility.d}
+                  locked={dLocked}
+                  onPress={() => onToggle('d')}
+                  colors={colors}
+                  label="D · ความหมาย (Thai)"
+                  hint="แสดงเป็น title หลังพลิกการ์ด"
+                />
+                <CheckRow
+                  checked={visibility.pb}
+                  locked={pbLocked}
+                  onPress={() => onToggle('pb')}
+                  colors={colors}
+                  label="P · คำอ่าน (Pronunciation)"
+                  hint="ตั้งแยกจากด้านหน้า"
+                />
+                <CheckRow
+                  checked={visibility.e}
+                  locked={eLocked}
+                  onPress={() => onToggle('e')}
+                  colors={colors}
+                  label="E · คำอธิบาย (Explanation)"
+                  hint="markdown sections — Breakdown / Examples"
+                />
+              </View>
             </View>
-          </View>
+          )}
 
           <ThemedText type="small" themeColor="textSecondary" style={popupStyles.footnote}>
             ค่าเลือกใช้ทั้ง session · global default + Quiz Config มาใน polish round
@@ -384,12 +576,25 @@ function CheckRow({
 const styles = StyleSheet.create({
   cardPress: { width: '100%', flex: 1 },
   pressed: { opacity: 0.95 },
-  cardWrapper: { width: '100%', flex: 1, minHeight: 320, position: 'relative' },
-  cardSettingsAnchor: {
+  /* cardWrapper holds the two rotated faces; preserve-3d is required on web
+     so backface-visibility on each face actually hides the opposite-face
+     content (including GlassMeta which creates its own stacking context via
+     backdrop-filter). Without this, the back face leaks through the front. */
+  cardWrapper: {
+    width: '100%',
+    flex: 1,
+    minHeight: 320,
+    position: 'relative',
+    ...(Platform.OS === 'web' ? ({ transformStyle: 'preserve-3d' } as object) : null),
+  } as any,
+  /* Overlay layer covering the entire card area — siblings of cardWrapper
+     so they live OUTSIDE the 3D rendering context and stay visible during
+     the rotateY flip animation. pointerEvents="box-none" lets card taps
+     fall through except where actual buttons sit. */
+  cardOverlay: {
     position: 'absolute',
-    top: Spacing.three,
-    right: Spacing.three,
-    zIndex: 10,
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 20,
   },
   settingsBtn: {
     width: 36,
@@ -450,7 +655,15 @@ const styles = StyleSheet.create({
     backgroundColor: Accent.base,
   },
   backScroll: { flex: 1, alignSelf: 'stretch' },
-  backScrollContent: { padding: Spacing.six, gap: Spacing.three, alignItems: 'stretch' },
+  /* Generous top padding so the hero answer clears both the top stripe and
+     the glass meta pill at top-left, and breathes from the frame edge. */
+  backScrollContent: {
+    paddingTop: Spacing.six + 36,
+    paddingHorizontal: Spacing.six,
+    paddingBottom: Spacing.six,
+    gap: Spacing.three,
+    alignItems: 'stretch',
+  },
   meaning: { textAlign: 'center', marginBottom: Spacing.one },
   backP: { textAlign: 'center', fontSize: 16 },
   markdownWrap: { alignSelf: 'stretch' },

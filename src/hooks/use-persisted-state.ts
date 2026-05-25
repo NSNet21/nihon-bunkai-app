@@ -3,7 +3,16 @@ import { useCallback, useEffect, useState } from 'react';
 /**
  * useState that mirrors to localStorage (web) under key `nb.<name>`.
  * Survives page reloads and tab switches. No-op on native (Phase 2 = AsyncStorage adapter).
+ *
+ * Same-tab sync: the native `storage` event only fires in OTHER tabs, so we
+ * dispatch a custom `nb:persisted` event on every write and listen for it,
+ * which lets two components on the same page (e.g. Settings + Flashcard)
+ * stay in sync without lifting state to a context.
  */
+const SAME_TAB_EVENT = 'nb:persisted';
+
+type NbPersistedDetail = { key: string; value: unknown };
+
 export function usePersistedState<T>(name: string, initial: T): [T, (next: T) => void] {
   const key = `nb.${name}`;
 
@@ -29,8 +38,17 @@ export function usePersistedState<T>(name: string, initial: T): [T, (next: T) =>
         /* ignore parse errors from foreign tabs */
       }
     };
+    const onSameTab = (e: Event) => {
+      const detail = (e as CustomEvent<NbPersistedDetail>).detail;
+      if (!detail || detail.key !== key) return;
+      setValue(detail.value as T);
+    };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(SAME_TAB_EVENT, onSameTab as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(SAME_TAB_EVENT, onSameTab as EventListener);
+    };
   }, [key]);
 
   const setPersisted = useCallback(
@@ -42,6 +60,8 @@ export function usePersistedState<T>(name: string, initial: T): [T, (next: T) =>
       } catch {
         /* quota/private-mode — silently ignore */
       }
+      /* Notify any same-tab listeners (the native `storage` event does not). */
+      window.dispatchEvent(new CustomEvent<NbPersistedDetail>(SAME_TAB_EVENT, { detail: { key, value: next } }));
     },
     [key],
   );

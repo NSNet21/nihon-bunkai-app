@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { ThemedText } from './themed-text';
@@ -36,10 +37,12 @@ export function ThemeToggle() {
   const pillX = useSharedValue(selectedIndex * SEGMENT_WIDTH);
 
   useEffect(() => {
-    pillX.value = withSpring(selectedIndex * SEGMENT_WIDTH, {
-      damping: 18,
-      stiffness: 220,
-      mass: 0.6,
+    /* Snappy timing (was a slower spring — felt laggy when paired with the
+       global theme-change cascade). 180ms ease-out reads as "instant" while
+       still smoothing the pill slide between segments. */
+    pillX.value = withTiming(selectedIndex * SEGMENT_WIDTH, {
+      duration: 180,
+      easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
     });
   }, [selectedIndex, pillX]);
 

@@ -11,14 +11,17 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { ContinueCard } from '@/components/continue-card';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAllDecks } from '@/hooks/use-decks';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { Deck } from '@/data/types';
+import type { LastSession } from '@/lib/last-session';
 
 const SCROLL_TOP_THRESHOLD = 400;
 
@@ -87,8 +90,24 @@ export default function BrowseScreen() {
   const [subsOnly, setSubsOnly] = useState(false);
   const listRef = useRef<FlashList<Row>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
   const { decks } = useAllDecks();
+  const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
+
+  /* Only surface Continue CTA when the resume target is still valid:
+     - deck must exist in current allDecks (user might have lost entitlement)
+     - session must not be on the final card (handled by Study clearing on rate)
+     - guard against stale shape from older app versions */
+  const continueDeck =
+    lastSession && decks.find((d) => d.id === lastSession.deckId);
+  const showContinue =
+    !!lastSession &&
+    !!continueDeck &&
+    typeof lastSession.index === 'number' &&
+    typeof lastSession.total === 'number' &&
+    lastSession.index < lastSession.total - 1;
 
   /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
@@ -178,6 +197,9 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
               </ThemedText>
+              {showContinue && lastSession && (
+                <ContinueCard lastSession={lastSession} colors={colors} />
+              )}
               <Toolbar
                 onExpandAll={expandAll}
                 onCollapseAll={collapseAll}

@@ -14,6 +14,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
+import type { LastSession } from '@/lib/last-session';
 
 export default function StudyScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
@@ -57,6 +58,7 @@ export default function StudyScreen() {
     { t: true, pf: true, pb: true, d: true, e: true },
   );
   const [frontHero, setFrontHero] = usePersistedState<FrontHero>('front-hero', 't');
+  const [, setLastSession] = usePersistedState<LastSession | null>('last-session', null);
 
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
@@ -66,9 +68,26 @@ export default function StudyScreen() {
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
 
+  /* Persist study position so Browse can offer "Continue · {deck} · {idx}/{total}".
+     Bail when there's no real entry (loading / empty / past-end / no deck). */
+  useEffect(() => {
+    if (!deck || !current || isComplete) return;
+    setLastSession({
+      deckId: deck.id,
+      deckTitle: deck.title,
+      entryId: current.id,
+      index,
+      total: entries.length,
+      updatedAt: Date.now(),
+    });
+  }, [deck, current, index, entries.length, isComplete, setLastSession]);
+
   function handleRate(rating: Rating) {
     setResults((prev) => [...prev, rating]);
     setIsFlipped(false);
+    /* Finishing the deck retires the Continue CTA — Browse only shows it
+       for sessions that still have cards left to study. */
+    if (index >= entries.length - 1) setLastSession(null);
     setIndex((i) => i + 1);
   }
 

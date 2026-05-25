@@ -5,7 +5,7 @@ import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Rating } from 'ts-fsrs';
 
-import { Flashcard, type ColumnVisibility } from '@/components/flashcard';
+import { Flashcard, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -48,8 +48,11 @@ export default function StudyScreen() {
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [results, setResults] = useState<Rating[]>([]);
-  /* Column visibility — session-level (resets on deck switch / refresh) */
-  const [visibility, setVisibility] = useState<ColumnVisibility>({ d: true, p: true, e: true });
+  /* Column visibility — session-level (resets on deck switch / refresh).
+     Pf / Pb are independent: user might want P shown on back (as confirmation)
+     while hidden on front (force recall) — or any other combo. */
+  const [visibility, setVisibility] = useState<ColumnVisibility>({ t: true, pf: true, pb: true, d: true, e: true });
+  const [frontHero, setFrontHero] = useState<FrontHero>('t');
 
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
@@ -121,6 +124,8 @@ export default function StudyScreen() {
                     onFlip={() => setIsFlipped((f) => !f)}
                     visibility={visibility}
                     onVisibilityChange={setVisibility}
+                    frontHero={frontHero}
+                    onFrontHeroChange={setFrontHero}
                   />
                 </View>
                 <SideRail

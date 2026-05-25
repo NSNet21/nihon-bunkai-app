@@ -143,6 +143,10 @@ export default function BrowseScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Top crimson accent stripe — runs edge-to-edge above safe area. */}
+      <View style={styles.topAccentBar} pointerEvents="none" />
+      {/* Ghost kanji 学 — faint editorial decoration, behind all content. */}
+      <ThemedText style={styles.ghostKanji} pointerEvents="none">学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<Row>
           ref={listRef}
@@ -159,8 +163,21 @@ export default function BrowseScreen() {
           scrollEventThrottle={100}
           ListHeaderComponent={
             <View style={styles.headerWrap}>
-              <ThemedText type="title">Browse</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              {/* Hero — editorial display headline with mono sub label */}
+              <View style={styles.subLabelRow}>
+                <View style={styles.pip} />
+                <ThemedText type="small" themeColor="textHint" style={styles.subLabel}>
+                  // TODAY · วันนี้
+                </ThemedText>
+              </View>
+              <ThemedText type="title" style={styles.displayHeadline}>
+                วันนี้
+                {'\n'}
+                <ThemedText type="title" style={[styles.displayHeadline, styles.displayHeadlineAccent]}>
+                  ทบทวน?
+                </ThemedText>
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
               </ThemedText>
               <Toolbar
@@ -351,10 +368,6 @@ function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
   const owned = true;
   const showLock = false;
 
-  const subtitle = deck.isFree
-    ? `${deck.entryCount} cards`
-    : `${deck.entryCount} cards · ปลดล็อกแล้ว`;
-
   function onPress() {
     if (!owned) {
       router.push('/login');
@@ -371,29 +384,36 @@ function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
           styles.deckCardInner,
           !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
         ]}>
-        <View style={styles.deckHeader}>
-          <ThemedText type="defaultSemiBold" style={[styles.deckTitle, showLock && { color: colors.textSecondary }]}>
-            {deck.title}
-          </ThemedText>
-          {showLock && (
-            <View style={[styles.badge, { backgroundColor: Accent.bg, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
-              <FiLock size={10} color={Accent.base} />
-              <ThemedText type="small" style={{ color: Accent.base }}>
-                LOCKED
-              </ThemedText>
-            </View>
-          )}
-          {!deck.isFree && owned && (
-            <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
-              <ThemedText type="small" style={{ color: Accent.base }}>
-                OWNED
-              </ThemedText>
-            </View>
-          )}
+        {/* Left accent stripe — 3px crimson rail */}
+        <View style={styles.deckStripe} />
+        <View style={styles.deckBody}>
+          <View style={styles.deckHeader}>
+            <ThemedText
+              type="defaultSemiBold"
+              style={[styles.deckTitle, showLock && { color: colors.textSecondary }]}
+            >
+              {deck.title}
+            </ThemedText>
+            <ThemedText type="small" style={[styles.deckCount, { color: colors.textSecondary }]}>
+              {deck.entryCount}
+            </ThemedText>
+            {showLock && (
+              <View style={[styles.badge, { backgroundColor: Accent.bg, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                <FiLock size={10} color={Accent.base} />
+                <ThemedText type="small" style={{ color: Accent.base }}>
+                  LOCKED
+                </ThemedText>
+              </View>
+            )}
+            {!deck.isFree && owned && (
+              <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
+                <ThemedText type="small" style={{ color: Accent.base }}>
+                  OWNED
+                </ThemedText>
+              </View>
+            )}
+          </View>
         </View>
-        <ThemedText type="small" themeColor="textSecondary">
-          {subtitle}
-        </ThemedText>
       </ThemedView>
     </Pressable>
   );
@@ -408,9 +428,59 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.six + Spacing.four,
+    paddingTop: Spacing.six + Spacing.three,
     paddingBottom: Spacing.three,
+    gap: Spacing.three,
+  },
+  topAccentBar: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 3,
+    backgroundColor: Accent.base,
+    zIndex: 2,
+  },
+  ghostKanji: {
+    position: 'absolute',
+    top: 40,
+    right: -20,
+    fontSize: 240,
+    lineHeight: 240,
+    fontFamily: Platform.select({ web: '"Noto Serif JP", "Hiragino Mincho ProN", serif', default: undefined }),
+    fontWeight: '300',
+    color: Accent.base,
+    opacity: 0.06,
+    zIndex: 0,
+  },
+  subLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.two,
+    marginBottom: 2,
+  },
+  pip: {
+    width: 14,
+    height: 1.5,
+    backgroundColor: Accent.base,
+  },
+  subLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontSize: 10,
+  },
+  displayHeadline: {
+    fontFamily: Platform.select({ web: 'Oswald, "Arial Narrow", Impact, sans-serif', default: undefined }),
+    fontWeight: '700',
+    fontSize: 38,
+    lineHeight: 42,
+    letterSpacing: -0.5,
+    textTransform: 'uppercase',
+  },
+  displayHeadlineAccent: {
+    color: Accent.base,
+  },
+  heroSubtitle: {
+    marginTop: Spacing.one,
   },
   toolbar: {
     flexDirection: 'row',
@@ -455,7 +525,24 @@ const styles = StyleSheet.create({
   chevronWrap: { marginLeft: 'auto' },
   headerPressed: { opacity: 0.6 },
   deckCard: { borderRadius: 0 },
-  deckCardInner: { padding: Spacing.three, gap: 2 },
+  deckCardInner: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 0,
+    paddingRight: Spacing.three,
+    overflow: 'hidden',
+  },
+  deckStripe: {
+    width: 3,
+    alignSelf: 'stretch',
+    backgroundColor: Accent.base,
+  },
+  deckBody: {
+    flex: 1,
+    paddingVertical: Spacing.three,
+    paddingLeft: Spacing.three,
+    gap: 2,
+  },
   deckHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -463,6 +550,11 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   deckTitle: { flex: 1 },
+  deckCount: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    letterSpacing: 0.5,
+    fontSize: 12,
+  },
   badge: {
     paddingHorizontal: Spacing.two,
     paddingVertical: 2,

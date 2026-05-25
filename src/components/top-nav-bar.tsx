@@ -1,5 +1,6 @@
 import { useRouter, usePathname } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { FiArrowLeft } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -9,6 +10,65 @@ import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/the
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type Tab = { href: string; label: string };
+
+function BackButton({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  return (
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="link"
+        accessibilityLabel="กลับหน้า Browse"
+        onPressIn={() => {
+          scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) });
+          opacity.value = withTiming(0.85, { duration: 90 });
+        }}
+        onPressOut={() => {
+          scale.value = withTiming(1, { duration: 220, easing: Easing.back(1.4) });
+          opacity.value = withTiming(1, { duration: 220 });
+        }}
+        style={[styles.backBtn, { borderColor: colors.border }]}
+      >
+        {({ hovered, pressed }: any) => {
+          const active = hovered || pressed;
+          return (
+            <>
+              {/* Left stripe — dims 55% by default, full crimson on hover. */}
+              <View
+                style={[
+                  styles.backStripe,
+                  { opacity: active ? 1 : 0.55 },
+                  Platform.OS === 'web'
+                    ? ({ transition: 'opacity 180ms ease' } as any)
+                    : null,
+                ]}
+              />
+              <View style={styles.backInner}>
+                <FiArrowLeft size={13} color={active ? Accent.base : colors.textSecondary} />
+                <ThemedText
+                  style={[
+                    styles.backMono,
+                    { color: active ? Accent.base : colors.text },
+                    Platform.OS === 'web'
+                      ? ({ transition: 'color 180ms ease' } as any)
+                      : null,
+                  ]}
+                >
+                  BACK
+                </ThemedText>
+              </View>
+            </>
+          );
+        }}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 function BrandLink({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
   const scale = useSharedValue(1);
@@ -41,17 +101,21 @@ function BrandLink({ onPress, colors }: { onPress: () => void; colors: typeof Co
 
 const TABS: Tab[] = [
   { href: '/',          label: 'Browse' },
-  { href: '/study',     label: 'Study' },
   { href: '/shop',      label: 'Shop' },
   { href: '/search',    label: 'Search' },
   { href: '/settings',  label: 'Settings' },
 ];
+
+/* Routes that enter focus mode — nav links hide, only Back button shows. */
+const FOCUS_ROUTES = new Set(['/study']);
 
 export function TopNavBar() {
   const pathname = usePathname();
   const router = useRouter();
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+
+  const isFocusMode = FOCUS_ROUTES.has(pathname);
 
   return (
     <SafeAreaView
@@ -60,30 +124,34 @@ export function TopNavBar() {
       <View style={styles.bar}>
         <View style={styles.inner}>
           <BrandLink onPress={() => router.push('/')} colors={colors} />
-          <View style={styles.tabs}>
-            {TABS.map((tab) => {
-              const isActive = pathname === tab.href;
-              return (
-                <Pressable
-                  key={tab.href}
-                  onPress={() => router.push(tab.href as any)}
-                  style={({ pressed, hovered }: any) => [
-                    styles.tab,
-                    {
-                      backgroundColor: isActive ? Accent.base : 'transparent',
-                    },
-                    hovered && !isActive && { backgroundColor: colors.backgroundElement },
-                    pressed && { opacity: 0.85 },
-                  ]}>
-                  <ThemedText
-                    type={isActive ? 'defaultSemiBold' : 'default'}
-                    style={{ color: isActive ? '#ffffff' : colors.text, fontSize: 13, lineHeight: 13, textAlign: 'center', includeFontPadding: false } as any}>
-                    {tab.label}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          {isFocusMode ? (
+            <BackButton onPress={() => router.push('/')} colors={colors} />
+          ) : (
+            <View style={styles.tabs}>
+              {TABS.map((tab) => {
+                const isActive = pathname === tab.href;
+                return (
+                  <Pressable
+                    key={tab.href}
+                    onPress={() => router.push(tab.href as any)}
+                    style={({ pressed, hovered }: any) => [
+                      styles.tab,
+                      {
+                        backgroundColor: isActive ? Accent.base : 'transparent',
+                      },
+                      hovered && !isActive && { backgroundColor: colors.backgroundElement },
+                      pressed && { opacity: 0.85 },
+                    ]}>
+                    <ThemedText
+                      type={isActive ? 'defaultSemiBold' : 'default'}
+                      style={{ color: isActive ? '#ffffff' : colors.text, fontSize: 13, lineHeight: 13, textAlign: 'center', includeFontPadding: false } as any}>
+                      {tab.label}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -122,5 +190,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: Radii.sm,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 32,
+    borderRadius: 0,           // sharp corners — editorial precision
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  backStripe: {
+    width: 3,
+    alignSelf: 'stretch',
+    backgroundColor: Accent.base,
+  },
+  backInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  backMono: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  backDivider: {
+    width: 1,
+    height: 14,
+    alignSelf: 'center',
+  },
+  backLabel: {
+    fontSize: 13,
   },
 });

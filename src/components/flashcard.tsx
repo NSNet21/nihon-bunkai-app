@@ -135,20 +135,10 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             {metaText && <GlassMeta text={metaText} colors={colors} />}
             <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} />
             <View style={styles.frontContent}>
-              {/* Term + speaker badge — wrapping in a relative container lets
-                  the speaker pin to the upper-right corner of the actual text
-                  bounding box (not the full card width). Creates a strong
-                  "this acts on this" link regardless of term width — a single
-                  kanji and a long vocab phrase both get a badge on their
-                  right shoulder. */}
-              <View style={styles.termWrap}>
-                <ThemedText style={styles.term}>{heroValue}</ThemedText>
-                {heroValue ? (
-                  <View style={styles.termBadge} pointerEvents="box-none">
-                    <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
-                  </View>
-                ) : null}
-              </View>
+              <ThemedText style={styles.term}>{heroValue}</ThemedText>
+              {heroValue ? (
+                <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
+              ) : null}
               {secondaryVisible && secondaryValue ? (
                 <ThemedText type="default" themeColor="textSecondary" style={styles.pronunciation}>
                   {secondaryValue}
@@ -644,15 +634,6 @@ const styles = StyleSheet.create({
     backgroundColor: Accent.base,
   },
   frontContent: { gap: Spacing.four, alignItems: 'center' },
-  termWrap: {
-    position: 'relative',
-    alignSelf: 'center',
-  },
-  termBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -32,
-  },
   term: {
     fontSize: 96,
     lineHeight: 100,

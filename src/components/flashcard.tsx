@@ -133,17 +133,17 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             {/* Top crimson stripe — editorial frame edge */}
             <View style={styles.topStripe} pointerEvents="none" />
             {metaText && <GlassMeta text={metaText} colors={colors} />}
-            <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} />
-            <View style={styles.frontContent}>
-              {/* Hero T + speaker directly underneath. Placing the speaker
-                  BELOW T (but ABOVE the secondary P) makes the association
-                  unambiguous — the speaker reads the big text right above
-                  it, while the smaller P below is visually separated by
-                  the speaker itself acting as a divider. */}
-              <ThemedText style={styles.term}>{heroValue}</ThemedText>
+            {/* Top-right action cluster — speaker + settings together so the
+                speaker doesn't crowd the hero text below. Tap speaker to
+                hear the hero (T or P depending on user's swap setting). */}
+            <View style={faceTopActionsStyles.row} pointerEvents="box-none">
               {heroValue ? (
-                <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
+                <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
               ) : null}
+              <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} inline />
+            </View>
+            <View style={styles.frontContent}>
+              <ThemedText style={styles.term}>{heroValue}</ThemedText>
               {secondaryVisible && secondaryValue ? (
                 <ThemedText type="default" themeColor="textSecondary" style={styles.pronunciation}>
                   {secondaryValue}
@@ -228,30 +228,39 @@ function FaceSettingsButton({
   colors,
   side,
   onPress,
+  inline = false,
 }: {
   colors: typeof Colors.light;
   side: 'front' | 'back';
   onPress: (side: 'front' | 'back') => void;
+  /** When true, skip the absolute positioning — the parent (top-right
+   *  cluster) handles placement. Used on the front face where the speaker
+   *  + settings live in one row. Back face still positions standalone. */
+  inline?: boolean;
 }) {
   const rightOffset = side === 'front' ? Spacing.three : Spacing.three + 14;
+  const Btn = (
+    <Pressable
+      onPress={(e) => {
+        e.stopPropagation?.();
+        onPress(side);
+      }}
+      style={({ pressed }) => [
+        styles.settingsBtn,
+        { borderColor: colors.border, backgroundColor: colors.background },
+        pressed && styles.settingsBtnPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
+      <FiSliders size={16} color={colors.text} strokeWidth={2} />
+    </Pressable>
+  );
+  if (inline) return Btn;
   return (
     <View
       style={[faceSettingsStyles.anchor, { right: rightOffset }]}
       pointerEvents="box-none">
-      <Pressable
-        onPress={(e) => {
-          e.stopPropagation?.();
-          onPress(side);
-        }}
-        style={({ pressed }) => [
-          styles.settingsBtn,
-          { borderColor: colors.border, backgroundColor: colors.background },
-          pressed && styles.settingsBtnPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
-        <FiSliders size={16} color={colors.text} strokeWidth={2} />
-      </Pressable>
+      {Btn}
     </View>
   );
 }
@@ -260,6 +269,21 @@ const faceSettingsStyles = StyleSheet.create({
   anchor: {
     position: 'absolute',
     top: Spacing.three,
+    zIndex: 10,
+  },
+});
+
+/* Front-face top-right action cluster: speaker + settings sit side-by-side
+ * so they don't compete with the hero text and don't get misread as
+ * controls for the secondary P block. */
+const faceTopActionsStyles = StyleSheet.create({
+  row: {
+    position: 'absolute',
+    top: Spacing.three,
+    right: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     zIndex: 10,
   },
 });

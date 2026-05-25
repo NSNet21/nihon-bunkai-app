@@ -135,14 +135,21 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             {metaText && <GlassMeta text={metaText} colors={colors} />}
             <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} />
             <View style={styles.frontContent}>
-              <ThemedText style={styles.term}>{heroValue}</ThemedText>
+              {/* Hero row — T (or P if user swapped) + inline speaker. Putting
+                  the speaker NEXT TO the hero (not below the secondary) keeps
+                  the "what does this speak?" mental model unambiguous: it
+                  speaks the big text right next to it, not the smaller P
+                  underneath. */}
+              <View style={styles.heroRow}>
+                <ThemedText style={styles.term}>{heroValue}</ThemedText>
+                {heroValue ? (
+                  <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
+                ) : null}
+              </View>
               {secondaryVisible && secondaryValue ? (
                 <ThemedText type="default" themeColor="textSecondary" style={styles.pronunciation}>
                   {secondaryValue}
                 </ThemedText>
-              ) : null}
-              {heroValue ? (
-                <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
               ) : null}
               {/* Reveal cue — mono editorial label + pulsing crimson square */}
               <View style={styles.revealCue}>
@@ -634,6 +641,13 @@ const styles = StyleSheet.create({
     backgroundColor: Accent.base,
   },
   frontContent: { gap: Spacing.four, alignItems: 'center' },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
   term: {
     fontSize: 96,
     lineHeight: 100,

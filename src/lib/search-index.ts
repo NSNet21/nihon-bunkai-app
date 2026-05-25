@@ -16,7 +16,7 @@
  */
 
 import Fuse, { type FuseResultMatch, type IFuseOptions } from 'fuse.js';
-import { isHiragana, isKatakana, toHiragana, toKatakana, toRomaji } from 'wanakana';
+import { isHiragana, isKatakana, toHiragana, toKana, toKatakana } from 'wanakana';
 
 import type { ContentType, Entry, JlptLevel } from '@/data/types';
 
@@ -46,9 +46,9 @@ const FUSE_OPTIONS: IFuseOptions<SearchableEntry> = {
     { name: 'd', weight: 0.8 },   // Thai meaning
     { name: 'p', weight: 0.6 },   // Pronunciation/reading variants array
   ],
-  threshold: 0.25,                // 0 = exact, 1 = anything. 0.25 = light typo tolerance (Thai exact-ish)
+  threshold: 0.2,                  // 0 = exact, 1 = anything. 0.2 = tighter — fewer fuzzy false-positives
   ignoreLocation: true,            // Match anywhere in field, not just start
-  minMatchCharLength: 1,           // Single-char queries (kanji search)
+  minMatchCharLength: 2,           // 2+ contig chars must match — kills 1-char fuzzy noise. Pure 1-char kanji queries still match exactly via the T-field equality path.
   includeScore: true,
   includeMatches: true,
   shouldSort: true,
@@ -63,7 +63,7 @@ export function search(
   query: string,
   limit = 50,
 ): SearchResult[] {
-  const trimmed = query.trim();
+  const trimmed = normalizeQuery(query.trim());
   if (!trimmed) return [];
 
   return fuse.search(trimmed, { limit }).map((r) => ({
@@ -71,6 +71,22 @@ export function search(
     score: r.score ?? 1,
     matches: r.matches,
   }));
+}
+
+/**
+ * Pure-latin queries (>=2 chars) get converted to hiragana via wanakana so
+ * a romaji search like `taberu` becomes `たべる`, which matches against the
+ * hiragana/katakana variants already in the index. Avoids stuffing romaji
+ * into every entry (which caused false-positive fuzzy hits on short queries
+ * like `some` matching `sorekara`, `tsutomeru`, etc.)
+ */
+function normalizeQuery(q: string): string {
+  if (q.length < 2) return q;
+  if (!/^[a-zA-Z]+$/.test(q)) return q;
+  const kana = toKana(q.toLowerCase());
+  /* Reject queries that collapse to a single kana char (e.g. `ki` → `き`) —
+     they'd otherwise fuzzy-match anything containing that one syllable. */
+  return kana.length >= 2 ? kana : '';
 }
 
 /* ─── Reading normalization ─────────────────────────────────────────── */
@@ -99,8 +115,11 @@ function normalizeReadings(raw: string): string[] {
 }
 
 /**
- * Expand each clean reading into searchable variants so the index bridges
- * hiragana ↔ katakana ↔ romaji. The original token always wins (added first).
+ * Expand each clean reading into searchable variants for hiragana ↔ katakana
+ * bridging only. Romaji is handled at QUERY time via normalizeQuery, not
+ * indexed — pre-indexing romaji caused short queries to fuzzy-match unrelated
+ * entries (e.g. `some` matching `sorekara` because both share `s_re`/`some`
+ * substrings in their romaji forms).
  */
 function expandReadings(raw: string): string[] {
   const tokens = normalizeReadings(raw);
@@ -108,17 +127,8 @@ function expandReadings(raw: string): string[] {
   for (const tok of tokens) {
     out.add(tok);
     try {
-      if (isHiragana(tok)) {
-        out.add(toKatakana(tok));
-        out.add(toRomaji(tok));
-      } else if (isKatakana(tok)) {
-        out.add(toHiragana(tok));
-        out.add(toRomaji(tok));
-      } else {
-        // mixed / kanji / latin / Thai — best-effort romaji only
-        const r = toRomaji(tok);
-        if (r && r !== tok) out.add(r);
-      }
+      if (isHiragana(tok)) out.add(toKatakana(tok));
+      else if (isKatakana(tok)) out.add(toHiragana(tok));
     } catch {
       /* wanakana shouldn't throw on these inputs, but guard anyway */
     }

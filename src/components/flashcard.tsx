@@ -138,7 +138,7 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
                 Visual proximity reads as "action zone for this card". */}
             <View style={faceTopActionsStyles.row} pointerEvents="box-none">
               {heroValue ? (
-                <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
+                <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
               ) : null}
               <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} inline />
             </View>

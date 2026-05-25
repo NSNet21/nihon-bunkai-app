@@ -14,6 +14,7 @@ import Animated, {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 
+import { SpeakButton } from './speak-button';
 import { ThemedText } from './themed-text';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
@@ -140,6 +141,9 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
                   {secondaryValue}
                 </ThemedText>
               ) : null}
+              {heroValue ? (
+                <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
+              ) : null}
               {/* Reveal cue — mono editorial label + pulsing crimson square */}
               <View style={styles.revealCue}>
                 <PulseDot />
@@ -162,11 +166,14 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
                   {entry.d}
                 </ThemedText>
               )}
-              {visibility.pb && (
-                <ThemedText type="default" themeColor="textSecondary" style={styles.backP}>
-                  {entry.p}
-                </ThemedText>
-              )}
+              {visibility.pb && entry.p ? (
+                <View style={styles.backPRow}>
+                  <ThemedText type="default" themeColor="textSecondary" style={styles.backP}>
+                    {entry.p}
+                  </ThemedText>
+                  <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
+                </View>
+              ) : null}
               {visibility.e && (
                 <View style={styles.markdownWrap}>
                   <Markdown style={markdownStyles(colors)}>{entry.e}</Markdown>
@@ -666,6 +673,12 @@ const styles = StyleSheet.create({
   },
   meaning: { textAlign: 'center', marginBottom: Spacing.one },
   backP: { textAlign: 'center', fontSize: 16 },
+  backPRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
   markdownWrap: { alignSelf: 'stretch' },
   allHiddenHint: { textAlign: 'center', padding: Spacing.six },
 });

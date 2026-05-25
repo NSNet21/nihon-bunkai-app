@@ -133,12 +133,17 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             {/* Top crimson stripe — editorial frame edge */}
             <View style={styles.topStripe} pointerEvents="none" />
             {metaText && <GlassMeta text={metaText} colors={colors} />}
-            <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} />
+            {/* Top-right cluster — speaker + config sit together so the hero
+                area stays uninterrupted (just T + secondary + reveal cue).
+                Visual proximity reads as "action zone for this card". */}
+            <View style={faceTopActionsStyles.row} pointerEvents="box-none">
+              {heroValue ? (
+                <SpeakButton text={heroValue} language="ja-JP" colors={colors} />
+              ) : null}
+              <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} inline />
+            </View>
             <View style={styles.frontContent}>
               <ThemedText style={styles.term}>{heroValue}</ThemedText>
-              {heroValue ? (
-                <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
-              ) : null}
               {secondaryVisible && secondaryValue ? (
                 <ThemedText type="default" themeColor="textSecondary" style={styles.pronunciation}>
                   {secondaryValue}
@@ -223,30 +228,38 @@ function FaceSettingsButton({
   colors,
   side,
   onPress,
+  inline = false,
 }: {
   colors: typeof Colors.light;
   side: 'front' | 'back';
   onPress: (side: 'front' | 'back') => void;
+  /** When true, render bare button — parent cluster handles positioning.
+   *  Used on front (clustered with speaker). Back face keeps standalone. */
+  inline?: boolean;
 }) {
   const rightOffset = side === 'front' ? Spacing.three : Spacing.three + 14;
+  const Btn = (
+    <Pressable
+      onPress={(e) => {
+        e.stopPropagation?.();
+        onPress(side);
+      }}
+      style={({ pressed }) => [
+        styles.settingsBtn,
+        { borderColor: colors.border, backgroundColor: colors.background },
+        pressed && styles.settingsBtnPressed,
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
+      <FiSliders size={16} color={colors.text} strokeWidth={2} />
+    </Pressable>
+  );
+  if (inline) return Btn;
   return (
     <View
       style={[faceSettingsStyles.anchor, { right: rightOffset }]}
       pointerEvents="box-none">
-      <Pressable
-        onPress={(e) => {
-          e.stopPropagation?.();
-          onPress(side);
-        }}
-        style={({ pressed }) => [
-          styles.settingsBtn,
-          { borderColor: colors.border, backgroundColor: colors.background },
-          pressed && styles.settingsBtnPressed,
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
-        <FiSliders size={16} color={colors.text} strokeWidth={2} />
-      </Pressable>
+      {Btn}
     </View>
   );
 }
@@ -255,6 +268,18 @@ const faceSettingsStyles = StyleSheet.create({
   anchor: {
     position: 'absolute',
     top: Spacing.three,
+    zIndex: 10,
+  },
+});
+
+const faceTopActionsStyles = StyleSheet.create({
+  row: {
+    position: 'absolute',
+    top: Spacing.three,
+    right: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     zIndex: 10,
   },
 });

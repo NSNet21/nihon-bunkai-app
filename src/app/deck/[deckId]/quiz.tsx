@@ -305,22 +305,29 @@ export default function StudyScreen() {
             />
           ) : (
             <>
+              {/* Standalone BACK row — sits at the very top so the
+                  affordance is reachable without parsing the title row.
+                  Matches Memorize header pattern. */}
+              <View style={styles.backRow}>
+                <Link href="/" asChild>
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel="กลับ Browse"
+                    style={({ pressed }) => [
+                      styles.headerBackBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}>
+                    <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
+                    <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+                  </Pressable>
+                </Link>
+              </View>
+
+              {/* Title row — deck name + progress + config gear. */}
               <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                  <Link href="/" asChild>
-                    <Pressable
-                      accessibilityRole="link"
-                      accessibilityLabel="กลับ Browse"
-                      style={({ pressed }) => [
-                        styles.headerBackBtn,
-                        pressed && { opacity: 0.6 },
-                      ]}>
-                      <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
-                      <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
-                    </Pressable>
-                  </Link>
-                  <ThemedText type="defaultSemiBold" numberOfLines={1}>{deck.title}</ThemedText>
-                </View>
+                <ThemedText type="defaultSemiBold" numberOfLines={1} style={{ flex: 1 }}>
+                  {deck.title}
+                </ThemedText>
                 <View style={styles.headerRight}>
                   <ThemedText type="small" themeColor="textSecondary">
                     {index + 1} / {entries.length}
@@ -769,18 +776,17 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.four,
   },
+  /* Standalone BACK row at the very top, above the title row. */
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.two,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.three,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    flexShrink: 1,
-    minWidth: 0,
   },
   headerBackBtn: {
     flexDirection: 'row',

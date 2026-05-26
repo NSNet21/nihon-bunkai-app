@@ -343,7 +343,7 @@ const LANG_SEGMENTS: { value: Lang; label: string; sub: string }[] = [
   { value: 'en', label: 'English', sub: 'EN' },
 ];
 
-const LANG_TRACK_WIDTH = 264;
+const LANG_TRACK_WIDTH = 200;
 const LANG_SEGMENT_WIDTH = LANG_TRACK_WIDTH / LANG_SEGMENTS.length;
 
 /** Persisted UI language preference. Toggle is wired (state persists), but
@@ -395,13 +395,12 @@ function LanguageToggle() {
               accessibilityState={{ selected: active }}
               accessibilityLabel={`เลือกภาษา ${seg.label}`}
               style={({ pressed }) => [langStyles.segment, pressed && { opacity: 0.85 }]}>
-              {/* Vertical stack: sub-code (mono small) on top, label below.
-                  Both auto-centered horizontally by the parent's alignItems. */}
+              {/* Horizontal: label + mono sub code side-by-side. */}
+              <ThemedText type="defaultSemiBold" style={{ color: fg, fontSize: 13 }}>
+                {seg.label}
+              </ThemedText>
               <ThemedText style={[langStyles.subLabel, { color: subFg }]}>
                 {seg.sub}
-              </ThemedText>
-              <ThemedText type="defaultSemiBold" style={{ color: fg, fontSize: 12, lineHeight: 14 }}>
-                {seg.label}
               </ThemedText>
             </Pressable>
           );
@@ -433,12 +432,10 @@ const langStyles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    /* Column (default) — same as theme-toggle. Both alignItems + justifyContent
-       set to center → child texts are perfectly centered on both axes.
-       gap:0 keeps sub-code + label visually as one paired unit. */
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 0,
+    gap: Spacing.one,
     zIndex: 1,
   },
   subLabel: {

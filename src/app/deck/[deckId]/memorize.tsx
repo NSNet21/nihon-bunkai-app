@@ -311,16 +311,16 @@ function Header({
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="กลับ Browse"
-          style={({ pressed }) => [
-            styles.backBtn,
-            /* Crimson tint on press — on-brand signal per design tokens. */
-            pressed && {
-              backgroundColor: Accent.bg,
-              borderColor: Accent.soft,
-            },
-          ]}>
-          <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
-          <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+          style={styles.backBtn}>
+          {({ pressed, hovered }) => {
+            const active = pressed || hovered;
+            return (
+              <>
+                <FiArrowLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>BACK</ThemedText>
+              </>
+            );
+          }}
         </Pressable>
       </Link>
       <View style={{ flex: 1 }} />
@@ -402,9 +402,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-    borderColor: 'transparent',  // becomes Accent.soft on press
   },
   scroll: { flex: 1 },
   scrollContent: {

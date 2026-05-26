@@ -155,8 +155,15 @@ export default function DeckDetailScreen() {
           <View style={styles.headerBar}>
             <Link href="/" asChild>
               <Pressable accessibilityRole="link" accessibilityLabel="กลับ Browse" style={styles.backBtn}>
-                <FiChevronLeft size={18} color={colors.text} strokeWidth={2} />
-                <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+                {({ pressed, hovered }) => {
+                  const active = pressed || hovered;
+                  return (
+                    <>
+                      <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+                      <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>BACK</ThemedText>
+                    </>
+                  );
+                }}
               </Pressable>
             </Link>
           </View>
@@ -192,8 +199,15 @@ export default function DeckDetailScreen() {
         <View style={styles.headerBar}>
           <Link href="/" asChild>
             <Pressable accessibilityRole="link" accessibilityLabel="กลับ Browse" style={styles.backBtn}>
-              <FiChevronLeft size={18} color={colors.text} strokeWidth={2} />
-              <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+              {({ pressed, hovered }) => {
+                const active = pressed || hovered;
+                return (
+                  <>
+                    <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+                    <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>BACK</ThemedText>
+                  </>
+                );
+              }}
             </Pressable>
           </Link>
           <Pressable
@@ -211,7 +225,7 @@ export default function DeckDetailScreen() {
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + Spacing.six }]}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator>
           {/* ── Hero ── */}
           <View style={[styles.hero, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
             <View style={[styles.heroStripe, { backgroundColor: Accent.base }]} />

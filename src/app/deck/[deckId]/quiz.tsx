@@ -313,18 +313,24 @@ export default function StudyScreen() {
                   <Pressable
                     accessibilityRole="link"
                     accessibilityLabel="กลับ Browse"
-                    style={({ pressed }) => [
-                      styles.headerBackBtn,
-                      /* Crimson tint on press — on-brand signal per
-                         design tokens. Sharp corners (Radii.sm) keep
-                         the editorial style. */
-                      pressed && {
-                        backgroundColor: Accent.bg,
-                        borderColor: Accent.soft,
-                      },
-                    ]}>
-                    <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
-                    <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+                    style={styles.headerBackBtn}>
+                    {({ pressed, hovered }) => {
+                      const active = pressed || hovered;
+                      return (
+                        <>
+                          <FiArrowLeft
+                            size={18}
+                            color={active ? Accent.base : colors.text}
+                            strokeWidth={2}
+                          />
+                          <ThemedText
+                            type="small"
+                            style={{ color: active ? Accent.base : colors.textSecondary }}>
+                            BACK
+                          </ThemedText>
+                        </>
+                      );
+                    }}
                   </Pressable>
                 </Link>
               </View>
@@ -800,9 +806,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-    borderColor: 'transparent',  // becomes Accent.soft on press
   },
   headerRight: {
     flexDirection: 'row',

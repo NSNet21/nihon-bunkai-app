@@ -165,6 +165,7 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             <ScrollView
               style={styles.backScroll}
               contentContainerStyle={styles.backScrollContent}
+              {...({ dataSet: { scroll: 'card' } } as object)}
               showsVerticalScrollIndicator>
               {visibility.d && (
                 <ThemedText type="title" style={styles.meaning}>
@@ -173,10 +174,15 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
               )}
               {visibility.pb && entry.p ? (
                 <View style={styles.backPRow}>
+                  {/* Spacer matches speaker width on the right so the text
+                      reads as centered between two equal sides. Speaker
+                      anchors to the right edge for visual balance with
+                      the long P readings. */}
+                  <View style={styles.backPSpacer} />
                   <ThemedText type="default" themeColor="textSecondary" style={styles.backP}>
                     {entry.p}
                   </ThemedText>
-                  <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
+                  <SpeakButton text={entry.p} language="ja-JP" colors={colors} size="md" />
                 </View>
               ) : null}
               {visibility.e && (
@@ -697,13 +703,14 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
   },
   meaning: { textAlign: 'center', marginBottom: Spacing.one },
-  backP: { textAlign: 'center', fontSize: 16 },
+  backP: { flex: 1, textAlign: 'center', fontSize: 16 },
   backPRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'stretch',
     gap: Spacing.two,
   },
+  backPSpacer: { width: 32 },
   markdownWrap: { alignSelf: 'stretch' },
   allHiddenHint: { textAlign: 'center', padding: Spacing.six },
 });

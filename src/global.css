@@ -73,6 +73,15 @@
 *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 *::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
 
+/* Card-only scrollbar — thinner than the global 10px so it doesn't
+   visually compete with the small flashcard content. Targeted via
+   `dataSet={{ scroll: 'card' }}` on the back-face ScrollView. */
+[data-scroll="card"] { scrollbar-width: thin; }
+[data-scroll="card"]::-webkit-scrollbar { width: 6px; height: 6px; }
+[data-scroll="card"]::-webkit-scrollbar-track {
+  border-left: none;
+}
+
 /* Dark (Editorial warm-charcoal) — toggle */
 [data-theme="dark"] {
   --bg: #141210;

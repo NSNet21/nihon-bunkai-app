@@ -564,14 +564,21 @@ function formatRelative(epochMs: number): string {
 /* ─── Styles ────────────────────────────────────────────────────────── */
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center' },
-  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  /* Container + safeArea = full-width so the ScrollView's scrollbar
+     hugs the viewport's right edge (was clipped inside MaxContentWidth
+     before — scrollbar floated mid-page). Content gets its maxWidth
+     via per-element wrappers (headerBar + scrollContent). */
+  container: { flex: 1 },
+  safeArea: { flex: 1, width: '100%' },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
   },
   backBtn: {
     flexDirection: 'row',
@@ -592,6 +599,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.four,
     gap: Spacing.four,
+    /* Content stays within MaxContentWidth + centered; the ScrollView
+       itself is full-width so the scrollbar hugs the viewport's right
+       edge. */
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
   },
   centerFill: {
     flex: 1,

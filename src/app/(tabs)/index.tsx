@@ -382,7 +382,13 @@ function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
       router.push('/login');
       return;
     }
-    router.push({ pathname: '/study', params: { deckId: deck.id } });
+    /* Go through Deck Detail — gives users a stat snapshot + sample
+       peek + entry to Quiz Config before committing to study. The
+       direct /study route still works (Continue card uses it).
+       NOTE: Expo Router's typed name is `/deck/[deckId]/index` but
+       at runtime the URL omits `/index`. Cast bypasses the
+       generated-types mismatch; runtime behavior is what we want. */
+    router.push(`/deck/${deck.id}` as never);
   }
 
   return (

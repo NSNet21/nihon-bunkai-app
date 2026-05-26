@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -317,35 +317,9 @@ export default function StudyScreen() {
             />
           ) : (
             <>
-              {/* Standalone BACK row — sits at the very top so the
-                  affordance is reachable without parsing the title row.
-                  Matches Memorize header pattern. */}
-              <View style={styles.backRow}>
-                <Link href="/" asChild>
-                  <Pressable
-                    accessibilityRole="link"
-                    accessibilityLabel="กลับ Browse"
-                    style={styles.headerBackBtn}>
-                    {({ pressed, hovered }) => {
-                      const active = pressed || hovered;
-                      return (
-                        <>
-                          <FiArrowLeft
-                            size={18}
-                            color={active ? Accent.base : colors.text}
-                            strokeWidth={2}
-                          />
-                          <ThemedText
-                            type="small"
-                            style={{ color: active ? Accent.base : colors.textSecondary }}>
-                            BACK
-                          </ThemedText>
-                        </>
-                      );
-                    }}
-                  </Pressable>
-                </Link>
-              </View>
+              {/* In-page BACK removed 2026-05-27 — TopNavBar's right-aligned
+                  BACK (focus mode) replaces it. Hub keeps its in-page BACK
+                  because its TopNavBar shows nav tabs, not BACK. */}
 
               {/* Title row — deck name + progress + config gear. */}
               <View style={styles.header}>
@@ -799,24 +773,11 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.four,
     gap: Spacing.four,
   },
-  /* Standalone BACK row at the very top, above the title row. */
-  backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.two,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.three,
-  },
-  headerBackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
   },
   headerRight: {
     flexDirection: 'row',

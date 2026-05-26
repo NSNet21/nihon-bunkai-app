@@ -12,11 +12,11 @@
  * FSRS schedule or streak.
  */
 
-import { Link, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -304,24 +304,10 @@ function Header({
   total: number;
   colors: typeof Colors.light;
 }) {
+  /* In-page BACK removed 2026-05-27 — TopNavBar's right-aligned BACK
+     (focus mode) handles return. Index counter now right-aligned alone. */
   return (
     <View style={styles.headerBar}>
-      <Link href="/" asChild>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel="กลับ Browse"
-          style={styles.backBtn}>
-          {({ pressed, hovered }) => {
-            const active = pressed || hovered;
-            return (
-              <>
-                <FiArrowLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
-                <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>BACK</ThemedText>
-              </>
-            );
-          }}
-        </Pressable>
-      </Link>
       <View style={{ flex: 1 }} />
       {total > 0 && (
         <ThemedText type="small" themeColor="textSecondary">
@@ -394,13 +380,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     gap: Spacing.three,
-  },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
   },
   scroll: { flex: 1 },
   scrollContent: {

@@ -19,7 +19,6 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { FiArrowLeft } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -50,39 +49,11 @@ export default function QuizConfigScreen() {
     router.push(`/deck/${deckId}/quiz${qs}` as never);
   };
 
-  const handleBack = () => {
-    if (!deckId) {
-      router.back();
-      return;
-    }
-    router.push(`/deck/${deckId}` as never);
-  };
-
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* BACK row matches Quiz/Memorize convention — standalone above title */}
-        <View style={styles.backRow}>
-          <Pressable
-            onPress={handleBack}
-            accessibilityRole="button"
-            accessibilityLabel="กลับ Practice Hub"
-            style={({ pressed, hovered }) => [
-              styles.backBtn,
-              (pressed || hovered) && { opacity: 1 },
-            ]}>
-            {({ pressed, hovered }) => {
-              const tint = pressed || hovered ? Accent.base : colors.textSecondary;
-              return (
-                <>
-                  <FiArrowLeft size={16} color={tint} strokeWidth={2} />
-                  <ThemedText type="small" style={[styles.backLabel, { color: tint }]}>BACK</ThemedText>
-                </>
-              );
-            }}
-          </Pressable>
-        </View>
-
+        {/* No in-page BACK — TopNavBar's right-aligned BACK handles return
+            to Hub. Removed 2026-05-27 (user feedback: dual-BACK redundant). */}
         <View style={styles.titleRow}>
           <ThemedText type="title" style={styles.title}>ตั้งค่ารอบทบทวน</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
@@ -155,25 +126,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
 
-  backRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-  },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-  },
-  backLabel: {
-    letterSpacing: 1.2,
-    fontWeight: '600',
-  },
-
   titleRow: {
     paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.four,
     paddingBottom: Spacing.three,
     gap: Spacing.one,
   },

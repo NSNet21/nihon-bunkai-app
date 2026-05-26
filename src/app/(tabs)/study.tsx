@@ -135,6 +135,12 @@ export default function StudyScreen() {
     /* Auto-swap hero if the column it points at just got hidden */
     if (key === 't' && !next.t && frontHero === 't' && next.pf) setFrontHero('p');
     if (key === 'pf' && !next.pf && frontHero === 'p' && next.t) setFrontHero('t');
+    /* Auto-restore hero when the hidden column comes back. T is the
+       natural hero (kanji/term) — its hiding always forces auto-swap to
+       P (front face needs one column). Re-enabling T should reverse the
+       swap so user returns to the T-as-hero default; without this, P
+       stays stuck as hero + TTS reads P instead of the term. */
+    if (key === 't' && next.t && frontHero === 'p' && !visibility.t) setFrontHero('t');
     setVisibility(next);
   };
 

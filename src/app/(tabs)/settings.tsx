@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiCheck, FiCheckSquare, FiChevronRight, FiLogIn, FiLogOut, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiLogIn, FiLogOut, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -59,6 +59,20 @@ export default function SettingsScreen() {
             </ThemedText>
             <CardMetaToggle />
             <CardColumnsRow />
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              ภาษา
+            </ThemedText>
+            <LanguageToggle />
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              ความเป็นส่วนตัว
+            </ThemedText>
+            <PrivacySection userEmail={user?.email} />
           </View>
 
           <View style={styles.section}>
@@ -317,6 +331,215 @@ const columnsStyles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,
     borderWidth: 1,
+  },
+});
+
+/* ─── LANGUAGE ─────────────────────────────────────────────────────── */
+
+type Lang = 'th' | 'en';
+
+const LANG_SEGMENTS: { value: Lang; label: string; sub: string }[] = [
+  { value: 'th', label: 'ไทย',    sub: 'TH' },
+  { value: 'en', label: 'English', sub: 'EN' },
+];
+
+const LANG_TRACK_WIDTH = 264;
+const LANG_SEGMENT_WIDTH = LANG_TRACK_WIDTH / LANG_SEGMENTS.length;
+
+/** Persisted UI language preference. Toggle is wired (state persists), but
+ *  the actual i18n string flip is Phase 2 — strings remain Thai for now.
+ *  Sliding-pill animation mirrors ThemeToggle so the segmented-control
+ *  feel is consistent across settings. */
+function LanguageToggle() {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const [lang, setLang] = usePersistedState<Lang>('lang', 'th');
+
+  const selectedIndex = LANG_SEGMENTS.findIndex((s) => s.value === lang);
+  const pillX = useSharedValue(selectedIndex * LANG_SEGMENT_WIDTH);
+
+  useEffect(() => {
+    pillX.value = withTiming(selectedIndex * LANG_SEGMENT_WIDTH, {
+      duration: 180,
+      easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+    });
+  }, [selectedIndex, pillX]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: pillX.value }],
+  }));
+
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <View
+        style={[
+          langStyles.track,
+          { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+        ]}>
+        <Animated.View
+          style={[
+            langStyles.pill,
+            { backgroundColor: Accent.base, width: LANG_SEGMENT_WIDTH - 4 },
+            pillStyle,
+          ]}
+        />
+        {LANG_SEGMENTS.map((seg) => {
+          const active = seg.value === lang;
+          const fg = active ? '#ffffff' : colors.text;
+          const subFg = active ? 'rgba(255,255,255,0.7)' : colors.textHint;
+          return (
+            <Pressable
+              key={seg.value}
+              onPress={() => setLang(seg.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`เลือกภาษา ${seg.label}`}
+              style={({ pressed }) => [langStyles.segment, pressed && { opacity: 0.85 }]}>
+              {/* Vertical stack: sub-code (mono small) on top, label below.
+                  Both auto-centered horizontally by the parent's alignItems. */}
+              <ThemedText style={[langStyles.subLabel, { color: subFg }]}>
+                {seg.sub}
+              </ThemedText>
+              <ThemedText type="defaultSemiBold" style={{ color: fg, fontSize: 12, lineHeight: 14 }}>
+                {seg.label}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
+      </View>
+      <ThemedText type="small" themeColor="textHint">
+        ข้อความใน app ยังเป็นภาษาไทย · การแปลครบจะมาใน Phase 2
+      </ThemedText>
+    </View>
+  );
+}
+
+const langStyles = StyleSheet.create({
+  track: {
+    width: LANG_TRACK_WIDTH,
+    height: 44,
+    flexDirection: 'row',
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    padding: 2,
+    position: 'relative',
+  },
+  pill: {
+    position: 'absolute',
+    top: 2,
+    bottom: 2,
+    left: 2,
+    borderRadius: 2,
+  },
+  segment: {
+    flex: 1,
+    /* Column (default) — same as theme-toggle. Both alignItems + justifyContent
+       set to center → child texts are perfectly centered on both axes.
+       gap:0 keeps sub-code + label visually as one paired unit. */
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+    zIndex: 1,
+  },
+  subLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1,
+    fontWeight: '600',
+  },
+});
+
+/* ─── PRIVACY ──────────────────────────────────────────────────────── */
+
+const SUPPORT_EMAIL = 'hi@nihon-bunkai.com';
+
+/** Privacy section per GPT verdict — no self-serve delete in v1, just a
+ *  mailto request channel + transparent copy about what gets deleted and
+ *  how purchase restoration works. Self-serve delete is P1 backlog. */
+function PrivacySection({ userEmail }: { userEmail?: string }) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+
+  function onRequestDeletion() {
+    const subject = encodeURIComponent('[Account Deletion Request]');
+    const bodyLines = [
+      'สวัสดีครับ/ค่ะ',
+      '',
+      'ขอลบบัญชีและข้อมูลส่วนตัวของฉันจากระบบ Nihon Bunkai',
+      '',
+      userEmail ? `Email: ${userEmail}` : 'Email (กรอกอีเมลที่ใช้สมัคร): ',
+      '',
+      'เหตุผล (ไม่จำเป็น): ',
+      '',
+      '— ส่งจาก Settings · companion app',
+    ];
+    const body = encodeURIComponent(bodyLines.join('\n'));
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+    Linking.openURL(url).catch(() => {
+      /* If mailto fails (no default mail client), at least surface the address */
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.prompt('ส่งอีเมลขอลบบัญชีไปที่:', SUPPORT_EMAIL);
+      }
+    });
+  }
+
+  return (
+    <View style={{ gap: Spacing.two }}>
+      <Pressable
+        onPress={onRequestDeletion}
+        accessibilityRole="link"
+        accessibilityLabel="ขอลบบัญชีและข้อมูล"
+        style={({ pressed }) => [
+          privacyStyles.linkRow,
+          { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+          pressed && { opacity: 0.85 },
+        ]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>
+            ขอลบบัญชี · ข้อมูล
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            ส่งคำขอผ่านอีเมล · {SUPPORT_EMAIL}
+          </ThemedText>
+        </View>
+        <FiExternalLink size={16} color={Accent.base} strokeWidth={2} />
+      </Pressable>
+
+      <ThemedView type="backgroundElement" style={privacyStyles.disclaimer}>
+        <ThemedText type="small" themeColor="textSecondary" style={privacyStyles.disclaimerLine}>
+          • ลบสิทธิ์เข้าสู่ระบบ · ข้อมูลโปรไฟล์
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" style={privacyStyles.disclaimerLine}>
+          • ลบ session ที่ sync ไว้ (ถ้ามี)
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" style={privacyStyles.disclaimerLine}>
+          • Content ที่ซื้อแล้ว — restore ได้ภายหลังด้วย Payhip order ID เดิม
+        </ThemedText>
+        <ThemedText type="small" themeColor="textHint" style={{ marginTop: Spacing.one }}>
+          ทีม support จะตอบกลับภายใน 1-2 วันทำการ
+        </ThemedText>
+      </ThemedView>
+    </View>
+  );
+}
+
+const privacyStyles = StyleSheet.create({
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+  disclaimer: {
+    padding: Spacing.three,
+    borderRadius: Radii.sm,
+    gap: 2,
+  },
+  disclaimerLine: {
+    lineHeight: 18,
   },
 });
 

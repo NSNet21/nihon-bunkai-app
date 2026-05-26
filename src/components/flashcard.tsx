@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FiCheckSquare, FiSliders, FiSquare, FiX } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import Animated, {
@@ -10,6 +11,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -45,25 +47,71 @@ type Props = {
   total?: number;
   /** Optional deck title — appended to top meta (e.g. "Kanji N5 · Pack 01"). */
   deckTitle?: string;
+  /** Swipe-to-navigate (add-on to SideRail + tap-to-flip). Omit both to disable. */
+  onSwipeNext?: () => void;
+  onSwipePrev?: () => void;
+  canSwipeNext?: boolean;
+  canSwipePrev?: boolean;
 };
 
 const FLIP_DURATION = 500;
 
-export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityChange, frontHero, onFrontHeroChange, index, total, deckTitle }: Props) {
+export function Flashcard({
+  entry,
+  isFlipped,
+  onFlip,
+  visibility,
+  onVisibilityChange,
+  frontHero,
+  onFrontHeroChange,
+  index,
+  total,
+  deckTitle,
+  onSwipeNext,
+  onSwipePrev,
+  canSwipeNext = false,
+  canSwipePrev = false,
+}: Props) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
   const rotation = useSharedValue(isFlipped ? 180 : 0);
+  /* Swipe gesture shared values — declared early so the entry-change
+     useEffect can reset tx/animating after navigation completes. The full
+     gesture setup happens further below (uses screenW, canSwipe flags). */
+  const tx = useSharedValue(0);
+  const animating = useSharedValue(false);
   /* Which face's config popup is open, if any — split per-face so each icon
      only manages the columns of its own face (locked decision 2026-05-25). */
   const [popupOpen, setPopupOpen] = useState<'front' | 'back' | null>(null);
 
+  /* Track the entry shown last render so we can tell apart:
+       • user flipped the same card  → animate (500ms ease)
+       • navigated to a new card    → snap (no animation)
+     Without this, swiping while on the back face triggers a visible
+     500ms back→front flip after the new card snaps in — looks like a
+     glitch ("ตอน swipe card มันชอบ flip กลับไปด้านหลัง"). */
+  const prevEntryIdRef = useRef(entry.id);
   useEffect(() => {
-    rotation.value = withTiming(isFlipped ? 180 : 0, {
-      duration: FLIP_DURATION,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-    });
-  }, [isFlipped, rotation]);
+    const entryChanged = prevEntryIdRef.current !== entry.id;
+    prevEntryIdRef.current = entry.id;
+    if (entryChanged) {
+      rotation.value = isFlipped ? 180 : 0; // instant snap on nav
+      /* New entry has rendered — bring the card back to center now.
+         Worklet kept it at ±screenW after the commit (off-screen) so the
+         "old text flashing at center before React updates" window is
+         invisible to the user. Snap (not animate) so the new card just
+         appears in place — slide-in from off-screen would imply directional
+         meaning the navigation doesn't have. */
+      tx.value = 0;
+      animating.value = false;
+    } else {
+      rotation.value = withTiming(isFlipped ? 180 : 0, {
+        duration: FLIP_DURATION,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+      });
+    }
+  }, [isFlipped, rotation, entry.id, tx, animating]);
 
   const frontStyle = useAnimatedStyle(() => ({
     transform: [{ perspective: 1200 }, { rotateY: `${rotation.value}deg` }],
@@ -71,6 +119,141 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
   const backStyle = useAnimatedStyle(() => ({
     transform: [{ perspective: 1200 }, { rotateY: `${rotation.value + 180}deg` }],
   }));
+
+  /* ─── swipe-to-navigate gesture ─────────────────────────────────────
+     Add-on layer over the existing Pressable tap-to-flip + SideRail
+     chevrons. Pan only activates when horizontal motion clearly wins:
+     activeOffsetX [-15, 15] AND failOffsetY [-12, 12] (vertical wins
+     ties — back-face ScrollView keeps Y-scroll on long E content).
+     Commit when |dx| > max(80, screenW * 0.2) or |vx| > 600.
+
+     Polish tiers (B + C):
+     • B — Side hint pill ("← ก่อนหน้า" / "ถัดไป →") fades in past 60px
+       so the user knows what release will commit to.
+     • C — Rubber-band at deck boundary: if !canSwipeNext (last card) and
+       user pulls left, drag is dampened (×0.3) and NO fade — fading a
+       card that can't actually leave would be a visual lie.
+
+     Commit-in-flight guard (animating shared value) blocks new gestures
+     during the off-screen animation so a fast user can't spam multiple
+     next() before state settles (per GPT verdict round 2 — Anti-pattern D).
+     tx + animating are declared higher up so the entry-change useEffect
+     can reset them. */
+  const { width: screenW } = useWindowDimensions();
+  const swipeEnabled = Boolean(onSwipeNext || onSwipePrev);
+
+  /* Mirror JS props into shared values so the gesture/style worklets can
+     read the latest canSwipe flags without rebuilding the Pan object. */
+  const canNextSV = useSharedValue(canSwipeNext);
+  const canPrevSV = useSharedValue(canSwipePrev);
+  useEffect(() => { canNextSV.value = canSwipeNext; }, [canSwipeNext, canNextSV]);
+  useEffect(() => { canPrevSV.value = canSwipePrev; }, [canSwipePrev, canPrevSV]);
+
+  /* Device-tiered thresholds — finger drag on phone, mouse on desktop and
+     tablet form-factors all want different scales. Old `max(80, screenW*0.2)`
+     made desktop drag 288px (huge) while mobile stayed at 80 (fine). User
+     feedback: "ลากแล้วไม่ไป" on desktop. Three explicit tiers, easy to tune. */
+  const tier = screenW < 600 ? 'compact' : screenW < 1024 ? 'mid' : 'wide';
+  const STICKY = tier === 'compact' ? 18 : tier === 'mid' ? 24 : 28;
+  const COMMIT = tier === 'compact' ? 60 : tier === 'mid' ? 90 : 110;
+  const FADE_END = tier === 'compact' ? 150 : tier === 'mid' ? 200 : 230;
+
+  const swipeStyle = useAnimatedStyle(() => {
+    const dist = Math.abs(tx.value);
+    const boundary =
+      (tx.value < 0 && !canNextSV.value) || (tx.value > 0 && !canPrevSV.value);
+    /* Fade tiers — 0–STICKY no response (mistake-tolerance), STICKY→FADE_END
+       progressive opacity drop, beyond FADE_END floored at 0.05. Boundary
+       cards stay fully opaque (visual honesty — fading a card that can't
+       actually leave is a lie). */
+    const fadeStart = STICKY;
+    const fadeEnd = FADE_END;
+    const opacity = boundary
+      ? 1
+      : dist <= fadeStart
+        ? 1
+        : Math.max(0.05, 1 - (dist - fadeStart) / (fadeEnd - fadeStart));
+    return {
+      opacity,
+      transform: [
+        { translateX: tx.value },
+        /* Subtle rotation tied to drag distance — tactile feel without noise.
+           Capped at ±8° so it never competes with the flip's rotateY. */
+        { rotateZ: `${Math.max(-8, Math.min(8, tx.value / 30))}deg` },
+        /* Tiny scale shrink as it leaves — "letting go" feel. Max 6%. */
+        { scale: 1 - Math.min(0.06, dist / 1200) },
+      ],
+    };
+  });
+
+  const fireNext = () => onSwipeNext?.();
+  const firePrev = () => onSwipePrev?.();
+
+  const swipePan = Gesture.Pan()
+    .enabled(swipeEnabled)
+    .activeOffsetX([-15, 15])
+    .failOffsetY([-12, 12])
+    /* Keep tracking even when pointer leaves card bounds — on web/desktop
+       a fast drag can outrun the card edge; cancelling there leaves the
+       card stranded mid-drag (per GPT verdict — Anti-pattern B). */
+    .shouldCancelWhenOutside(false)
+    .onUpdate((e) => {
+      /* Block updates during commit animation so spam-drag can't queue
+         multiple navigations (per GPT verdict — Anti-pattern D). */
+      if (animating.value) return;
+      /* Rubber-band at boundary — dampens drag by 70% so the card visibly
+         resists when there's no card to go to. Removes the "broken" feel
+         of trying to swipe past the last card with no resistance. */
+      const boundary =
+        (e.translationX < 0 && !canNextSV.value) ||
+        (e.translationX > 0 && !canPrevSV.value);
+      tx.value = boundary ? e.translationX * 0.3 : e.translationX;
+    })
+    .onEnd((e) => {
+      if (animating.value) return;
+      const fire = Math.abs(e.translationX) > COMMIT || Math.abs(e.velocityX) > 600;
+      const goNext = fire && e.translationX < 0 && canSwipeNext;
+      const goPrev = fire && e.translationX > 0 && canSwipePrev;
+      if (goNext) {
+        animating.value = true;
+        tx.value = withTiming(
+          -screenW,
+          { duration: 220, easing: Easing.bezier(0.4, 0, 1, 1) },
+          (finished) => {
+            if (finished) {
+              /* Snap rotation to 0 (front face) — prevents a back-face flash
+                 if user swiped while flipped. Then schedule the JS state
+                 update. tx STAYS at -screenW (off-screen) until the entry-
+                 change useEffect resets it — this hides the "old text
+                 flashing at center while React updates" window without
+                 using opacity (which would break preserve-3d's backface
+                 culling and bleed the back face's badge through). */
+              rotation.value = 0;
+              scheduleOnRN(fireNext);
+            }
+          },
+        );
+      } else if (goPrev) {
+        animating.value = true;
+        tx.value = withTiming(
+          screenW,
+          { duration: 220, easing: Easing.bezier(0.4, 0, 1, 1) },
+          (finished) => {
+            if (finished) {
+              rotation.value = 0;
+              scheduleOnRN(firePrev);
+            }
+          },
+        );
+      } else {
+        /* Snap-back with gentle overshoot — bezier mimics Easing.back without
+           the web-fallback-to-linear issue ([[next-session-resume]] rule). */
+        tx.value = withTiming(0, {
+          duration: 240,
+          easing: Easing.bezier(0.34, 1.56, 0.64, 1),
+        });
+      }
+    });
 
   /* Toggle a column, but bail if it would empty the relevant face. */
   function toggleColumn(key: keyof ColumnVisibility) {
@@ -117,19 +300,24 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
 
   return (
     <>
-      <Pressable
-        onPress={onFlip}
-        style={({ pressed }) => [styles.cardPress, pressed && styles.pressed]}
-        accessibilityLabel={isFlipped ? 'แตะเพื่อกลับด้านหน้า' : 'แตะเพื่อดูคำตอบ'}>
-        <View style={styles.cardWrapper}>
-          {/* Front face — hero (T or P) + (optionally) the other as secondary */}
-          <Animated.View
-            style={[
-              styles.face,
-              styles.faceCenter,
-              { backgroundColor: colors.backgroundElement },
-              frontStyle,
-            ]}>
+      <GestureDetector gesture={swipePan}>
+        <Pressable
+          onPress={onFlip}
+          style={({ pressed }) => [styles.cardPress, pressed && styles.pressed]}
+          accessibilityLabel={isFlipped ? 'แตะเพื่อกลับด้านหน้า' : 'แตะเพื่อดูคำตอบ'}>
+          <Animated.View style={[styles.cardWrapper, swipeStyle]}>
+            {/* Front face — hero (T or P) + (optionally) the other as secondary */}
+            <Animated.View
+              style={[
+                styles.face,
+                styles.faceCenter,
+                { backgroundColor: colors.backgroundElement },
+                /* Front face: kill text selection on web so drag never gets
+                   hijacked by browser's text-select. Back face KEEPS default
+                   (selectable markdown — user might copy a kanji reading). */
+                Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null,
+                frontStyle,
+              ]}>
             {/* Top crimson stripe — editorial frame edge */}
             <View style={styles.topStripe} pointerEvents="none" />
             {metaText && <GlassMeta text={metaText} colors={colors} />}
@@ -163,7 +351,14 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
           <Animated.View
             style={[styles.face, { backgroundColor: colors.backgroundElement }, backStyle]}>
             <ScrollView
-              style={styles.backScroll}
+              style={[
+                styles.backScroll,
+                /* Mobile touch — ScrollView's default touch-action eats pan-x
+                   so swipe-to-navigate dies on the back face. Explicit pan-y
+                   restricts the scroll container to vertical only and lets
+                   horizontal pans bubble up to RNGH's Pan gesture. */
+                Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
+              ]}
               contentContainerStyle={styles.backScrollContent}
               {...({ dataSet: { scroll: 'card' } } as object)}
               showsVerticalScrollIndicator>
@@ -195,15 +390,18 @@ export function Flashcard({ entry, isFlipped, onFlip, visibility, onVisibilityCh
             {metaText && <GlassMeta text={metaText} colors={colors} />}
             <FaceSettingsButton colors={colors} side="back" onPress={(s) => setPopupOpen(s)} />
           </Animated.View>
-        </View>
+        </Animated.View>
 
         {/* Overlay layer — sits OUTSIDE the 3D context of cardWrapper so the
             foot-dots progress stays flat and fades over the flip rather than
-            disappearing edge-on at 90°. */}
-        <View style={styles.cardOverlay} pointerEvents="box-none">
+            disappearing edge-on at 90°. Shares swipeStyle so FootDots
+            translates with the card during swipe (otherwise progress sits
+            still while the card flies away — looks broken). */}
+        <Animated.View style={[styles.cardOverlay, swipeStyle]} pointerEvents="box-none">
           {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
-        </View>
+        </Animated.View>
       </Pressable>
+      </GestureDetector>
 
       <VisibilityPopup
         face={popupOpen}
@@ -285,6 +483,7 @@ const faceTopActionsStyles = StyleSheet.create({
   },
 });
 
+
 /* ─── glass meta ─────────────────────────────────────────────────────── */
 
 /** Editorial meta pill — frosted-glass bg, sharp corners, mono caps.
@@ -301,15 +500,14 @@ function GlassMeta({
   variant?: 'overlay' | 'inline';
 }) {
   const isDark = colors.background === Colors.dark.background;
-  /* Warm cream / warm charcoal alpha + backdrop blur — the editorial glass
-     pill. Stays fixed at top of each face while scrolled content passes
-     underneath, blurred. The leak-through-3D issue is solved at the
-     cardWrapper level (transformStyle: preserve-3d) — see styles below. */
-  const bg = isDark ? 'rgba(28, 24, 22, 0.55)' : 'rgba(252, 248, 238, 0.55)';
+  /* Solid-bg editorial pill — was using backdrop-filter for a frosted-glass
+     look, but that (a) blurred buttons that overlapped the pill rect, (b)
+     misaligned on mobile chrome, and (c) created a stacking context that
+     interfered with the cardWrapper's preserve-3d / backface culling.
+     Sharp corners + crimson stripe + mono caps carry the editorial feel
+     fine without blur. Higher alpha (0.92) so text reads cleanly. */
+  const bg = isDark ? 'rgba(28, 24, 22, 0.92)' : 'rgba(252, 248, 238, 0.92)';
   const border = isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.08)';
-  const webGlass = Platform.OS === 'web'
-    ? ({ backdropFilter: 'blur(8px) saturate(140%)', WebkitBackdropFilter: 'blur(8px) saturate(140%)' } as any)
-    : null;
   return (
     <View
       pointerEvents="none"
@@ -317,7 +515,6 @@ function GlassMeta({
         glassStyles.pill,
         variant === 'overlay' ? glassStyles.overlay : glassStyles.inline,
         { backgroundColor: bg, borderColor: border },
-        webGlass,
       ]}>
       <ThemedText style={[glassStyles.text, { color: colors.textSecondary }]}>{text}</ThemedText>
     </View>

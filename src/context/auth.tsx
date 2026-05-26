@@ -1,7 +1,8 @@
 import type { Session, User } from '@supabase/supabase-js';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
+import { useToast } from '@/components/toast';
 import { supabase } from '@/lib/supabase';
 
 type AuthStatus = 'loading' | 'signed-in' | 'signed-out';
@@ -28,6 +29,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [entitledPacks, setEntitledPacks] = useState<Set<string>>(new Set());
   const [entitledSkus, setEntitledSkus] = useState<Set<string>>(new Set());
+  const { showToast } = useToast();
+  /* Suppress repeat error toasts — if entitlement load fails on first focus,
+     each subsequent focus would re-toast. Only surface once per session. */
+  const entitlementErrorToastedRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -91,8 +96,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('user_id', userId);
     if (error) {
       console.warn('[auth] loadEntitlements failed', error.message);
+      /* Silent failure here = paying customer doesn't see their Download
+         buttons + has no idea why. Surface ONCE per session — focus-refresh
+         retries silently, so user doesn't get spammed if they refocus. */
+      if (!entitlementErrorToastedRef.current) {
+        entitlementErrorToastedRef.current = true;
+        showToast('โหลดสิทธิ์ไม่สำเร็จ ลองรีเฟรชหน้านี้', { kind: 'error', durationMs: 5000 });
+      }
       return;
     }
+    /* Successful load — clear the error guard so a later transient failure
+       can re-toast (network blip, then permanent failure later). */
+    entitlementErrorToastedRef.current = false;
     const packs = new Set<string>();
     const skus = new Set<string>();
     for (const row of data ?? []) {

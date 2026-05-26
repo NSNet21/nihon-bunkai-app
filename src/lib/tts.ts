@@ -11,11 +11,20 @@ import * as Speech from 'expo-speech';
  */
 export type SpeakLang = 'ja-JP' | 'th-TH';
 
-export function speak(text: string, language: SpeakLang) {
+/* expo-speech 56 supports event callbacks natively — onDone/onStopped/onError
+   eliminate the need to poll isSpeakingAsync from consumers. Per Expo docs:
+   https://docs.expo.dev/versions/v56.0.0/sdk/speech/ */
+export type SpeakCallbacks = {
+  onDone?: () => void;
+  onStopped?: () => void;
+  onError?: (err: Error) => void;
+};
+
+export function speak(text: string, language: SpeakLang, callbacks?: SpeakCallbacks) {
   if (!text) return;
   /* Stop is fire-and-forget — safe to call even when nothing is speaking. */
   Speech.stop();
-  Speech.speak(text, { language });
+  Speech.speak(text, { language, ...callbacks });
 }
 
 export function stop() {

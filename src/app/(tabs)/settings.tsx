@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiLogIn, FiLogOut, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { ColumnVisibility } from '@/components/flashcard';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -355,18 +355,26 @@ function LanguageToggle() {
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const [lang, setLang] = usePersistedState<Lang>('lang', 'th');
 
-  const selectedIndex = LANG_SEGMENTS.findIndex((s) => s.value === lang);
+  /* Clamp index — corrupt persisted lang would return -1 and translate
+     pill off-track left. Same defensive guard as ThemeToggle. */
+  const rawIndex = LANG_SEGMENTS.findIndex((s) => s.value === lang);
+  const selectedIndex = rawIndex < 0 ? 0 : rawIndex;
   const pillX = useSharedValue(selectedIndex * LANG_SEGMENT_WIDTH);
 
   useEffect(() => {
+    /* cancelAnimation prevents Reanimated 4's momentum-preservation from
+       compounding rapid retargets into runaway overshoot (see ThemeToggle). */
+    cancelAnimation(pillX);
     pillX.value = withTiming(selectedIndex * LANG_SEGMENT_WIDTH, {
       duration: 180,
       easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
     });
   }, [selectedIndex, pillX]);
 
+  /* Same defensive clamp as ThemeToggle — see comment there. */
+  const langMaxX = (LANG_SEGMENTS.length - 1) * LANG_SEGMENT_WIDTH;
   const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: pillX.value }],
+    transform: [{ translateX: Math.max(0, Math.min(langMaxX, pillX.value)) }],
   }));
 
   return (

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -33,21 +34,33 @@ export function ThemeToggle() {
   const effective = useColorScheme();
   const colors = (effective === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
-  const selectedIndex = SEGMENTS.findIndex((s) => s.value === override);
+  /* Clamp selectedIndex — corrupt persisted override (e.g. legacy value) would
+     return -1 and translate the pill to negative (off-track left), looking
+     like a "jump to edge" bug. */
+  const rawIndex = SEGMENTS.findIndex((s) => s.value === override);
+  const selectedIndex = rawIndex < 0 ? 0 : rawIndex;
   const pillX = useSharedValue(selectedIndex * SEGMENT_WIDTH);
 
   useEffect(() => {
-    /* Snappy timing (was a slower spring — felt laggy when paired with the
-       global theme-change cascade). 180ms ease-out reads as "instant" while
-       still smoothing the pill slide between segments. */
+    /* cancelAnimation FIRST so rapid clicks don't accumulate velocity from
+       the previous in-flight withTiming. Reanimated 4 preserves momentum
+       across retargets, which compounds on rapid alternating clicks and
+       sends the pill way off-track (saw tx=95000+ in stress test). */
+    cancelAnimation(pillX);
     pillX.value = withTiming(selectedIndex * SEGMENT_WIDTH, {
       duration: 180,
       easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
     });
   }, [selectedIndex, pillX]);
 
+  /* Hard-clamp the rendered translateX to track bounds. Defensive guard
+     against any upstream weirdness (Reanimated 4 momentum overshoot, React
+     Compiler memoization quirks) that could push pillX off the visible
+     track. The animation is still smooth — clamp only affects values that
+     would render outside the track anyway. */
+  const maxX = (SEGMENTS.length - 1) * SEGMENT_WIDTH;
   const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: pillX.value }],
+    transform: [{ translateX: Math.max(0, Math.min(maxX, pillX.value)) }],
   }));
 
   return (

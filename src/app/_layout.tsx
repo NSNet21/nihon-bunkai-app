@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { SearchShortcut } from '@/components/search-shortcut';
@@ -39,12 +40,16 @@ function ThemedRoot() {
 
 export default function RootLayout() {
   return (
-    <AppThemeProvider>
-      <AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppThemeProvider>
+        {/* ToastProvider above AuthProvider so auth can show toasts on
+            entitlement-load failures. ToastProvider has no auth dependency. */}
         <ToastProvider>
-          <ThemedRoot />
+          <AuthProvider>
+            <ThemedRoot />
+          </AuthProvider>
         </ToastProvider>
-      </AuthProvider>
-    </AppThemeProvider>
+      </AppThemeProvider>
+    </GestureHandlerRootView>
   );
 }

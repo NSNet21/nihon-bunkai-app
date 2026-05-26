@@ -9,6 +9,7 @@ import { Flashcard, type ColumnVisibility, type FrontHero } from '@/components/f
 import { RatingButtons } from '@/components/rating-buttons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useToast } from '@/components/toast';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -21,6 +22,7 @@ export default function StudyScreen() {
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const { showToast } = useToast();
 
   useEffect(() => {
     // Reset session state on deck switch — fresh front-card start every time.
@@ -36,16 +38,23 @@ export default function StudyScreen() {
     void entriesForDeckAsync(deckId).then((rows) => {
       if (cancelled) return;
       setEntries(rows);
-      // Jump to entryId if provided (from Search tap-through).
+      // Jump to entryId if provided (from Search tap-through OR Continue card
+      // restoring a prior session). If the entry no longer exists in this
+      // deck (deleted, deck reordered, deep link expired), tell the user
+      // instead of silently dumping them at index 0.
       if (entryId) {
         const jumpTo = rows.findIndex((r) => r.id === entryId);
-        if (jumpTo >= 0) setIndex(jumpTo);
+        if (jumpTo >= 0) {
+          setIndex(jumpTo);
+        } else if (rows.length > 0) {
+          showToast('ตัวการ์ดเดิมหาไม่เจอ เริ่มจากต้น', { kind: 'info' });
+        }
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [deckId, entryId]);
+  }, [deckId, entryId, showToast]);
 
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -152,6 +161,10 @@ export default function StudyScreen() {
                     index={index}
                     total={entries.length}
                     deckTitle={deck.title}
+                    onSwipeNext={handleNext}
+                    onSwipePrev={handlePrev}
+                    canSwipeNext={canNext}
+                    canSwipePrev={canPrev}
                   />
                 </View>
                 <SideRail

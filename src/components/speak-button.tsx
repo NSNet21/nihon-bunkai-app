@@ -18,18 +18,20 @@ type Props = {
  * Subsequent taps interrupt the in-flight utterance and restart — predictable
  * behavior matching every consumer speaker UI (Onevoca, Quizlet, etc.).
  *
- * Tracks a local `playing` flag for the icon-tint feedback. Polls
- * `isSpeakingAsync` after kicking off speech because expo-speech doesn't
- * fire callbacks on every backend (web in particular fires onEnd reliably
- * but onStart can be delayed by user-gesture/voice-load latency).
+ * Uses expo-speech's native onDone/onStopped/onError callbacks for the
+ * playing-state feedback (no polling, no setInterval). mountedRef guards
+ * the setState calls against the "callback fires after unmount" race —
+ * speech keeps playing through a transient unmount (e.g. card flip), but
+ * we don't try to update unmounted UI.
  */
 export function SpeakButton({ text, language, colors, size = 'sm' }: Props) {
   const [playing, setPlaying] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      mountedRef.current = false;
       /* Don't stop on unmount — flipping the card unmounts the button
          transiently; we want the utterance to keep playing through. */
     };
@@ -37,19 +39,9 @@ export function SpeakButton({ text, language, colors, size = 'sm' }: Props) {
 
   function onPress(e: any) {
     e.stopPropagation?.();
-    speak(text, language);
     setPlaying(true);
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      const stillSpeaking = await import('@/lib/tts').then((m) => m.isSpeakingAsync());
-      if (!stillSpeaking) {
-        setPlaying(false);
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      }
-    }, 150);
+    const reset = () => { if (mountedRef.current) setPlaying(false); };
+    speak(text, language, { onDone: reset, onStopped: reset, onError: reset });
   }
 
   const iconSize = size === 'md' ? 18 : 14;

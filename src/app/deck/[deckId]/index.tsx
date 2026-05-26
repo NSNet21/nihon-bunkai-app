@@ -287,6 +287,9 @@ export default function DeckDetailScreen() {
             </Pressable>
           </View>
 
+          {/* Divider between LEARN and TEST sections. */}
+          <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
+
           {/* ── Section: Test (active) ── */}
           <View style={styles.section}>
             <View style={styles.secLabel}>
@@ -330,6 +333,10 @@ export default function DeckDetailScreen() {
               />
             </View>
           </View>
+
+          {/* Divider between TEST and ANALYTICS sections — marks the
+              "actions above, metrics below" boundary. */}
+          <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
 
           {/* ════════════════════════════════════════════════════════════════
               ANALYTICS · below the action sections.
@@ -794,6 +801,12 @@ const styles = StyleSheet.create({
   },
   /* ─── Practice sections (Memorize + Test) ─── */
   section: { gap: Spacing.two },
+  /* Hairline between major sections (LEARN / TEST / ANALYTICS).
+     Subtle editorial separator — color injected per-theme inline. */
+  sectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: Spacing.two,
+  },
   topStripe: {
     position: 'absolute',
     top: 0, left: 0, right: 0,

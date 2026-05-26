@@ -107,8 +107,11 @@ export default function MemorizeScreen() {
      card fades out, the index advances, then the new card fades in.
      activeOffsetX + failOffsetY disambiguate from vertical scroll. */
   const cardOpacity = useSharedValue(1);
-  const FADE_OUT_MS = 140;
-  const FADE_IN_MS = 180;
+  /* Snappy fade — tuned for mobile/tablet feel. Total ~180ms is the
+     standard "near-instant with smoothing" range across iOS / Material.
+     Was 140+180=320ms which felt sluggish during rapid swipes. */
+  const FADE_OUT_MS = 80;
+  const FADE_IN_MS = 100;
   const fadeAndChange = (delta: -1 | 1) => {
     cardOpacity.value = withTiming(
       0,

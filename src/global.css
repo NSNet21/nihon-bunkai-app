@@ -77,7 +77,7 @@
    visually compete with the small flashcard content. Targeted via
    `dataSet={{ scroll: 'card' }}` on the back-face ScrollView. */
 [data-scroll="card"] { scrollbar-width: thin; }
-[data-scroll="card"]::-webkit-scrollbar { width: 6px; height: 6px; }
+[data-scroll="card"]::-webkit-scrollbar { width: 8px; height: 8px; }
 [data-scroll="card"]::-webkit-scrollbar-track {
   border-left: none;
 }

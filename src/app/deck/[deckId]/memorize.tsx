@@ -18,7 +18,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -99,39 +99,16 @@ export default function MemorizeScreen() {
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
 
-  /* Swipe-to-navigate — fade-only (no drag visual / no rotation /
-     no scale). Per user direction: "มี swipe เปลี่ยน card ได้
-     เหมือนกัน แต่ไม่มี swipe fx มีแค่ fade transition พอ".
-
-     Pan only commits — no onUpdate visual feedback. On commit, the
-     card fades out, the index advances, then the new card fades in.
-     activeOffsetX + failOffsetY disambiguate from vertical scroll. */
-  const cardOpacity = useSharedValue(1);
-  /* Snappy fade — tuned for mobile/tablet feel. Total ~180ms is the
-     standard "near-instant with smoothing" range across iOS / Material.
-     Was 140+180=320ms which felt sluggish during rapid swipes. */
-  const FADE_OUT_MS = 80;
-  const FADE_IN_MS = 100;
-  const fadeAndChange = (delta: -1 | 1) => {
-    cardOpacity.value = withTiming(
-      0,
-      { duration: FADE_OUT_MS, easing: Easing.bezier(0.4, 0, 1, 1) },
-      (finished) => {
-        if (!finished) return;
-        scheduleOnRN((d: number) => {
-          setIndex((i) => Math.max(0, Math.min(entries.length - 1, i + d)));
-        }, delta);
-        cardOpacity.value = withTiming(1, { duration: FADE_IN_MS, easing: Easing.bezier(0, 0, 0.2, 1) });
-      },
-    );
-  };
-  const cardFadeStyle = useAnimatedStyle(() => ({ opacity: cardOpacity.value }));
-
+  /* Swipe-to-navigate — instant snap (no fade, no drag visual).
+     Matches Quiz mode's "rate → next instant" convention + mobile
+     card-swap pattern (Tinder/Anki mobile = instant). Pan only
+     commits via onEnd; activeOffsetX + failOffsetY disambiguate
+     from vertical scroll. */
   function goPrev() {
-    if (canPrev) fadeAndChange(-1);
+    if (canPrev) setIndex((i) => i - 1);
   }
   function goNext() {
-    if (canNext) fadeAndChange(1);
+    if (canNext) setIndex((i) => i + 1);
   }
 
   /* JS-thread refs mirrored into shared values so the gesture worklet
@@ -208,12 +185,11 @@ export default function MemorizeScreen() {
               Inner SpeakButtons remain interactive via native touch
               event bubbling. */}
           <GestureDetector gesture={cardGesture}>
-            <Animated.View
+            <View
               accessibilityRole="button"
               accessibilityLabel={showAnswer ? 'แตะเพื่อซ่อนคำตอบ' : 'แตะเพื่อแสดงคำตอบ'}
               style={[
                 styles.card,
-                cardFadeStyle,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
@@ -285,7 +261,7 @@ export default function MemorizeScreen() {
                 </ThemedText>
               </View>
             )}
-            </Animated.View>
+            </View>
           </GestureDetector>
         </ScrollView>
 

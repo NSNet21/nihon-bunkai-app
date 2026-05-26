@@ -73,8 +73,13 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
+            {/* Section label upgraded from plain "ภาษา" to bilingual mono
+                kicker pattern per GPT polish round 2026-05-27 — matches
+                the editorial rhythm of "// QUIZ CARD · ทดสอบ" elsewhere
+                in this screen. Single-word labels were breaking the
+                visual cadence. */}
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              ภาษา
+              ภาษา · LANGUAGE
             </ThemedText>
             <LanguageToggle />
           </View>
@@ -990,11 +995,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     gap: 2,
   },
+  /* Badge toggle vertical padding trimmed ~25% per GPT polish round
+     2026-05-27. Row was visually heavier than the visibility settings
+     beside it; lighter Y padding restores hierarchy. */
   cardMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    paddingVertical: Spacing.two,
+    paddingVertical: 6,
     paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,
     borderWidth: 1,

@@ -7,12 +7,16 @@ import { ThemedText } from './themed-text';
 
 import { Radii, RateColors, Spacing } from '@/constants/theme';
 
-/** Map FSRS Rating enum → Thai microcopy + semantic color key. */
+/** Map FSRS Rating enum → Thai microcopy + semantic color key.
+ *  emphasis: relative flex weight — "เข้าใจ" widened ~15% per GPT polish
+ *  round 2026-05-27 because it's the statistically most-pressed rating
+ *  (FSRS "Good" = card moves forward at normal interval). Subtle hierarchy
+ *  hint without disrupting the 4-button rhythm. */
 const BUTTONS = [
-  { rating: Rating.Again, label: 'ลืม',     colorKey: 'again' as const },
-  { rating: Rating.Hard,  label: 'ยาก',     colorKey: 'hard'  as const },
-  { rating: Rating.Good,  label: 'เข้าใจ', colorKey: 'good'  as const },
-  { rating: Rating.Easy,  label: 'ง่าย',   colorKey: 'easy'  as const },
+  { rating: Rating.Again, label: 'ลืม',     colorKey: 'again' as const, emphasis: 1 },
+  { rating: Rating.Hard,  label: 'ยาก',     colorKey: 'hard'  as const, emphasis: 1 },
+  { rating: Rating.Good,  label: 'เข้าใจ', colorKey: 'good'  as const, emphasis: 1.15 },
+  { rating: Rating.Easy,  label: 'ง่าย',   colorKey: 'easy'  as const, emphasis: 1 },
 ];
 
 type Props = {
@@ -36,7 +40,7 @@ export function RatingButtons({ onRate, disabled = false }: Props) {
             disabled={disabled}
             style={({ pressed }) => [
               styles.button,
-              { backgroundColor: bg },
+              { backgroundColor: bg, flex: btn.emphasis },
               pressed && !disabled && styles.pressed,
               disabled && styles.disabled,
             ]}
@@ -59,7 +63,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   button: {
-    flex: 1,
+    /* flex set inline from btn.emphasis (1 vs 1.15) */
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,

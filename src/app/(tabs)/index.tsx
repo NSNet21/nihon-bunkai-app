@@ -208,6 +208,19 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
               </ThemedText>
+              {/* Parent kicker for the Continue cards — without it, the
+                  two QUIZ/LEARN CONTINUE labels read as orphans. GPT
+                  polish round 2026-05-27. Renders only when at least one
+                  Continue card is showing, so the kicker never appears
+                  empty. */}
+              {(showContinue || showContinueLearn) && (
+                <View style={styles.continueGroupHead}>
+                  <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
+                  <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
+                    // CONTINUE · เรียนต่อ
+                  </ThemedText>
+                </View>
+              )}
               {showContinue && lastSession && (
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
@@ -507,11 +520,33 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     marginTop: Spacing.one,
   },
+  /* Toolbar visual weight reduced ~15% via opacity per GPT polish round
+     2026-05-27. The 3 view-mode buttons were drawing the eye as if they
+     were primary actions; lowered opacity keeps them discoverable but
+     drops them down the visual hierarchy below the Continue cards. */
   toolbar: {
     flexDirection: 'row',
     gap: Spacing.two,
     marginTop: Spacing.one,
     flexWrap: 'wrap',
+    opacity: 0.85,
+  },
+  /* Continue group head — kicker that gives parent meaning to the 2
+     QUIZ/LEARN Continue cards. Mirrors the Hub TEST section pip+mono
+     pattern for consistency. */
+  continueGroupHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.three,
+  },
+  continuePip: { width: 5, height: 5 },
+  continueKicker: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    fontWeight: '600',
   },
   toolBtn: {
     paddingVertical: 4,

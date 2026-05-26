@@ -145,10 +145,15 @@ export default function DeckDetailScreen() {
   /* CTA labels — adapt to whether there are due cards (otherwise the
      "DUE" pitch is misleading for first-time deck-open). The persisted
      count appends as a secondary signal so the user sees what they're
-     about to start. */
+     about to start.
+
+     Copy 2026-05-27 (GPT polish): "เริ่มเรียน" replaced with "ทดสอบ"
+     because this CTA sits in the TEST section — "เรียน" collides with
+     the LEARN section above. Vocabulary now consistent with /config
+     CTA ("ทดสอบ · N ข้อ"). */
   const startLabel = stats.due > 0
     ? `เริ่ม · ${stats.due} due${countSuffix}`
-    : `เริ่มเรียน${countSuffix}`;
+    : `ทดสอบ${countSuffix}`;
 
   function goQuiz(extra?: Record<string, string>) {
     if (!deckId) return;
@@ -326,11 +331,21 @@ export default function DeckDetailScreen() {
                 colors={colors}
                 onPress={() => goQuiz({ shuffle: '1' })}
               />
+              {/* Group break — locked modes pushed under a "COMING SOON"
+                  mini-header so users read "2 modes ship + 2 in pipeline"
+                  instead of "4 modes, 2 of which are inert". GPT polish
+                  2026-05-27. Hint copy on each locked row keeps "เร็วๆ นี้"
+                  for redundant clarity even with the header above. */}
               <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.testLockedGroupHead}>
+                <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 9 }]}>
+                  // COMING SOON · เร็วๆ นี้
+                </ThemedText>
+              </View>
               <TestRow
                 icon={<FiGrid size={20} color={colors.textHint} strokeWidth={2} />}
                 title="ปรนัย"
-                hint="เร็วๆ นี้ · MULTIPLE CHOICE"
+                hint="MULTIPLE CHOICE"
                 colors={colors}
                 locked
               />
@@ -338,7 +353,7 @@ export default function DeckDetailScreen() {
               <TestRow
                 icon={<FiEdit3 size={20} color={colors.textHint} strokeWidth={2} />}
                 title="เขียนตามคำบอก"
-                hint="เร็วๆ นี้ · DICTATION"
+                hint="DICTATION"
                 colors={colors}
                 locked
               />
@@ -631,13 +646,17 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     padding: Spacing.four,
   },
-  /* ─── Hero ─── */
+  /* ─── Hero ─── Vertical padding trimmed ~25% per GPT polish round
+     2026-05-27: original Spacing.five (top) + Spacing.four (bottom) made
+     sayata walk too far between header bar and stat grid below. Horizontal
+     padding kept full; only V breathing room reduced. */
   hero: {
     position: 'relative',
     borderWidth: 1,
     borderRadius: Radii.md,
-    padding: Spacing.five,
-    paddingBottom: Spacing.four,
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.three,
     overflow: 'hidden',
     gap: Spacing.two,
   },
@@ -865,5 +884,13 @@ const styles = StyleSheet.create({
   testRowDivider: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: Spacing.three,
+  },
+  /* Mini-header inside the TEST list separating shipped vs. coming-soon
+     modes. Keeps the list visually grouped without breaking it into a
+     full second card. GPT polish round 2026-05-27. */
+  testLockedGroupHead: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.one,
   },
 });

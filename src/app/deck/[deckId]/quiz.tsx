@@ -779,10 +779,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
   },
+  /* Counter + config gear tightened into a cluster per GPT polish round
+     2026-05-27. Original Spacing.three gap let the gear float — read as
+     a stray secondary action. Now they sit close enough to read as one
+     "progress + tools" group, mirroring desktop UI conventions. */
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   headerConfigBtn: {
     width: 32,

@@ -196,7 +196,7 @@ export default function MemorizeScreen() {
             {/* Glass meta — editorial top-left pill (mirrors Quiz GlassMeta). */}
             <View style={[styles.glassMeta, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
-                {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'HIDDEN'}`}
+                {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'RECALL'}`}
               </ThemedText>
             </View>
 
@@ -252,11 +252,20 @@ export default function MemorizeScreen() {
                 ) : null}
               </View>
             ) : (
-              /* Hidden state — reveal hint like Quiz front face. */
+              /* Hidden state — reveal hint sized up per GPT polish round
+                 2026-05-27: original 11px in tiny mono got lost in the
+                 empty card area, leaving the user wondering "is this
+                 empty or am I supposed to do something?". Now: short
+                 Thai sentence + uppercase mono kicker, both tappable
+                 surface area, scale +5px each, opacity ~0.75 via colors
+                 token (textSecondary). Pulse dot kept for movement cue. */
               <View style={styles.revealCue}>
                 <View style={[styles.pulseDot, { backgroundColor: Accent.base }]} />
-                <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 11 }]}>
-                  แตะ <ThemedText style={[styles.mono, { color: Accent.base, fontSize: 11 }]}>·</ThemedText> TAP TO REVEAL
+                <ThemedText style={[styles.revealHintMain, { color: colors.textSecondary }]}>
+                  แตะเพื่อดูความหมาย
+                </ThemedText>
+                <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
+                  TAP TO REVEAL
                 </ThemedText>
               </View>
             )}
@@ -427,8 +436,12 @@ const styles = StyleSheet.create({
   answerBlock: {
     gap: Spacing.three,
   },
+  /* Reveal cue layout — switched to column so the larger Thai sentence
+     and uppercase mono kicker stack centered, with the pulse dot above.
+     Original row layout (dot · text) couldn't accommodate the new size
+     and looked cramped. GPT polish round 2026-05-27. */
   revealCue: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.two,
@@ -437,6 +450,12 @@ const styles = StyleSheet.create({
   pulseDot: {
     width: 6,
     height: 6,
+  },
+  revealHintMain: {
+    fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 22,
   },
   secLabel: {
     flexDirection: 'row',

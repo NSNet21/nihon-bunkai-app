@@ -29,11 +29,15 @@ import { usePersistedState } from '@/hooks/use-persisted-state';
 
 type QuizCount = '10' | '20' | '30' | '50' | 'all';
 
+/* Hint labels — neutral duration descriptors per GPT polish round
+   2026-05-27. Original ("รวดเร็ว/มาตรฐาน/จริงจัง/มาราธอน") read like
+   personality tags and made the user interpret intensity. Now they just
+   describe relative length — no extra cognitive load. */
 const COUNT_OPTIONS: { value: QuizCount; label: string; hint: string }[] = [
-  { value: '10',  label: '10',     hint: 'รวดเร็ว' },
-  { value: '20',  label: '20',     hint: 'มาตรฐาน' },
-  { value: '30',  label: '30',     hint: 'จริงจัง' },
-  { value: '50',  label: '50',     hint: 'มาราธอน' },
+  { value: '10',  label: '10',     hint: 'สั้น' },
+  { value: '20',  label: '20',     hint: 'ปกติ' },
+  { value: '30',  label: '30',     hint: 'ยาว' },
+  { value: '50',  label: '50',     hint: 'ยาวมาก' },
   { value: 'all', label: 'ทั้งหมด', hint: 'ทุกใบในชุดนี้' },
 ];
 
@@ -103,17 +107,20 @@ export default function QuizConfigScreen() {
         </View>
 
         <View style={styles.ctaRow}>
+          {/* CTA copy — "เริ่ม" dropped per GPT polish round 2026-05-27:
+              user just finished configuring, the next action is the test
+              itself, no setup step left. Shorter label = clearer intent. */}
           <Pressable
             onPress={handleStart}
             accessibilityRole="button"
-            accessibilityLabel={`เริ่มทดสอบ ${count === 'all' ? 'ทั้งชุด' : `${count} ข้อ`}`}
+            accessibilityLabel={`ทดสอบ ${count === 'all' ? 'ทั้งชุด' : `${count} ข้อ`}`}
             style={({ pressed }) => [
               styles.ctaPrimary,
               { backgroundColor: Accent.base },
               pressed && { opacity: 0.85 },
             ]}>
             <ThemedText style={styles.ctaText}>
-              เริ่มทดสอบ {count === 'all' ? '· ทั้งชุด' : `· ${count} ข้อ`}
+              ทดสอบ {count === 'all' ? '· ทั้งชุด' : `· ${count} ข้อ`}
             </ThemedText>
           </Pressable>
         </View>

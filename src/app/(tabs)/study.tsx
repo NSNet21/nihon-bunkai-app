@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
@@ -10,14 +10,25 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { Rating } from 'ts-fsrs';
+import { type Grade, Rating } from 'ts-fsrs';
+
+import {
+  getCardState,
+  getStreakMeta,
+  makeEntryId,
+  putCardState,
+  putSessionLog,
+  putStreakMeta,
+  todayLocalDate,
+} from '@/lib/srs-store';
+import { scheduleCard } from '@/lib/srs-scheduler';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
-import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, RateColors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
@@ -60,6 +71,8 @@ export default function StudyScreen() {
     setIndex(0);
     setIsFlipped(false);
     setResults([]);
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
 
     let cancelled = false;
     if (!deckId) {
@@ -90,6 +103,13 @@ export default function StudyScreen() {
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [results, setResults] = useState<Rating[]>([]);
+  /* Session identity — created lazily on FIRST rating (so just opening a
+     deck and walking away doesn't pollute the session log). Refs (not
+     state) because we read them synchronously inside handlers + effects
+     and never need to trigger re-render on assignment. Reset on deck
+     switch + handleRestart. */
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartedAtRef = useRef<number | null>(null);
   /* Column visibility — persisted globally (Settings ↔ per-card popup share
      the same source). Pf / Pb are independent: user might want P shown on
      back (as confirmation) while hidden on front (force recall). */
@@ -140,7 +160,23 @@ export default function StudyScreen() {
     });
   }, [deck, current, index, entries.length, isComplete, setLastSession]);
 
-  function handleRate(rating: Rating) {
+  async function handleRate(rating: Rating) {
+    /* Lazy-init session identity on FIRST rating. */
+    if (sessionIdRef.current === null) {
+      sessionIdRef.current = crypto.randomUUID();
+      sessionStartedAtRef.current = Date.now();
+    }
+
+    /* Persist FSRS scheduling for this entry. Pure local (Dexie); sync to
+       Supabase happens in Phase C.4. Rating is always Grade subset (UI
+       only emits Again/Hard/Good/Easy via RatingButtons — never Manual). */
+    if (current && deck) {
+      const entryId = makeEntryId(deck.id, current.no);
+      const existing = await getCardState(entryId);
+      const next = scheduleCard(existing, rating as Grade, entryId, deck.id);
+      await putCardState(next);
+    }
+
     setResults((prev) => [...prev, rating]);
     setIsFlipped(false);
     /* Finishing the deck retires the Continue CTA — Browse only shows it
@@ -162,10 +198,68 @@ export default function StudyScreen() {
   }
 
   function handleRestart() {
+    /* New session identity on restart — same deck, fresh logging. */
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
     setIndex(0);
     setIsFlipped(false);
     setResults([]);
   }
+
+  /* When session completes, write a session_log + bump the streak.
+     Runs once per completion (isComplete flips false → true). All writes
+     are local Dexie; sync happens later (Phase C.4). */
+  useEffect(() => {
+    if (!isComplete || !deck || sessionIdRef.current === null || sessionStartedAtRef.current === null) {
+      return;
+    }
+    const sessionId = sessionIdRef.current;
+    const startedAt = sessionStartedAtRef.current;
+    const endedAt = Date.now();
+    const againCount = results.filter((r) => r === Rating.Again).length;
+    const hardCount  = results.filter((r) => r === Rating.Hard).length;
+    const goodCount  = results.filter((r) => r === Rating.Good).length;
+    const easyCount  = results.filter((r) => r === Rating.Easy).length;
+    const skippedCount = Math.max(0, entries.length - results.length);
+
+    void (async () => {
+      await putSessionLog({
+        sessionId,
+        deckId: deck.id,
+        deckTitle: deck.title,
+        totalCards: entries.length,
+        startedAt,
+        endedAt,
+        ratings: results,
+        againCount,
+        hardCount,
+        goodCount,
+        easyCount,
+        skippedCount,
+      });
+
+      /* Streak update — count today's session, advance/reset streak by
+         whether last_studied_date == yesterday (continue) or further
+         back (reset to 1). Cards-studied total adds ratings.length. */
+      const today = todayLocalDate();
+      const meta = await getStreakMeta();
+      let nextCurrent = meta.currentStreak;
+      if (meta.lastStudiedDate !== today) {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        const yesterday = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+        nextCurrent = meta.lastStudiedDate === yesterday ? meta.currentStreak + 1 : 1;
+      }
+      await putStreakMeta({
+        currentStreak: nextCurrent,
+        longestStreak: Math.max(meta.longestStreak, nextCurrent),
+        lastStudiedDate: today,
+        totalSessions: meta.totalSessions + 1,
+        totalCardsStudied: meta.totalCardsStudied + results.length,
+      });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isComplete]);
 
   return (
     <ThemedView style={styles.container}>
@@ -182,7 +276,12 @@ export default function StudyScreen() {
               body="Deck นี้ยังไม่มี entry — paid tier จะปลดล็อกหลังซื้อจาก nihon-bunkai-landing.pages.dev"
             />
           ) : isComplete ? (
-            <SessionComplete deckTitle={deck.title} results={results} onRestart={handleRestart} />
+            <SessionComplete
+              deckTitle={deck.title}
+              results={results}
+              totalCards={entries.length}
+              onRestart={handleRestart}
+            />
           ) : (
             <>
               <View style={styles.header}>
@@ -354,35 +453,276 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 function SessionComplete({
   deckTitle,
   results,
+  totalCards,
   onRestart,
 }: {
   deckTitle: string;
   results: Rating[];
+  /** Deck size. results.length may be < totalCards if user skipped some. */
+  totalCards: number;
   onRestart: () => void;
 }) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const rate = scheme === 'dark' ? RateColors.dark : RateColors.light;
+
+  const total = totalCards;
+  const counts = {
+    again: results.filter((r) => r === Rating.Again).length,
+    hard:  results.filter((r) => r === Rating.Hard).length,
+    good:  results.filter((r) => r === Rating.Good).length,
+    easy:  results.filter((r) => r === Rating.Easy).length,
+  };
+  const gotIt = counts.good + counts.easy;
+  /* Skipped = total - rated. Counts as "needs attention" (user hasn't
+     committed a rating yet — still in the "un-mastered" bucket). */
+  const skipped = Math.max(0, total - results.length);
+  const needsReview = counts.again + counts.hard + skipped;
+  /* Score % uses TOTAL as denominator (not results.length) — skipped
+     cards drag the score down, which is honest signal that motivates
+     the user to actually rate vs skip-through. */
+  const scorePct = total > 0 ? Math.round((gotIt / total) * 100) : 0;
+  /* Row bar widths — percentage of total, min 4% visual so an empty
+     row still shows a sliver (helps the visual rhythm). */
+  const pct = (n: number) => (total > 0 ? Math.max(n > 0 ? 4 : 0, (n / total) * 100) : 0);
+
   return (
-    <View style={styles.center}>
-      <ThemedText type="title">เรียนจบแล้ว 🎌</ThemedText>
-      <ThemedText type="default" themeColor="textSecondary">
-        {deckTitle} · {results.length} cards
-      </ThemedText>
-      <View style={styles.completeActions}>
-        <Pressable onPress={onRestart} style={({ pressed }) => [styles.restartBtn, pressed && styles.pressed]}>
-          <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>
-            เรียนรอบใหม่
+    <ScrollView
+      style={completeStyles.scroll}
+      contentContainerStyle={completeStyles.content}
+      showsVerticalScrollIndicator={false}>
+      {/* Editorial header — crimson stripe + display title */}
+      <View>
+        <View style={[completeStyles.topStripe, { backgroundColor: Accent.base }]} />
+        <View style={completeStyles.headerInner}>
+          <ThemedText
+            type="small"
+            style={[completeStyles.monoLabel, { color: colors.textHint }]}>
+            // SESSION COMPLETE
           </ThemedText>
+          <ThemedText type="title" style={completeStyles.title}>
+            เรียนจบแล้ว
+          </ThemedText>
+          <ThemedText type="default" themeColor="textSecondary" style={completeStyles.deckLabel}>
+            {deckTitle}
+          </ThemedText>
+        </View>
+      </View>
+
+      {/* Stat grid — 3 tiles. Middle tile (Score) is highlighted with crimson stripe. */}
+      <View style={completeStyles.statGrid}>
+        <View style={[completeStyles.tile, { borderColor: colors.border }]}>
+          <ThemedText style={[completeStyles.tileLabel, { color: colors.textHint }]}>
+            TOTAL · ทั้งหมด
+          </ThemedText>
+          <ThemedText style={[completeStyles.tileNum, { color: colors.text }]}>
+            {total}
+          </ThemedText>
+          <ThemedText style={[completeStyles.tileMeta, { color: colors.textHint }]}>
+            CARDS
+          </ThemedText>
+        </View>
+        <View style={[completeStyles.tile, completeStyles.tileHl, { borderColor: colors.border }]}>
+          <View style={[completeStyles.tileStripe, { backgroundColor: Accent.base }]} />
+          <ThemedText style={[completeStyles.tileLabel, { color: colors.textHint }]}>
+            SCORE · คะแนน
+          </ThemedText>
+          <ThemedText style={[completeStyles.tileNum, { color: Accent.base }]}>
+            {scorePct}%
+          </ThemedText>
+          <ThemedText style={[completeStyles.tileMeta, { color: colors.textHint }]}>
+            เข้าใจ + ง่าย
+          </ThemedText>
+        </View>
+        <View style={[completeStyles.tile, { borderColor: colors.border }]}>
+          <ThemedText style={[completeStyles.tileLabel, { color: colors.textHint }]}>
+            REVIEW · ต้องทบทวน
+          </ThemedText>
+          <ThemedText style={[completeStyles.tileNum, { color: colors.text }]}>
+            {needsReview}
+          </ThemedText>
+          <ThemedText style={[completeStyles.tileMeta, { color: colors.textHint }]}>
+            CARDS
+          </ThemedText>
+        </View>
+      </View>
+
+      {/* Mastery breakdown — horizontal bars per rating */}
+      <View style={[completeStyles.breakdown, { borderColor: colors.border }]}>
+        <View style={completeStyles.breakdownHeader}>
+          <ThemedText style={[completeStyles.monoLabel, { color: colors.textHint }]}>
+            // BREAKDOWN · สรุปผล
+          </ThemedText>
+        </View>
+        {[
+          { key: 'again',   label: 'ลืม',    count: counts.again, fg: rate.againFg },
+          { key: 'hard',    label: 'ยาก',    count: counts.hard,  fg: rate.hardFg },
+          { key: 'good',    label: 'เข้าใจ', count: counts.good,  fg: rate.goodFg },
+          { key: 'easy',    label: 'ง่าย',   count: counts.easy,  fg: Accent.base },
+          /* Skipped row — shown only when > 0 to keep the chart clean
+             on full-completion sessions. textHint color = visually
+             "muted", reflects "you haven't decided yet". */
+          ...(skipped > 0 ? [{ key: 'skipped', label: 'ข้าม',   count: skipped,      fg: colors.textHint }] : []),
+        ].map((row) => (
+          <View key={row.key} style={completeStyles.row}>
+            <ThemedText style={[completeStyles.rowLabel, { color: row.fg }]}>
+              {row.label}
+            </ThemedText>
+            <View style={[completeStyles.rowBar, { backgroundColor: colors.backgroundSelected }]}>
+              <View style={[completeStyles.rowFill, { width: `${pct(row.count)}%`, backgroundColor: row.fg }]} />
+            </View>
+            <ThemedText style={[completeStyles.rowCount, { color: colors.text }]}>
+              {row.count}
+            </ThemedText>
+          </View>
+        ))}
+      </View>
+
+      {/* CTAs */}
+      <View style={completeStyles.ctaStack}>
+        <Pressable
+          onPress={onRestart}
+          accessibilityRole="button"
+          accessibilityLabel="เรียนรอบใหม่ deck เดิม"
+          style={({ pressed }) => [
+            completeStyles.ctaPrimary,
+            { backgroundColor: Accent.base },
+            pressed && { opacity: 0.85 },
+          ]}>
+          <ThemedText style={completeStyles.ctaPrimaryText}>เรียนรอบใหม่</ThemedText>
         </Pressable>
         <Link href="/" asChild>
-          <Pressable style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}>
-            <ThemedText type="default" themeColor="textSecondary">
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="กลับไป Browse"
+            style={({ pressed }) => [
+              completeStyles.ctaSecondary,
+              { borderColor: colors.border },
+              pressed && { opacity: 0.85 },
+            ]}>
+            <ThemedText type="defaultSemiBold" themeColor="textSecondary">
               กลับไป Browse
             </ThemedText>
           </Pressable>
         </Link>
       </View>
-    </View>
+    </ScrollView>
   );
 }
+
+const completeStyles = StyleSheet.create({
+  scroll: { flex: 1, alignSelf: 'stretch' },
+  content: { gap: Spacing.five, paddingVertical: Spacing.four },
+  topStripe: { height: 3 },
+  headerInner: { paddingTop: Spacing.four, gap: Spacing.two },
+  monoLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: -0.5,
+  },
+  deckLabel: { fontSize: 14 },
+  /* Stat grid — 3 columns equal width. Middle tile is highlighted. */
+  statGrid: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
+  tile: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.one,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  tileHl: {},
+  tileStripe: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 2,
+  },
+  tileLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  tileNum: {
+    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
+    fontSize: 30,
+    fontWeight: '700',
+    lineHeight: 34,
+  },
+  tileMeta: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.0,
+    textTransform: 'uppercase',
+  },
+  /* Mastery breakdown */
+  breakdown: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  breakdownHeader: { marginBottom: Spacing.one },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  rowLabel: {
+    width: 56,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  rowBar: {
+    flex: 1,
+    height: 8,
+    borderRadius: 0,
+    overflow: 'hidden',
+  },
+  rowFill: {
+    height: '100%',
+  },
+  rowCount: {
+    width: 28,
+    textAlign: 'right',
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  /* CTAs */
+  ctaStack: { gap: Spacing.two, marginTop: Spacing.two },
+  ctaPrimary: {
+    paddingVertical: Spacing.four,
+    paddingHorizontal: Spacing.five,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+  },
+  ctaPrimaryText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+  ctaSecondary: {
+    paddingVertical: Spacing.four,
+    paddingHorizontal: Spacing.five,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },

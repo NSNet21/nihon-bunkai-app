@@ -70,6 +70,18 @@ export default function SettingsScreen() {
             <LanguageToggle />
           </View>
 
+          {/* Auto-sync toggle — only shown when signed in, since guest mode
+              doesn't have a cloud destination. Auth context reads this
+              key + wires startSync/stopSync accordingly. */}
+          {user && (
+            <View style={styles.section}>
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+                ซิงค์ข้อมูล
+              </ThemedText>
+              <AutoSyncToggle />
+            </View>
+          )}
+
           {/* Restore Purchases — only useful when signed in. Covers two cases:
               (a) bought with email A, signed in with email B (manual claim)
               (b) re-signup after account delete with same email (auto-drains
@@ -133,6 +145,43 @@ function CardMetaToggle() {
         </ThemedText>
         <ThemedText type="small" themeColor="textHint" style={{ marginTop: 2 }}>
           {showMeta ? 'กำลังแสดงอยู่ · แตะเพื่อซ่อน' : 'กำลังซ่อนอยู่ · แตะเพื่อแสดง'}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Auto-sync (meta) toggle. ON = listeners + pull on sign-in/focus +
+ *  debounced push on local writes. OFF = local-only mode (pending
+ *  queue still persists, drains on next ON). Same row pattern as
+ *  CardMetaToggle for visual consistency. */
+function AutoSyncToggle() {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const [enabled, setEnabled] = usePersistedState<boolean>('auto-sync', true);
+  const Icon = enabled ? FiCheckSquare : FiSquare;
+  const iconColor = enabled ? Accent.base : colors.text;
+  return (
+    <Pressable
+      onPress={() => setEnabled(!enabled)}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: enabled }}
+      accessibilityLabel="ซิงค์ความคืบหน้าและสถิติไปยังคลาวด์อัตโนมัติ"
+      style={({ pressed }) => [
+        styles.cardMetaRow,
+        { borderColor: colors.border, backgroundColor: enabled ? Accent.bg : 'transparent' },
+        pressed && { opacity: 0.85 },
+      ]}>
+      <Icon size={22} color={iconColor} strokeWidth={2} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <ThemedText type="defaultSemiBold">ซิงค์อัตโนมัติ</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          ความคืบหน้า FSRS · session · streak — ไม่รวม content
+        </ThemedText>
+        <ThemedText type="small" themeColor="textHint" style={{ marginTop: 2 }}>
+          {enabled
+            ? 'เปิดอยู่ · ซิงค์เมื่อเข้าสู่ระบบ + เปิดแท็บ'
+            : 'ปิดอยู่ · เก็บเฉพาะในเครื่องนี้'}
         </ThemedText>
       </View>
     </Pressable>

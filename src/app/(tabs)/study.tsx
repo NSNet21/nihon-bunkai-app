@@ -22,6 +22,8 @@ import {
   todayLocalDate,
 } from '@/lib/srs-store';
 import { scheduleCard } from '@/lib/srs-scheduler';
+import { schedulePush } from '@/lib/srs-sync';
+import { useAuth } from '@/context/auth';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
@@ -41,6 +43,11 @@ export default function StudyScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const { showToast } = useToast();
+  /* Sync layer (Phase C.4) — schedulePush coalesces local writes into a
+     debounced batch upload to Supabase. Guest mode (no user) skips push
+     entirely; local writes stay in pending_sync queue and drain on
+     next sign-in. */
+  const { user } = useAuth();
   /* Side rails — on narrow viewports they flip from inline (eating
      row-space) to absolute OVER the card edges, freeing the full row
      width for the card itself.
@@ -173,14 +180,18 @@ export default function StudyScreen() {
       sessionStartedAtRef.current = Date.now();
     }
 
-    /* Persist FSRS scheduling for this entry. Pure local (Dexie); sync to
-       Supabase happens in Phase C.4. Rating is always Grade subset (UI
-       only emits Again/Hard/Good/Easy via RatingButtons — never Manual). */
+    /* Persist FSRS scheduling for this entry. Local Dexie write is
+       atomic with pending_sync enqueue (see putCardState). If user is
+       signed in + auto-sync on, schedulePush coalesces writes into a
+       debounced batch upload. Guest user: write stays in queue + drains
+       on next sign-in. Rating is always Grade subset (UI only emits
+       Again/Hard/Good/Easy via RatingButtons — never Manual). */
     if (current && deck) {
       const entryId = makeEntryId(deck.id, current.no);
       const existing = await getCardState(entryId);
       const next = scheduleCard(existing, rating as Grade, entryId, deck.id);
       await putCardState(next);
+      if (user) schedulePush(user.id);
     }
 
     setResults((prev) => [...prev, rating]);
@@ -263,6 +274,10 @@ export default function StudyScreen() {
         totalSessions: meta.totalSessions + 1,
         totalCardsStudied: meta.totalCardsStudied + results.length,
       });
+      /* All session-complete writes done (session_log + streak_meta +
+         all cards from handleRate) → schedule one batch push. Guest mode
+         skips. */
+      if (user) schedulePush(user.id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isComplete]);

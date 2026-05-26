@@ -3,7 +3,10 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { Platform } from 'react-native';
 
 import { useToast } from '@/components/toast';
+import { clearAllSrsData } from '@/lib/srs-store';
+import { startSync, stopSync } from '@/lib/srs-sync';
 import { supabase } from '@/lib/supabase';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 
 type AuthStatus = 'loading' | 'signed-in' | 'signed-out';
 
@@ -51,14 +54,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  /* Auto-sync toggle — default ON (sync meta to cloud is the killer
+     feature; opt-out for users who explicitly want local-only). Stored
+     per-device. Affects whether startSync wires listeners + pulls. */
+  const [autoSyncEnabled] = usePersistedState<boolean>('auto-sync', true);
+
   useEffect(() => {
     if (!session?.user) {
       setEntitledPacks(new Set());
       setEntitledSkus(new Set());
+      stopSync();
       return;
     }
     const userId = session.user.id;
     void loadEntitlements(userId);
+    /* Wire FSRS/session/streak sync. startSync runs initial pull +
+       binds focus + visibility listeners. Skipped when user opted out
+       via Settings. */
+    if (autoSyncEnabled) {
+      startSync(userId);
+    } else {
+      stopSync();
+    }
 
     /* Layer 1: Realtime subscription — instant unlock when webhook grants new SKU */
     const channel = supabase
@@ -87,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         window.removeEventListener('focus', onFocus);
       }
     };
-  }, [session?.user]);
+  }, [session?.user, autoSyncEnabled]);
 
   async function loadEntitlements(userId: string) {
     const { data, error } = await supabase
@@ -145,6 +162,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: null, needsEmailConfirm };
       },
       async signOut() {
+        /* Stop sync BEFORE clearing local data — prevents listeners
+           from firing on a stale userId during teardown. Clear local
+           SRS data so the next user signing in on the same browser
+           doesn't see leftover schedule/streak. */
+        stopSync();
+        await clearAllSrsData();
         const { error } = await supabase.auth.signOut();
         if (error) console.warn('[auth] signOut error:', error.message);
         return { error: error?.message ?? null };

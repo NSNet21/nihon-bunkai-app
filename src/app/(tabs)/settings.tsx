@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiLogIn, FiLogOut, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiLogIn, FiLogOut, FiPackage, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { cancelAnimation, Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -9,9 +9,11 @@ import type { ColumnVisibility } from '@/components/flashcard';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
+import { supabase } from '@/lib/supabase';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 export default function SettingsScreen() {
@@ -67,6 +69,19 @@ export default function SettingsScreen() {
             </ThemedText>
             <LanguageToggle />
           </View>
+
+          {/* Restore Purchases — only useful when signed in. Covers two cases:
+              (a) bought with email A, signed in with email B (manual claim)
+              (b) re-signup after account delete with same email (auto-drains
+              via trigger, but the form is the explicit support fallback). */}
+          {user && (
+            <View style={styles.section}>
+              <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+                กู้คืนการสั่งซื้อ
+              </ThemedText>
+              <RestoreSection onRestored={refreshEntitlements} />
+            </View>
+          )}
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
@@ -438,6 +453,144 @@ const langStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
+  },
+});
+
+/* ─── RESTORE PURCHASES ────────────────────────────────────────────────
+   Calls the `claim_purchases_by_order` RPC with (order_id, buyer_email).
+   Server-side requires both to match a purchase_record with linked_user_id
+   IS NULL — prevents cross-account hijacking. After success, refreshes
+   entitlements so Shop's Download buttons update immediately. */
+
+type ClaimResult = { claimed_sku: string; payhip_order_id: string };
+
+function RestoreSection({ onRestored }: { onRestored: () => Promise<void> }) {
+  const scheme = useColorScheme();
+  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { showToast } = useToast();
+  const [orderId, setOrderId] = useState('');
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit() {
+    const trimmedOrder = orderId.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedOrder || !trimmedEmail) {
+      showToast('กรอก Order ID + email ที่ใช้ซื้อ', { kind: 'error' });
+      return;
+    }
+    setSubmitting(true);
+    const { data, error } = await supabase.rpc('claim_purchases_by_order', {
+      p_order_id: trimmedOrder,
+      p_buyer_email: trimmedEmail,
+    });
+    setSubmitting(false);
+    if (error) {
+      console.warn('[restore] claim failed', error);
+      showToast(`กู้คืนไม่สำเร็จ: ${error.message}`, { kind: 'error' });
+      return;
+    }
+    const rows = (data as ClaimResult[] | null) ?? [];
+    if (rows.length === 0) {
+      showToast('ไม่พบรายการที่กู้คืนได้ — เช็ค Order ID + email อีกครั้ง', { kind: 'info' });
+      return;
+    }
+    setOrderId('');
+    setEmail('');
+    await onRestored();
+    showToast(`กู้คืน ${rows.length} รายการสำเร็จ`, { kind: 'success' });
+  }
+
+  return (
+    <ThemedView type="backgroundElement" style={restoreStyles.card}>
+      <View style={restoreStyles.headerRow}>
+        <FiPackage size={18} color={Accent.base} />
+        <ThemedText type="defaultSemiBold">ซื้อด้วย email อื่น?</ThemedText>
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" style={restoreStyles.subtitle}>
+        ใส่ Payhip Order ID + email ที่ใช้ตอนซื้อ — ระบบจะผูก SKU เข้า account นี้ให้
+      </ThemedText>
+
+      <View style={[restoreStyles.inputWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+        <TextInput
+          value={orderId}
+          onChangeText={setOrderId}
+          placeholder="Payhip Order ID (เช่น 8B1oMwnmWZ)"
+          placeholderTextColor={colors.textHint}
+          editable={!submitting}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[restoreStyles.input, { color: colors.text }]}
+        />
+      </View>
+
+      <View style={[restoreStyles.inputWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="email ที่ใช้ตอนซื้อ"
+          placeholderTextColor={colors.textHint}
+          editable={!submitting}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          style={[restoreStyles.input, { color: colors.text }]}
+        />
+      </View>
+
+      <Pressable
+        onPress={onSubmit}
+        disabled={submitting}
+        style={({ pressed }) => [
+          restoreStyles.submitBtn,
+          { backgroundColor: Accent.base },
+          (pressed || submitting) && { opacity: 0.7 },
+        ]}>
+        <ThemedText type="defaultSemiBold" style={restoreStyles.submitLabel}>
+          {submitting ? 'กำลังกู้คืน…' : 'กู้คืนสิทธิ์'}
+        </ThemedText>
+      </Pressable>
+
+      <ThemedText type="small" themeColor="textHint" style={restoreStyles.hint}>
+        Order ID อยู่ใน Payhip receipt email · ถ้ายังหาไม่เจอ → mailto {SUPPORT_EMAIL}
+      </ThemedText>
+    </ThemedView>
+  );
+}
+
+const restoreStyles = StyleSheet.create({
+  card: {
+    padding: Spacing.four,
+    borderRadius: Radii.md,
+    gap: Spacing.three,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  subtitle: { lineHeight: 18 },
+  inputWrap: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  input: {
+    fontSize: 14,
+    outlineStyle: 'none' as any,
+  },
+  submitBtn: {
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    marginTop: Spacing.one,
+  },
+  submitLabel: { color: '#fff' },
+  hint: {
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
 

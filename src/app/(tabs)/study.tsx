@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -12,7 +12,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Rating } from 'ts-fsrs';
 
-import { Flashcard, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
+import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -46,14 +46,13 @@ export default function StudyScreen() {
   const railIcon = Math.round(56 * railScale);    // 46 → 56
   const overlayRails = viewportW < 600;
   /* On mobile, stretch the gradient OVERLAY wider than the Pressable's
-     tap column so the fade range is generous (compressed gradient in a
-     52px column reads as a hard band, not a fade). Tap area stays
-     railWidth — only the visible gradient extends inward.
-     Tuned 0.42→0.35 + cap 180→150 — earlier range felt too wide
-     (gradient was eating ~40% of card before fading out). Slight
-     pullback, not aggressive. */
+     tap column so the fade range is generous. Tap area stays railWidth.
+     GPT verdict 2026-05-26: 0.35×W (~136px on 390px viewport, 272 across
+     both rails) was eating too much of card middle — only 118px left
+     for tap-reveal. Pulled to 0.22×W cap 100 → mobile rails take ~86px
+     each, ~218 across, leaves 170+px clean center for tap reveal. */
   const railFillWidth = overlayRails
-    ? Math.min(Math.round(viewportW * 0.35), 150)
+    ? Math.min(Math.round(viewportW * 0.22), 100)
     : railWidth;
 
   useEffect(() => {
@@ -100,6 +99,24 @@ export default function StudyScreen() {
   );
   const [frontHero, setFrontHero] = usePersistedState<FrontHero>('front-hero', 't');
   const [, setLastSession] = usePersistedState<LastSession | null>('last-session', null);
+  /* Card columns config — popup lifted out of the Flashcard 2026-05-26.
+     Trigger now lives in the header (FiSliders button) so it's clear of
+     the overlay-rail hit zone on mobile. Auto-swap hero when hiding the
+     active hero column happens here too. */
+  const [configOpen, setConfigOpen] = useState(false);
+  const visibleFrontCount = (visibility.t ? 1 : 0) + (visibility.pf ? 1 : 0);
+  const visibleBackCount = (visibility.d ? 1 : 0) + (visibility.pb ? 1 : 0) + (visibility.e ? 1 : 0);
+  const toggleColumn = (key: keyof ColumnVisibility) => {
+    const next = { ...visibility, [key]: !visibility[key] };
+    /* Front face must keep at least one of T or Pf */
+    if (!next.t && !next.pf) return;
+    /* Back face must keep at least one of D, Pb, or E */
+    if (!next.d && !next.pb && !next.e) return;
+    /* Auto-swap hero if the column it points at just got hidden */
+    if (key === 't' && !next.t && frontHero === 't' && next.pf) setFrontHero('p');
+    if (key === 'pf' && !next.pf && frontHero === 'p' && next.t) setFrontHero('t');
+    setVisibility(next);
+  };
 
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
@@ -170,9 +187,22 @@ export default function StudyScreen() {
             <>
               <View style={styles.header}>
                 <ThemedText type="defaultSemiBold">{deck.title}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {index + 1} / {entries.length}
-                </ThemedText>
+                <View style={styles.headerRight}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {index + 1} / {entries.length}
+                  </ThemedText>
+                  <Pressable
+                    onPress={() => setConfigOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์"
+                    style={({ pressed }) => [
+                      styles.headerConfigBtn,
+                      { borderColor: colors.border, backgroundColor: colors.background },
+                      pressed && { opacity: 0.7 },
+                    ]}>
+                    <FiSliders size={16} color={colors.text} strokeWidth={2} />
+                  </Pressable>
+                </View>
               </View>
               <View style={styles.cardRow}>
                 {!overlayRails && (
@@ -191,9 +221,7 @@ export default function StudyScreen() {
                     isFlipped={isFlipped}
                     onFlip={() => setIsFlipped((f) => !f)}
                     visibility={visibility}
-                    onVisibilityChange={setVisibility}
                     frontHero={frontHero}
-                    onFrontHeroChange={setFrontHero}
                     index={index}
                     total={entries.length}
                     deckTitle={deck.title}
@@ -202,11 +230,11 @@ export default function StudyScreen() {
                     canSwipeNext={canNext}
                     canSwipePrev={canPrev}
                   />
-                  {/* Overlay rails on narrow viewports — full-height tap
-                      target on each edge. Icon hidden by default (opacity
-                      0), fades in briefly on tap then auto-fades back to
-                      hidden. Tap area always works because Pressable
-                      hit-testing ignores opacity. */}
+                  {/* Overlay rails on narrow viewports — both faces.
+                      Idle opacity = 0 (fully transparent) so the icon
+                      never visually fights with content. Press-down
+                      reveals instantly; press-up fades back to fully
+                      hidden. Tap area works regardless of opacity. */}
                   {overlayRails && (
                     <OverlayRailButton
                       direction="left"
@@ -247,6 +275,15 @@ export default function StudyScreen() {
               </View>
               <RatingButtons onRate={handleRate} disabled={!isFlipped} />
               <BrandStrip colors={colors} />
+              <VisibilityPopup
+                visible={configOpen}
+                onClose={() => setConfigOpen(false)}
+                visibility={visibility}
+                onToggle={toggleColumn}
+                colors={colors}
+                visibleFrontCount={visibleFrontCount}
+                visibleBackCount={visibleBackCount}
+              />
             </>
           )}
         </View>
@@ -362,6 +399,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  headerConfigBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cardRow: {
     flex: 1,
     flexDirection: 'row',
@@ -435,12 +485,14 @@ const overlayRailStyles = StyleSheet.create({
   },
 });
 
-/** Hide-until-tapped chevron on the card edge. Press DOWN → instant show
- *  (no fade in — confirms input the moment finger lands). Press UP →
- *  fade out over 520ms (gentle dismiss). Holding keeps it fully visible.
- *  Background is a faint white tint that sits behind the chevron icon —
- *  same fade timing, so it reads as "button surface materializing then
- *  dissolving". */
+/** Hide-until-tapped chevron on the card edge. IDLE opacity 0 (fully
+ *  transparent) — GPT had suggested 0.06 hint, but user feedback in
+ *  testing showed even that faint trace fought with text on the back
+ *  face. Cleaner to commit to "0 idle / press = visible / release fade
+ *  to 0". Tap area still works since Pressable hit-testing ignores
+ *  opacity. Discoverability is a trade-off taken on real-world feedback. */
+const IDLE_OPACITY = 0;
+
 function OverlayRailButton({
   direction,
   side,
@@ -466,7 +518,7 @@ function OverlayRailButton({
    *  dark theme needs WHITE tint. Caller passes the resolved scheme. */
   isDark: boolean;
 }) {
-  const opacity = useSharedValue(0);
+  const opacity = useSharedValue(IDLE_OPACITY);
   const Icon = direction === 'left' ? FiChevronLeft : FiChevronRight;
   const ariaLabel = direction === 'left' ? 'Previous card' : 'Next card';
 
@@ -497,11 +549,11 @@ function OverlayRailButton({
   }
 
   function handlePressOut() {
-    /* Gentle dismiss on release. Slight delay (90ms) so even ultra-quick
-       taps stay visible long enough to perceive. Then 520ms fade out. */
+    /* Gentle dismiss back to IDLE opacity (not full 0) — affordance
+       remains barely perceptible. 90ms hold + 520ms fade. */
     opacity.value = withDelay(
       90,
-      withTiming(0, { duration: 520, easing: Easing.bezier(0.4, 0, 1, 1) }),
+      withTiming(IDLE_OPACITY, { duration: 520, easing: Easing.bezier(0.4, 0, 1, 1) }),
     );
   }
 

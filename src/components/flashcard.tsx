@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiCheckSquare, FiSliders, FiSquare, FiX } from 'react-icons/fi';
+import { FiCheckSquare, FiSquare, FiX } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import Animated, {
   Easing,
@@ -39,9 +39,7 @@ type Props = {
   isFlipped: boolean;
   onFlip: () => void;
   visibility: ColumnVisibility;
-  onVisibilityChange: (next: ColumnVisibility) => void;
   frontHero: FrontHero;
-  onFrontHeroChange: (next: FrontHero) => void;
   /** Optional session position — drives top-meta + foot-dots progress. */
   index?: number;
   total?: number;
@@ -61,9 +59,7 @@ export function Flashcard({
   isFlipped,
   onFlip,
   visibility,
-  onVisibilityChange,
   frontHero,
-  onFrontHeroChange,
   index,
   total,
   deckTitle,
@@ -81,9 +77,6 @@ export function Flashcard({
      gesture setup happens further below (uses screenW, canSwipe flags). */
   const tx = useSharedValue(0);
   const animating = useSharedValue(false);
-  /* Which face's config popup is open, if any — split per-face so each icon
-     only manages the columns of its own face (locked decision 2026-05-25). */
-  const [popupOpen, setPopupOpen] = useState<'front' | 'back' | null>(null);
 
   /* Track the entry shown last render so we can tell apart:
        • user flipped the same card  → animate (500ms ease)
@@ -281,30 +274,6 @@ export function Flashcard({
       }
     });
 
-  /* Toggle a column, but bail if it would empty the relevant face. */
-  function toggleColumn(key: keyof ColumnVisibility) {
-    const next = { ...visibility, [key]: !visibility[key] };
-    /* Front face must keep at least one of T or Pf */
-    if (!next.t && !next.pf) return;
-    /* Back face must keep at least one of D, Pb, or E */
-    if (!next.d && !next.pb && !next.e) return;
-    /* If we just hid the current hero, auto-swap to the other front-face column */
-    if (key === 't'  && !next.t  && frontHero === 't' && next.pf) onFrontHeroChange('p');
-    if (key === 'pf' && !next.pf && frontHero === 'p' && next.t)  onFrontHeroChange('t');
-    onVisibilityChange(next);
-  }
-
-  function swapHero() {
-    const next: FrontHero = frontHero === 't' ? 'p' : 't';
-    /* Only allow swap to a visible column */
-    if (next === 't' && !visibility.t)  return;
-    if (next === 'p' && !visibility.pf) return;
-    onFrontHeroChange(next);
-  }
-
-  const visibleBackCount  = (visibility.d ? 1 : 0) + (visibility.pb ? 1 : 0) + (visibility.e ? 1 : 0);
-  const visibleFrontCount = (visibility.t ? 1 : 0) + (visibility.pf ? 1 : 0);
-
   /* Resolve front hero: respect setting, but fall back if chosen column is hidden. */
   const heroKey: FrontHero =
     frontHero === 't' && visibility.t  ? 't'
@@ -356,13 +325,19 @@ export function Flashcard({
     : entry.type === 'grammar'? meaningSize * 0.68
     :                            meaningSize * 0.58;  // glossary
   const meaningLen = (entry.d ?? '').length;
+  /* Softened curve per GPT review 2026-05-26 — previous 0.56 floor for
+     41+ chars + min 18 made grammar/glossary meanings collapse below
+     hero hierarchy. New curve keeps meaning as PRIMARY content of back
+     face even when long: floor 26 (24 for grammar/glossary which start
+     smaller), softer end-tail. */
   const meaningMul =
     meaningLen <= 8  ? 1
-    : meaningLen <= 15 ? 0.88
-    : meaningLen <= 25 ? 0.76
-    : meaningLen <= 40 ? 0.66
-    : 0.56;
-  const meaningSizeFinal = Math.max(18, Math.round(meaningTypeBase * meaningMul));
+    : meaningLen <= 15 ? 0.92
+    : meaningLen <= 25 ? 0.84
+    : meaningLen <= 40 ? 0.76
+    : 0.68;
+  const meaningFloor = entry.type === 'grammar' || entry.type === 'glossary' ? 24 : 26;
+  const meaningSizeFinal = Math.max(meaningFloor, Math.round(meaningTypeBase * meaningMul));
   /* Thai descenders + comma wrap → bump line-height to 1.25 vs the 1.15
      used for short titles. Keeps multi-line meanings legible. */
   const meaningLH = Math.round(meaningSizeFinal * 1.25);
@@ -411,24 +386,39 @@ export function Flashcard({
             {/* Top crimson stripe — editorial frame edge */}
             <View style={styles.topStripe} pointerEvents="none" />
             {metaText && <GlassMeta text={metaText} colors={colors} />}
-            {/* Top-right cluster — speaker + config sit together so the hero
-                area stays uninterrupted (just T + secondary + reveal cue).
-                Visual proximity reads as "action zone for this card". */}
-            <View style={faceTopActionsStyles.row} pointerEvents="box-none">
-              {heroValue ? (
-                <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
-              ) : null}
-              <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} inline />
-            </View>
+            {/* Config button MOVED OUT to study.tsx header (2026-05-26)
+                so it doesn't collide with the overlay-rail hit zone on
+                mobile. TTS speaker also moved — see below, inline with
+                the hero term so the affordance is adjacent to what it
+                reads aloud. */}
             <View style={styles.frontContent}>
-              <ThemedText style={[styles.term, { fontSize: heroSize, lineHeight: heroLineHeight }]}>
-                {heroValue}
-              </ThemedText>
+              {/* Hero + speaker bound tightly (per GPT review 2026-05-26):
+                  speaker sits in a tight block with the hero so the
+                  affordance reads as "speak this hero", not as a floating
+                  button between hero and secondary. Tight 6px gap inside
+                  the block, normal frontContent gap to siblings. */}
+              <View style={styles.heroBlock}>
+                <ThemedText style={[styles.term, { fontSize: heroSize, lineHeight: heroLineHeight }]}>
+                  {heroValue}
+                </ThemedText>
+                {heroValue ? (
+                  <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
+                ) : null}
+              </View>
               {secondaryVisible && secondaryValue ? (
                 <ThemedText
                   type="default"
                   themeColor="textSecondary"
-                  style={[styles.pronunciation, { fontSize: secondarySize }]}>
+                  style={[
+                    styles.pronunciation,
+                    {
+                      fontSize: secondarySize,
+                      /* Multi-line secondary (Kunyomi: x\nOnyomi: y) needs
+                         breathing room — GPT review noted rows reading
+                         as one mashed list. 1.45 ratio opens it up. */
+                      lineHeight: Math.round(secondarySize * 1.45),
+                    },
+                  ]}>
                   {secondaryValue}
                 </ThemedText>
               ) : null}
@@ -493,7 +483,6 @@ export function Flashcard({
             {/* Glass meta — absolute-positioned overlay; scrolling content
                 slides UNDER it (backdrop-blur for the frosted editorial edge). */}
             {metaText && <GlassMeta text={metaText} colors={colors} />}
-            <FaceSettingsButton colors={colors} side="back" onPress={(s) => setPopupOpen(s)} />
           </Animated.View>
         </Animated.View>
 
@@ -507,87 +496,14 @@ export function Flashcard({
         </Animated.View>
       </Pressable>
       </GestureDetector>
-
-      <VisibilityPopup
-        face={popupOpen}
-        onClose={() => setPopupOpen(null)}
-        visibility={visibility}
-        onToggle={toggleColumn}
-        colors={colors}
-        visibleFrontCount={visibleFrontCount}
-        visibleBackCount={visibleBackCount}
-        frontHero={frontHero}
-        onSwapHero={swapHero}
-      />
     </>
   );
 }
 
-/* ─── face settings button ───────────────────────────────────────────── */
-
-/** Settings icon sitting INSIDE a face so it rotates with the card during
- *  the flip ("stuck to the card"). Front face uses the normal right inset;
- *  back face is shifted inward to clear the ScrollView scrollbar. */
-function FaceSettingsButton({
-  colors,
-  side,
-  onPress,
-  inline = false,
-}: {
-  colors: typeof Colors.light;
-  side: 'front' | 'back';
-  onPress: (side: 'front' | 'back') => void;
-  /** When true, render bare button — parent cluster handles positioning.
-   *  Used on front (clustered with speaker). Back face keeps standalone. */
-  inline?: boolean;
-}) {
-  const rightOffset = side === 'front' ? Spacing.three : Spacing.three + 14;
-  const Btn = (
-    <Pressable
-      onPress={(e) => {
-        e.stopPropagation?.();
-        onPress(side);
-      }}
-      style={({ pressed }) => [
-        styles.settingsBtn,
-        { borderColor: colors.border, backgroundColor: colors.background },
-        pressed && styles.settingsBtnPressed,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์">
-      <FiSliders size={16} color={colors.text} strokeWidth={2} />
-    </Pressable>
-  );
-  if (inline) return Btn;
-  return (
-    <View
-      style={[faceSettingsStyles.anchor, { right: rightOffset }]}
-      pointerEvents="box-none">
-      {Btn}
-    </View>
-  );
-}
-
-const faceSettingsStyles = StyleSheet.create({
-  anchor: {
-    position: 'absolute',
-    top: Spacing.three,
-    zIndex: 10,
-  },
-});
-
-const faceTopActionsStyles = StyleSheet.create({
-  row: {
-    position: 'absolute',
-    top: Spacing.three,
-    right: Spacing.three,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    zIndex: 10,
-  },
-});
-
+/* FaceSettingsButton + faceSettingsStyles + faceTopActionsStyles removed
+   2026-05-26. The config trigger lifted out to study.tsx header so it
+   doesn't collide with the overlay-rail hit zone on mobile. The popup
+   itself (VisibilityPopup) remains exported below. */
 
 /* ─── glass meta ─────────────────────────────────────────────────────── */
 
@@ -746,8 +662,13 @@ function PulseDot() {
 
 /* ─── popup ──────────────────────────────────────────────────────────── */
 
-function VisibilityPopup({
-  face,
+/* Unified card-config popup — opened from the header config button
+   (lifted out of the card 2026-05-26 so it stops colliding with the
+   overlay rail hit zone on mobile). Single modal renders BOTH face
+   sections (front T/Pf + back D/Pb/E) — user dropped the per-face split
+   so navigation needs only one tap, popup needs only one button. */
+export function VisibilityPopup({
+  visible,
   onClose,
   visibility,
   onToggle,
@@ -755,22 +676,14 @@ function VisibilityPopup({
   visibleFrontCount,
   visibleBackCount,
 }: {
-  face: 'front' | 'back' | null;
+  visible: boolean;
   onClose: () => void;
   visibility: ColumnVisibility;
   onToggle: (k: keyof ColumnVisibility) => void;
   colors: typeof Colors.light;
   visibleFrontCount: number;
   visibleBackCount: number;
-  /* frontHero / onSwapHero accepted to keep call-site stable; UX moved out. */
-  frontHero?: FrontHero;
-  onSwapHero?: () => void;
 }) {
-  const visible = face !== null;
-  const title   = face === 'front' ? 'ด้านหน้า' : 'ด้านหลัง';
-  const sublabel = face === 'front'
-    ? 'เลือกคอลัมน์ที่จะแสดงด้านหน้า'
-    : 'เลือกคอลัมน์ที่จะแสดงด้านหลัง';
   /* Lock the last-remaining column on each face so the user can't blank it. */
   const frontOnly = visibleFrontCount === 1;
   const backOnly  = visibleBackCount === 1;
@@ -788,73 +701,71 @@ function VisibilityPopup({
           onPress={(e) => e.stopPropagation?.()}>
           <View style={popupStyles.header}>
             <View>
-              <ThemedText type="defaultSemiBold">การแสดงผลคอลัมน์ · {title}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">{sublabel}</ThemedText>
+              <ThemedText type="defaultSemiBold">การแสดงผลคอลัมน์</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                เลือกคอลัมน์ที่จะแสดงในแต่ละด้านของการ์ด
+              </ThemedText>
             </View>
             <Pressable onPress={onClose} style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
               <FiX size={20} color={colors.text} strokeWidth={2} />
             </Pressable>
           </View>
 
-          {face === 'front' && (
-            <View style={popupStyles.sectionBlock}>
-              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
-                // FRONT · ด้านหน้า
-              </ThemedText>
-              <View style={popupStyles.rows}>
-                <CheckRow
-                  checked={visibility.t}
-                  locked={tLocked}
-                  onPress={() => onToggle('t')}
-                  colors={colors}
-                  label="T · คำศัพท์ (Term)"
-                  hint="คันจิ / คะนะ"
-                />
-                <CheckRow
-                  checked={visibility.pf}
-                  locked={pfLocked}
-                  onPress={() => onToggle('pf')}
-                  colors={colors}
-                  label="P · คำอ่าน (Pronunciation)"
-                  hint="ตั้งแยกจากด้านหลัง"
-                />
-              </View>
+          <View style={popupStyles.sectionBlock}>
+            <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+              // FRONT · ด้านหน้า
+            </ThemedText>
+            <View style={popupStyles.rows}>
+              <CheckRow
+                checked={visibility.t}
+                locked={tLocked}
+                onPress={() => onToggle('t')}
+                colors={colors}
+                label="T · คำศัพท์ (Term)"
+                hint="คันจิ / คะนะ"
+              />
+              <CheckRow
+                checked={visibility.pf}
+                locked={pfLocked}
+                onPress={() => onToggle('pf')}
+                colors={colors}
+                label="P · คำอ่าน (Pronunciation)"
+                hint="ตั้งแยกจากด้านหลัง"
+              />
             </View>
-          )}
+          </View>
 
-          {face === 'back' && (
-            <View style={popupStyles.sectionBlock}>
-              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
-                // BACK · ด้านหลัง
-              </ThemedText>
-              <View style={popupStyles.rows}>
-                <CheckRow
-                  checked={visibility.d}
-                  locked={dLocked}
-                  onPress={() => onToggle('d')}
-                  colors={colors}
-                  label="D · ความหมาย (Thai)"
-                  hint="แสดงเป็น title หลังพลิกการ์ด"
-                />
-                <CheckRow
-                  checked={visibility.pb}
-                  locked={pbLocked}
-                  onPress={() => onToggle('pb')}
-                  colors={colors}
-                  label="P · คำอ่าน (Pronunciation)"
-                  hint="ตั้งแยกจากด้านหน้า"
-                />
-                <CheckRow
-                  checked={visibility.e}
-                  locked={eLocked}
-                  onPress={() => onToggle('e')}
-                  colors={colors}
-                  label="E · คำอธิบาย (Explanation)"
-                  hint="markdown sections — Breakdown / Examples"
-                />
-              </View>
+          <View style={popupStyles.sectionBlock}>
+            <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+              // BACK · ด้านหลัง
+            </ThemedText>
+            <View style={popupStyles.rows}>
+              <CheckRow
+                checked={visibility.d}
+                locked={dLocked}
+                onPress={() => onToggle('d')}
+                colors={colors}
+                label="D · ความหมาย (Thai)"
+                hint="แสดงเป็น title หลังพลิกการ์ด"
+              />
+              <CheckRow
+                checked={visibility.pb}
+                locked={pbLocked}
+                onPress={() => onToggle('pb')}
+                colors={colors}
+                label="P · คำอ่าน (Pronunciation)"
+                hint="ตั้งแยกจากด้านหน้า"
+              />
+              <CheckRow
+                checked={visibility.e}
+                locked={eLocked}
+                onPress={() => onToggle('e')}
+                colors={colors}
+                label="E · คำอธิบาย (Explanation)"
+                hint="markdown sections — Breakdown / Examples"
+              />
             </View>
-          )}
+          </View>
 
           <ThemedText type="small" themeColor="textSecondary" style={popupStyles.footnote}>
             ค่าเลือกใช้ทั้ง session · global default + Quiz Config มาใน polish round
@@ -931,15 +842,6 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0, bottom: 0,
     zIndex: 20,
   },
-  settingsBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsBtnPressed: { opacity: 0.7 },
   face: {
     position: 'absolute',
     top: 0, bottom: 0, left: 0, right: 0,
@@ -962,6 +864,10 @@ const styles = StyleSheet.create({
     backgroundColor: Accent.base,
   },
   frontContent: { gap: Spacing.four, alignItems: 'center' },
+  /* Tight block — hero + speaker glued together so the affordance binds
+     to what it reads. 6px internal gap, then parent frontContent's
+     16px gap separates this block from the secondary line. */
+  heroBlock: { alignItems: 'center', gap: 6 },
   term: {
     fontSize: 96,
     lineHeight: 100,

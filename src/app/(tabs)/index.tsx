@@ -95,6 +95,7 @@ export default function BrowseScreen() {
 
   const { decks } = useAllDecks();
   const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
+  const [lastSessionLearn] = usePersistedState<LastSession | null>('last-session-learn', null);
 
   /* Only surface Continue CTA when the resume target is still valid:
      - deck must exist in current allDecks (user might have lost entitlement)
@@ -108,6 +109,17 @@ export default function BrowseScreen() {
     typeof lastSession.index === 'number' &&
     typeof lastSession.total === 'number' &&
     lastSession.index < lastSession.total - 1;
+  /* Learn-mode Continue — independent of Quiz. Survives even after
+     Quiz session completes (Learn is passive, no "completion"). Shown
+     when entries are not yet exhausted in the same deck/total. */
+  const continueDeckLearn =
+    lastSessionLearn && decks.find((d) => d.id === lastSessionLearn.deckId);
+  const showContinueLearn =
+    !!lastSessionLearn &&
+    !!continueDeckLearn &&
+    typeof lastSessionLearn.index === 'number' &&
+    typeof lastSessionLearn.total === 'number' &&
+    lastSessionLearn.index < lastSessionLearn.total - 1;
 
   /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
@@ -198,7 +210,10 @@ export default function BrowseScreen() {
                 {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
               </ThemedText>
               {showContinue && lastSession && (
-                <ContinueCard lastSession={lastSession} colors={colors} />
+                <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
+              )}
+              {showContinueLearn && lastSessionLearn && (
+                <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
               )}
               <Toolbar
                 onExpandAll={expandAll}

@@ -59,8 +59,17 @@ export default function SettingsScreen() {
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
               การ์ด
             </ThemedText>
+
+            {/* Quiz card group — flip mode (active recall + FSRS). */}
+            <ThemedText style={styles.cardGroupHead}>// QUIZ CARD · ทดสอบ</ThemedText>
             <CardMetaToggle />
-            <CardColumnsRow />
+            <CardColumnsRow title="คอลัมน์ที่แสดง" storageKey="visibility" />
+
+            {/* Learn card group — all-fields mode (passive review). */}
+            <ThemedText style={[styles.cardGroupHead, { marginTop: Spacing.three }]}>
+              // LEARN CARD · เปิดดู
+            </ThemedText>
+            <CardColumnsRow title="คอลัมน์ที่แสดง" storageKey="visibility-learn" />
           </View>
 
           <View style={styles.section}>
@@ -191,11 +200,20 @@ function AutoSyncToggle() {
 /** Compact summary row in Settings with inline accordion — tap to expand
  *  the full ColumnsConfig below the row. Reuses persisted visibility so
  *  Settings ↔ per-card popup stay in sync. */
-function CardColumnsRow() {
+/** Accordion row for column-visibility config. Parameterized so the same
+ *  pattern serves both Quiz and Learn modes — each has its own persisted
+ *  visibility key. */
+function CardColumnsRow({
+  title,
+  storageKey,
+}: {
+  title: string;
+  storageKey: 'visibility' | 'visibility-learn';
+}) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const [vis] = usePersistedState<ColumnVisibility>(
-    'visibility',
+    storageKey,
     { t: true, pf: true, pb: true, d: true, e: true },
   );
   const [expanded, setExpanded] = useState(false);
@@ -220,14 +238,14 @@ function CardColumnsRow() {
         onPress={() => setExpanded((v) => !v)}
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        accessibilityLabel="ตั้งค่าคอลัมน์ที่แสดงบนการ์ด"
+        accessibilityLabel={`ตั้งค่าคอลัมน์ที่แสดงบนการ์ด · ${title}`}
         style={({ pressed }) => [
           styles.cardMetaRow,
           { borderColor: colors.border },
           pressed && { opacity: 0.85 },
         ]}>
         <View style={{ flex: 1, gap: 2 }}>
-          <ThemedText type="defaultSemiBold">คอลัมน์ที่แสดง</ThemedText>
+          <ThemedText type="defaultSemiBold">{title}</ThemedText>
           <ThemedText
             type="small"
             themeColor="textSecondary"
@@ -247,20 +265,21 @@ function CardColumnsRow() {
           style={{ paddingLeft: Spacing.two }}
           entering={FadeIn.duration(180).easing(Easing.bezier(0.25, 0.46, 0.45, 0.94))}
           exiting={FadeOut.duration(130)}>
-          <ColumnsConfig />
+          <ColumnsConfig storageKey={storageKey} />
         </Animated.View>
       )}
     </View>
   );
 }
 
-/** Persisted column visibility config — same storage key as Study screen so
- *  Settings ↔ per-card popup stay in sync. Each face must keep ≥ 1 column. */
-function ColumnsConfig() {
+/** Persisted column visibility config — Quiz uses key 'visibility',
+ *  Learn (Memorize) uses 'visibility-learn'. Each face must keep ≥ 1
+ *  column. */
+function ColumnsConfig({ storageKey }: { storageKey: 'visibility' | 'visibility-learn' }) {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const [vis, setVis] = usePersistedState<ColumnVisibility>(
-    'visibility',
+    storageKey,
     { t: true, pf: true, pb: true, d: true, e: true },
   );
 
@@ -928,6 +947,18 @@ const styles = StyleSheet.create({
   sectionLabel: {
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  /* Sub-group head inside a section — mono editorial style, paired with
+     "// PREFIX · ไทย" pattern. Used to separate Quiz card group from
+     Learn card group under the same "การ์ด" section. */
+  cardGroupHead: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    color: Accent.base,
+    marginTop: Spacing.one,
   },
   accountCard: {
     padding: Spacing.two,

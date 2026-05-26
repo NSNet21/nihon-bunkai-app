@@ -16,13 +16,13 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiSliders } from 'react-icons/fi';
+import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { VisibilityPopup, type ColumnVisibility } from '@/components/flashcard';
+import { type ColumnVisibility } from '@/components/flashcard';
 import { SpeakButton } from '@/components/speak-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -31,9 +31,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import type { Entry } from '@/data/types';
+import type { LastSession } from '@/lib/last-session';
 
 export default function MemorizeScreen() {
-  const { deckId } = useLocalSearchParams<{ deckId?: string }>();
+  const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
@@ -41,30 +42,23 @@ export default function MemorizeScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [index, setIndex] = useState(0);
+  /* Continue tracking for Learn mode — separate from Quiz's
+     'last-session'. Browse renders both Continue cards if both have
+     a session in flight. */
+  const [, setLastSessionLearn] = usePersistedState<LastSession | null>('last-session-learn', null);
   /* Self-quiz toggle — tap card to hide/show the "answer side" (P + D
      + E). Persists across navigation so the user sets it once and all
      subsequent cards follow. Default true = passive reading (default
      Memorize use case). Per Vocat UX: the entire card is the tap
      target, no separate eye button. */
   const [showAnswer, setShowAnswer] = useState(true);
-  /* Column visibility shared with Quiz mode — same persisted key, so
-     the user's preference carries across both screens. Front (T/Pf)
-     vs back (D/Pb/E) split is Quiz semantics; in Memorize T drives the
-     hero, while D/Pb/E populate the answer block. Pf is irrelevant to
-     Memorize (no separate front-P) but stays in the popup for Quiz. */
-  const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
-    'visibility',
+  /* Column visibility — Memorize has its own key separate from Quiz.
+     Per-mode config edited only via Settings (accordion). Default all
+     visible so first-time users see the full card. */
+  const [visibility] = usePersistedState<ColumnVisibility>(
+    'visibility-learn',
     { t: true, pf: true, pb: true, d: true, e: true },
   );
-  const [configOpen, setConfigOpen] = useState(false);
-  const visibleFrontCount = (visibility.t ? 1 : 0) + (visibility.pf ? 1 : 0);
-  const visibleBackCount  = (visibility.d ? 1 : 0) + (visibility.pb ? 1 : 0) + (visibility.e ? 1 : 0);
-  const toggleColumn = (key: keyof ColumnVisibility) => {
-    const next = { ...visibility, [key]: !visibility[key] };
-    if (!next.t && !next.pf) return;
-    if (!next.d && !next.pb && !next.e) return;
-    setVisibility(next);
-  };
 
   useEffect(() => {
     if (!deckId) return;
@@ -72,14 +66,36 @@ export default function MemorizeScreen() {
     void entriesForDeckAsync(deckId).then((rows) => {
       if (cancelled) return;
       setEntries(rows);
-      setIndex(0);
+      /* Jump to entryId if present (Continue card resume) — falls
+         back to 0 if the entry no longer exists. */
+      if (entryId) {
+        const jumpTo = rows.findIndex((r) => r.id === entryId);
+        setIndex(jumpTo >= 0 ? jumpTo : 0);
+      } else {
+        setIndex(0);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [deckId]);
+  }, [deckId, entryId]);
 
+  /* Persist position for Continue · Learn — fires on every card change
+     so Browse can resume the user where they left off. Skips when
+     entries haven't loaded or deck is missing. */
   const current = entries[index];
+  useEffect(() => {
+    if (!deck || !current) return;
+    setLastSessionLearn({
+      deckId: deck.id,
+      deckTitle: deck.title,
+      entryId: current.id,
+      index,
+      total: entries.length,
+      updatedAt: Date.now(),
+    });
+  }, [deck, current, index, entries.length, setLastSessionLearn]);
+
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
 
@@ -170,13 +186,7 @@ export default function MemorizeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <Header
-          deck={deck}
-          index={index}
-          total={entries.length}
-          colors={colors}
-          onOpenConfig={() => setConfigOpen(true)}
-        />
+        <Header deck={deck} index={index} total={entries.length} colors={colors} />
 
         <ScrollView
           style={[
@@ -298,15 +308,6 @@ export default function MemorizeScreen() {
           />
         </View>
 
-        <VisibilityPopup
-          visible={configOpen}
-          onClose={() => setConfigOpen(false)}
-          visibility={visibility}
-          onToggle={toggleColumn}
-          colors={colors}
-          visibleFrontCount={visibleFrontCount}
-          visibleBackCount={visibleBackCount}
-        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -319,13 +320,11 @@ function Header({
   index,
   total,
   colors,
-  onOpenConfig,
 }: {
   deck: { id: string; title: string } | undefined;
   index: number;
   total: number;
   colors: typeof Colors.light;
-  onOpenConfig?: () => void;
 }) {
   return (
     <View style={styles.headerBar}>
@@ -340,19 +339,6 @@ function Header({
         <ThemedText type="small" themeColor="textSecondary">
           {index + 1} / {total}
         </ThemedText>
-      )}
-      {onOpenConfig && (
-        <Pressable
-          onPress={onOpenConfig}
-          accessibilityRole="button"
-          accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์"
-          style={({ pressed }) => [
-            styles.headerConfigBtn,
-            { borderColor: colors.border, backgroundColor: colors.background },
-            pressed && { opacity: 0.7 },
-          ]}>
-          <FiSliders size={16} color={colors.text} strokeWidth={2} />
-        </Pressable>
       )}
     </View>
   );
@@ -427,15 +413,6 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
-  },
-  headerConfigBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: Spacing.two,
   },
   scroll: { flex: 1 },
   scrollContent: {

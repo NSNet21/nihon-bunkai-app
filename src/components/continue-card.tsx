@@ -8,28 +8,34 @@ import { ThemedText } from './themed-text';
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
 import type { LastSession } from '@/lib/last-session';
 
+type Mode = 'quiz' | 'learn';
+
 type Props = {
   lastSession: LastSession;
   colors: typeof Colors.light;
+  /** Which mode to resume. Drives URL + label badge. Default 'quiz' */
+  mode?: Mode;
 };
 
 /**
  * Browse hero CTA — resumes the user's most-recent study session.
- * Tap → /deck/[deckId]/quiz?entryId=Y. Continue is Quiz-mode only;
- * Memorize sessions don't write lastSession (transient by design).
+ * `mode='quiz'` → /deck/[deckId]/quiz?entryId=Y (FSRS rating session).
+ * `mode='learn'` → /deck/[deckId]/memorize?entryId=Y (passive review).
  *
  * Only rendered when:
  *  - lastSession exists in localStorage
  *  - the deck is still in allDecks (handled by the parent guard)
  *  - the session isn't finished (index < total - 1, parent guard)
  */
-export function ContinueCard({ lastSession, colors }: Props) {
+export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
   const router = useRouter();
   const progress = Math.min(1, (lastSession.index + 1) / lastSession.total);
+  const route = mode === 'learn' ? 'memorize' : 'quiz';
+  const modeBadge = mode === 'learn' ? 'LEARN' : 'QUIZ';
 
   function onPress() {
     router.push(
-      `/deck/${lastSession.deckId}/quiz?entryId=${encodeURIComponent(lastSession.entryId)}` as never,
+      `/deck/${lastSession.deckId}/${route}?entryId=${encodeURIComponent(lastSession.entryId)}` as never,
     );
   }
 
@@ -38,7 +44,7 @@ export function ContinueCard({ lastSession, colors }: Props) {
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`เรียนต่อ ${lastSession.deckTitle} · ${lastSession.index + 1} จาก ${lastSession.total}`}
+        accessibilityLabel={`เรียนต่อ ${modeBadge} ${lastSession.deckTitle} · ${lastSession.index + 1} จาก ${lastSession.total}`}
         style={({ pressed }) => [
           styles.outer,
           { backgroundColor: colors.backgroundElement, borderColor: colors.border },
@@ -48,7 +54,7 @@ export function ContinueCard({ lastSession, colors }: Props) {
         <View style={styles.stripe} pointerEvents="none" />
         <View style={styles.body}>
           <ThemedText style={[styles.label, { color: colors.textHint }]}>
-            // ต่อ · CONTINUE
+            {`// ${modeBadge} · CONTINUE`}
           </ThemedText>
           <ThemedText type="defaultSemiBold" style={styles.title}>
             {lastSession.deckTitle}

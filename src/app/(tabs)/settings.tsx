@@ -338,9 +338,9 @@ const columnsStyles = StyleSheet.create({
 
 type Lang = 'th' | 'en';
 
-const LANG_SEGMENTS: { value: Lang; label: string; sub: string }[] = [
-  { value: 'th', label: 'ไทย',    sub: 'TH' },
-  { value: 'en', label: 'English', sub: 'EN' },
+const LANG_SEGMENTS: { value: Lang; label: string }[] = [
+  { value: 'th', label: 'ไทย' },
+  { value: 'en', label: 'English' },
 ];
 
 const LANG_TRACK_WIDTH = 200;
@@ -386,7 +386,6 @@ function LanguageToggle() {
         {LANG_SEGMENTS.map((seg) => {
           const active = seg.value === lang;
           const fg = active ? '#ffffff' : colors.text;
-          const subFg = active ? 'rgba(255,255,255,0.7)' : colors.textHint;
           return (
             <Pressable
               key={seg.value}
@@ -395,19 +394,15 @@ function LanguageToggle() {
               accessibilityState={{ selected: active }}
               accessibilityLabel={`เลือกภาษา ${seg.label}`}
               style={({ pressed }) => [langStyles.segment, pressed && { opacity: 0.85 }]}>
-              {/* Horizontal: label + mono sub code side-by-side. */}
-              <ThemedText type="defaultSemiBold" style={{ color: fg, fontSize: 13 }}>
+              <ThemedText type="defaultSemiBold" style={{ color: fg, fontSize: 14 }}>
                 {seg.label}
-              </ThemedText>
-              <ThemedText style={[langStyles.subLabel, { color: subFg }]}>
-                {seg.sub}
               </ThemedText>
             </Pressable>
           );
         })}
       </View>
       <ThemedText type="small" themeColor="textHint">
-        ข้อความใน app ยังเป็นภาษาไทย · การแปลครบจะมาใน Phase 2
+        บางส่วนของแอปยังเป็นภาษาไทย · การแปลจะทยอยเพิ่มเร็วๆ นี้
       </ThemedText>
     </View>
   );
@@ -432,17 +427,9 @@ const langStyles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.one,
     zIndex: 1,
-  },
-  subLabel: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1,
-    fontWeight: '600',
   },
 });
 

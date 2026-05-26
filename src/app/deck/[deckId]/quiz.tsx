@@ -315,7 +315,13 @@ export default function StudyScreen() {
                     accessibilityLabel="กลับ Browse"
                     style={({ pressed }) => [
                       styles.headerBackBtn,
-                      pressed && { opacity: 0.6 },
+                      /* Crimson tint on press — on-brand signal per
+                         design tokens. Sharp corners (Radii.sm) keep
+                         the editorial style. */
+                      pressed && {
+                        backgroundColor: Accent.bg,
+                        borderColor: Accent.soft,
+                      },
                     ]}>
                     <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
                     <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
@@ -794,6 +800,9 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',  // becomes Accent.soft on press
   },
   headerRight: {
     flexDirection: 'row',

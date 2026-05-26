@@ -241,6 +241,89 @@ export default function DeckDetailScreen() {
             </View>
           </View>
 
+          {/* ── Section: Memorize (passive) ── */}
+          <View style={styles.section}>
+            <View style={styles.secLabel}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
+                การเรียนรู้ · LEARN
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={goMemorize}
+              accessibilityRole="button"
+              accessibilityLabel="เปิดดูคำศัพท์เฉยๆ"
+              style={({ pressed }) => [
+                styles.memorizeCard,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                pressed && { opacity: 0.85 },
+              ]}>
+              <View style={[styles.topStripe, { backgroundColor: Accent.base }]} />
+              <View style={styles.memorizeBody}>
+                <FiBookOpen size={32} color={Accent.base} strokeWidth={1.5} />
+                <View style={{ alignItems: 'center', gap: 4 }}>
+                  <ThemedText style={[styles.memorizeTitle, { color: colors.text }]}>
+                    เปิดดู
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+                    ดูคำศัพท์ทั้งหมดเรียงตามลำดับ · ไม่มีการทดสอบ
+                  </ThemedText>
+                </View>
+              </View>
+            </Pressable>
+          </View>
+
+          {/* ── Section: Test (active) ── */}
+          <View style={styles.section}>
+            <View style={styles.secLabel}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
+                แบบทดสอบ · TEST
+              </ThemedText>
+            </View>
+            <View style={[styles.testList, { borderColor: colors.border }]}>
+              <TestRow
+                icon={<FiLayers size={20} color={Accent.base} strokeWidth={2} />}
+                title="แฟลชการ์ด"
+                hint={startLabel}
+                colors={colors}
+                onPress={() => goQuiz()}
+                accent
+              />
+              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <TestRow
+                icon={<FiShuffle size={20} color={colors.textSecondary} strokeWidth={2} />}
+                title="ทบทวนแบบสุ่ม"
+                hint="MIXED · order shuffled"
+                colors={colors}
+                onPress={() => goQuiz({ shuffle: '1' })}
+              />
+              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <TestRow
+                icon={<FiGrid size={20} color={colors.textHint} strokeWidth={2} />}
+                title="ปรนัย"
+                hint="เร็วๆ นี้ · MULTIPLE CHOICE"
+                colors={colors}
+                locked
+              />
+              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <TestRow
+                icon={<FiEdit3 size={20} color={colors.textHint} strokeWidth={2} />}
+                title="เขียนตามคำบอก"
+                hint="เร็วๆ นี้ · DICTATION"
+                colors={colors}
+                locked
+              />
+            </View>
+          </View>
+
+          {/* ════════════════════════════════════════════════════════════════
+              ANALYTICS · below the action sections.
+              Stats grid + last-studied/streak + sample card + mastery
+              breakdown. Moved down per user direction so action CTAs
+              (Memorize / Test) sit above the fold.
+              ════════════════════════════════════════════════════════════════ */}
+
           {/* ── 3-stat grid: TOTAL / DUE / MASTERED ── */}
           <View style={[styles.statGrid, isCompact && { gap: Spacing.two }]}>
             <StatTile
@@ -335,82 +418,6 @@ export default function DeckDetailScreen() {
               <BreakdownBar label="ง่าย" count={stats.breakdown.easy} total={stats.total} fg={Accent.base} bgColor={colors.backgroundSelected} textColor={colors.text} />
             </View>
           )}
-
-          {/* ── Section: Memorize (passive) ── */}
-          <View style={styles.section}>
-            <View style={styles.secLabel}>
-              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-              <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
-                การเรียนรู้ · LEARN
-              </ThemedText>
-            </View>
-            <Pressable
-              onPress={goMemorize}
-              accessibilityRole="button"
-              accessibilityLabel="เปิดดูคำศัพท์เฉยๆ"
-              style={({ pressed }) => [
-                styles.memorizeCard,
-                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                pressed && { opacity: 0.85 },
-              ]}>
-              <View style={[styles.topStripe, { backgroundColor: Accent.base }]} />
-              <View style={styles.memorizeBody}>
-                <FiBookOpen size={32} color={Accent.base} strokeWidth={1.5} />
-                <View style={{ alignItems: 'center', gap: 4 }}>
-                  <ThemedText style={[styles.memorizeTitle, { color: colors.text }]}>
-                    เปิดดู
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
-                    ดูคำศัพท์ทั้งหมดเรียงตามลำดับ · ไม่มีการทดสอบ
-                  </ThemedText>
-                </View>
-              </View>
-            </Pressable>
-          </View>
-
-          {/* ── Section: Test (active) ── */}
-          <View style={styles.section}>
-            <View style={styles.secLabel}>
-              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-              <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
-                แบบทดสอบ · TEST
-              </ThemedText>
-            </View>
-            <View style={[styles.testList, { borderColor: colors.border }]}>
-              <TestRow
-                icon={<FiLayers size={20} color={Accent.base} strokeWidth={2} />}
-                title="แฟลชการ์ด"
-                hint={startLabel}
-                colors={colors}
-                onPress={() => goQuiz()}
-                accent
-              />
-              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
-              <TestRow
-                icon={<FiShuffle size={20} color={colors.textSecondary} strokeWidth={2} />}
-                title="ทบทวนแบบสุ่ม"
-                hint="MIXED · order shuffled"
-                colors={colors}
-                onPress={() => goQuiz({ shuffle: '1' })}
-              />
-              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
-              <TestRow
-                icon={<FiGrid size={20} color={colors.textHint} strokeWidth={2} />}
-                title="ปรนัย"
-                hint="เร็วๆ นี้ · MULTIPLE CHOICE"
-                colors={colors}
-                locked
-              />
-              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
-              <TestRow
-                icon={<FiEdit3 size={20} color={colors.textHint} strokeWidth={2} />}
-                title="เขียนตามคำบอก"
-                hint="เร็วๆ นี้ · DICTATION"
-                colors={colors}
-                locked
-              />
-            </View>
-          </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>

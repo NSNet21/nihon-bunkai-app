@@ -38,7 +38,17 @@ import type { Entry } from '@/data/types';
 import type { LastSession } from '@/lib/last-session';
 
 export default function StudyScreen() {
-  const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
+  const { deckId, entryId, count: countParam } = useLocalSearchParams<{ deckId?: string; entryId?: string; count?: string }>();
+  /* count search param (10/20/30/50) limits this session to first N
+     entries. Set by Hub Quiz CTA or Config "เริ่มทดสอบ". Resume mode
+     (entryId present) overrides count — user explicitly came to finish
+     a specific card, don't truncate them out of it. Per GPT verdict
+     2026-05-27 Quiz Config flow. */
+  const sessionCount = (() => {
+    if (entryId) return undefined;
+    const n = countParam ? parseInt(countParam, 10) : NaN;
+    return Number.isFinite(n) && [10, 20, 30, 50].includes(n) ? n : undefined;
+  })();
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -88,7 +98,10 @@ export default function StudyScreen() {
     }
     void entriesForDeckAsync(deckId).then((rows) => {
       if (cancelled) return;
-      setEntries(rows);
+      /* Slice to sessionCount when set + no entryId resume. Resume wins
+         (user wants that specific card, not "first N"). */
+      const sliced = sessionCount ? rows.slice(0, sessionCount) : rows;
+      setEntries(sliced);
       // Jump to entryId if provided (from Search tap-through OR Continue card
       // restoring a prior session). If the entry no longer exists in this
       // deck (deleted, deck reordered, deep link expired), tell the user
@@ -105,7 +118,7 @@ export default function StudyScreen() {
     return () => {
       cancelled = true;
     };
-  }, [deckId, entryId, showToast]);
+  }, [deckId, entryId, sessionCount, showToast]);
 
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);

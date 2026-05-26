@@ -33,6 +33,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, RateColors, Radii, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import type { Entry } from '@/data/types';
 import {
   type CardStateRow,
@@ -133,13 +134,27 @@ export default function DeckDetailScreen() {
     return { total, due, mastered, newCount, breakdown };
   }, [cardStates, entries.length]);
 
+  /* Quiz count — persisted globally via /config. 'all' = no slicing.
+     Hub Quiz CTA appends `?count=N` (omitted when 'all'). Per GPT
+     verdict 2026-05-27: Count is a Quiz-only concept; Learn never
+     respects it. See [[theme-perf-cascade]] sibling memory for the
+     full flow rationale (TODO: spin out quiz-config memory). */
+  const [quizCount] = usePersistedState<'10' | '20' | '30' | '50' | 'all'>('quiz-count', 'all');
+  const countSuffix = quizCount !== 'all' ? ` · ${quizCount} ข้อ` : '';
+
   /* CTA labels — adapt to whether there are due cards (otherwise the
-     "DUE" pitch is misleading for first-time deck-open). */
-  const startLabel = stats.due > 0 ? `เริ่ม · ${stats.due} due` : 'เริ่มเรียน';
+     "DUE" pitch is misleading for first-time deck-open). The persisted
+     count appends as a secondary signal so the user sees what they're
+     about to start. */
+  const startLabel = stats.due > 0
+    ? `เริ่ม · ${stats.due} due${countSuffix}`
+    : `เริ่มเรียน${countSuffix}`;
 
   function goQuiz(extra?: Record<string, string>) {
     if (!deckId) return;
-    const qs = new URLSearchParams(extra ?? {}).toString();
+    const params: Record<string, string> = { ...(extra ?? {}) };
+    if (quizCount !== 'all' && !params.count) params.count = quizCount;
+    const qs = new URLSearchParams(params).toString();
     router.push(`/deck/${deckId}/quiz${qs ? `?${qs}` : ''}` as never);
   }
   function goMemorize() {

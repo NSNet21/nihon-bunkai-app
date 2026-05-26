@@ -262,7 +262,7 @@ export default function MemorizeScreen() {
               <View style={styles.revealCue}>
                 <View style={[styles.pulseDot, { backgroundColor: Accent.base }]} />
                 <ThemedText style={[styles.revealHintMain, { color: colors.textSecondary }]}>
-                  แตะเพื่อดูความหมาย
+                  แตะเพื่อดูคำตอบ
                 </ThemedText>
                 <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
                   TAP TO REVEAL

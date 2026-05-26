@@ -523,11 +523,17 @@ const styles = StyleSheet.create({
   /* Toolbar visual weight reduced ~15% via opacity per GPT polish round
      2026-05-27. The 3 view-mode buttons were drawing the eye as if they
      were primary actions; lowered opacity keeps them discoverable but
-     drops them down the visual hierarchy below the Continue cards. */
+     drops them down the visual hierarchy below the Continue cards.
+
+     Round-2 verdict (2026-05-27): opacity alone made it read as a
+     "footer of Continue cards" rather than its own utility row. Added
+     marginTop: Spacing.six (~32) so toolbar sits in its own rhythm slot
+     between Continue and the deck list below. */
   toolbar: {
     flexDirection: 'row',
     gap: Spacing.two,
-    marginTop: Spacing.one,
+    marginTop: Spacing.six,
+    marginBottom: Spacing.five,
     flexWrap: 'wrap',
     opacity: 0.85,
   },

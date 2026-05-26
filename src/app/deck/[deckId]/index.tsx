@@ -337,7 +337,7 @@ export default function DeckDetailScreen() {
                   2026-05-27. Hint copy on each locked row keeps "เร็วๆ นี้"
                   for redundant clarity even with the header above. */}
               <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.testLockedGroupHead}>
+              <View style={[styles.testLockedGroupHead, { opacity: 0.65 }]}>
                 <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 9 }]}>
                   // COMING SOON · เร็วๆ นี้
                 </ThemedText>

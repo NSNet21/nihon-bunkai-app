@@ -8,15 +8,16 @@ import { ThemedText } from './themed-text';
 import { Radii, RateColors, Spacing } from '@/constants/theme';
 
 /** Map FSRS Rating enum → Thai microcopy + semantic color key.
- *  emphasis: relative flex weight — "เข้าใจ" widened ~15% per GPT polish
- *  round 2026-05-27 because it's the statistically most-pressed rating
- *  (FSRS "Good" = card moves forward at normal interval). Subtle hierarchy
- *  hint without disrupting the 4-button rhythm. */
+ *  All 4 buttons equal width per GPT polish round-2 verdict 2026-05-27:
+ *  the 1.15x emphasis on "เข้าใจ" (tried in round-1) was too subtle to
+ *  read but enough to break the 4-button rhythm — fell into the "changed
+ *  but not enough to feel" zone. Consistency wins. FSRS decision-making
+ *  is too consequential to nudge with width. */
 const BUTTONS = [
-  { rating: Rating.Again, label: 'ลืม',     colorKey: 'again' as const, emphasis: 1 },
-  { rating: Rating.Hard,  label: 'ยาก',     colorKey: 'hard'  as const, emphasis: 1 },
-  { rating: Rating.Good,  label: 'เข้าใจ', colorKey: 'good'  as const, emphasis: 1.15 },
-  { rating: Rating.Easy,  label: 'ง่าย',   colorKey: 'easy'  as const, emphasis: 1 },
+  { rating: Rating.Again, label: 'ลืม',     colorKey: 'again' as const },
+  { rating: Rating.Hard,  label: 'ยาก',     colorKey: 'hard'  as const },
+  { rating: Rating.Good,  label: 'เข้าใจ', colorKey: 'good'  as const },
+  { rating: Rating.Easy,  label: 'ง่าย',   colorKey: 'easy'  as const },
 ];
 
 type Props = {
@@ -40,7 +41,7 @@ export function RatingButtons({ onRate, disabled = false }: Props) {
             disabled={disabled}
             style={({ pressed }) => [
               styles.button,
-              { backgroundColor: bg, flex: btn.emphasis },
+              { backgroundColor: bg },
               pressed && !disabled && styles.pressed,
               disabled && styles.disabled,
             ]}
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   button: {
-    /* flex set inline from btn.emphasis (1 vs 1.15) */
+    flex: 1,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,

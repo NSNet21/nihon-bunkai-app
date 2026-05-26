@@ -10,7 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { bundles, buyUrl, LANDING_URL, perLevel, type Product } from '@/data/products';
@@ -55,8 +55,7 @@ function openExternal(url: string) {
 type ViewMode = 'list' | 'grid';
 
 export default function ShopScreen() {
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
   /* Grid only renders meaningfully when ≥2 cards fit per row. Card
      minWidth = 240, gap = 12, container padding ~32 → grid needs ~520px

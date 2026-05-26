@@ -6,10 +6,10 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/context/theme';
 
 export function WebBadge() {
-  const scheme = useColorScheme();
+  const { scheme } = useThemeColors();
 
   return (
     <ThemedView style={styles.container}>

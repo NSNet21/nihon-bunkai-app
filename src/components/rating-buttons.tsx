@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Rating } from 'ts-fsrs';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/context/theme';
 
 import { ThemedText } from './themed-text';
 
@@ -21,8 +21,8 @@ type Props = {
 };
 
 export function RatingButtons({ onRate, disabled = false }: Props) {
-  const scheme = useColorScheme();
-  const palette = RateColors[scheme === 'dark' ? 'dark' : 'light'];
+  const { scheme } = useThemeColors();
+  const palette = RateColors[scheme];
 
   return (
     <View style={styles.row} accessibilityRole="toolbar">

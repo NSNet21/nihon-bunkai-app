@@ -31,7 +31,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, RateColors, Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
@@ -151,8 +151,7 @@ export default function StudyScreen() {
     setVisibility(next);
   };
 
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
 
   const current = entries[index];
   const isComplete = entries.length > 0 && index >= entries.length;
@@ -516,8 +515,7 @@ function SessionComplete({
   totalCards: number;
   onRestart: () => void;
 }) {
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   const rate = scheme === 'dark' ? RateColors.dark : RateColors.light;
 
   const total = totalCards;

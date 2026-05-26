@@ -8,8 +8,8 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/context/theme';
+import { Accent, Radii, Spacing } from '@/constants/theme';
 
 type Mode = 'magic' | 'password';
 type Phase = 'idle' | 'sending' | 'sent' | 'error';
@@ -179,8 +179,7 @@ function WebForm({ onSubmit, children }: { onSubmit: () => void; children: React
 }
 
 function ModeTabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   return (
     <View style={[styles.modeTabs, { borderColor: colors.border }]}>
       <ModeTab active={mode === 'password'} onPress={() => onChange('password')} label="รหัสผ่าน" />
@@ -200,8 +199,7 @@ function ModeTab({ active, onPress, label }: { active: boolean; onPress: () => v
 }
 
 function EmailField({ value, onChange, disabled }: { value: string; onChange: (s: string) => void; disabled?: boolean }) {
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   return (
     <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
       <FiMail size={16} color={colors.textSecondary} />
@@ -222,8 +220,7 @@ function EmailField({ value, onChange, disabled }: { value: string; onChange: (s
 }
 
 function PasswordField({ value, onChange, disabled }: { value: string; onChange: (s: string) => void; disabled?: boolean }) {
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   return (
     <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
       <FiLock size={16} color={colors.textSecondary} />
@@ -279,8 +276,7 @@ function PrimaryButton({ onPress, disabled, label }: { onPress: () => void; disa
 }
 
 function SecondaryButton({ onPress, disabled, label }: { onPress: () => void; disabled?: boolean; label: string }) {
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (

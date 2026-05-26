@@ -1,23 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
-
-import { useThemeOverride } from '@/context/theme';
+import { useThemeColors } from '@/context/theme';
 
 /**
- * Web variant — same override-aware behavior, plus hydration guard to keep
- * SSR output consistent with client (boilerplate behavior preserved).
+ * Web variant — identical to native via the unified ThemeColorsContext.
+ * Hydration guard now lives in the provider itself, so the web/.web split
+ * is no longer doing extra work. Kept as a file for the platform resolver.
  */
 export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
-
-  const { override } = useThemeOverride();
-  const system = useRNColorScheme();
-
-  if (!hasHydrated) return 'light';
-  if (override === 'light' || override === 'dark') return override;
-  return system;
+  return useThemeColors().scheme;
 }

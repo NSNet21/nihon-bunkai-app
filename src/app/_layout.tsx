@@ -8,11 +8,11 @@ import { SearchShortcut } from '@/components/search-shortcut';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/context/auth';
 import { ThemeProvider as AppThemeProvider } from '@/context/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/context/theme';
 import { requestPersistentStorage } from '@/lib/persistent-storage';
 
 function ThemedRoot() {
-  const colorScheme = useColorScheme();
+  const { scheme: colorScheme } = useThemeColors();
 
   /* Sync React theme → HTML data-theme so CSS variables (scrollbar, markdown) switch. */
   useEffect(() => {

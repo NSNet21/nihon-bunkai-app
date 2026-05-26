@@ -13,13 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Accent, Colors, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Accent, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/context/theme';
 
 export default function QuizConfigScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { colors } = useThemeColors();
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>

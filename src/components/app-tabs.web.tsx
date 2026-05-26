@@ -11,8 +11,8 @@ import { Pressable, View, StyleSheet } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
-import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/context/theme';
 
 export default function AppTabs() {
   return (
@@ -50,8 +50,7 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme ?? 'light'];
+  const { colors } = useThemeColors();
 
   return (
     <View {...props} style={styles.tabListContainer}>

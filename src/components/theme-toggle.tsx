@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { startTransition, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FiCheck, FiX } from 'react-icons/fi';
 
 import { ThemedText } from './themed-text';
 
-import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
-import { useThemeOverride, type ThemeOverride } from '@/context/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Accent, Radii, Spacing } from '@/constants/theme';
+import { useThemeActions, useThemeColors, type ThemeOverride } from '@/context/theme';
 
 type Segment = { value: ThemeOverride; glyph: string; label: string };
 
@@ -28,10 +27,21 @@ const SEGMENTS: Segment[] = [
  * in the app.
  */
 export function ThemeToggle() {
-  const { override, setOverride } = useThemeOverride();
-  const effective = useColorScheme();
-  const colors = (effective === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { override, setOverride } = useThemeActions();
+  const { scheme: effective, colors } = useThemeColors();
   const [open, setOpen] = useState(false);
+
+  /* Apply theme as a non-urgent transition — modal close + click feedback
+     paint first, then the ~1000-node cascade re-renders in the next chunk.
+     React 19 can interrupt this if the user keeps interacting, so taps
+     never feel blocked. Modal animationType="fade" is preserved (user
+     locked transition style 2026-05-26 — see [[theme-perf-cascade]]). */
+  const applyTheme = (next: ThemeOverride) => {
+    startTransition(() => {
+      setOverride(next);
+    });
+    setOpen(false);
+  };
 
   /* Clamp — corrupt persisted override (legacy value) shouldn't crash;
      fall back to the first segment (system). */
@@ -83,10 +93,7 @@ export function ThemeToggle() {
                 return (
                   <Pressable
                     key={seg.value}
-                    onPress={() => {
-                      setOverride(seg.value);
-                      setOpen(false);
-                    }}
+                    onPress={() => applyTheme(seg.value)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
                     accessibilityLabel={`เลือกธีม ${seg.label}`}

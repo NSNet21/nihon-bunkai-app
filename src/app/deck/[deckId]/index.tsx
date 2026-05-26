@@ -31,7 +31,7 @@ import { MiniCard } from '@/components/mini-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, RateColors, Radii, Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColors } from '@/context/theme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
 import {
@@ -53,8 +53,7 @@ const MASTERED_STABILITY = 21;
 export default function DeckDetailScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
   const router = useRouter();
-  const scheme = useColorScheme();
-  const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
+  const { scheme, colors } = useThemeColors();
   const rate = scheme === 'dark' ? RateColors.dark : RateColors.light;
   const { width: viewportW } = useWindowDimensions();
   const isCompact = viewportW < 600;

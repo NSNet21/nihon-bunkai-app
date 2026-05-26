@@ -15,7 +15,8 @@ type Props = {
 
 /**
  * Browse hero CTA — resumes the user's most-recent study session.
- * Tap → /study?deckId=X&entryId=Y (Study screen seeks via existing param).
+ * Tap → /deck/[deckId]/quiz?entryId=Y. Continue is Quiz-mode only;
+ * Memorize sessions don't write lastSession (transient by design).
  *
  * Only rendered when:
  *  - lastSession exists in localStorage
@@ -27,10 +28,9 @@ export function ContinueCard({ lastSession, colors }: Props) {
   const progress = Math.min(1, (lastSession.index + 1) / lastSession.total);
 
   function onPress() {
-    router.push({
-      pathname: '/study',
-      params: { deckId: lastSession.deckId, entryId: lastSession.entryId },
-    });
+    router.push(
+      `/deck/${lastSession.deckId}/quiz?entryId=${encodeURIComponent(lastSession.entryId)}` as never,
+    );
   }
 
   return (

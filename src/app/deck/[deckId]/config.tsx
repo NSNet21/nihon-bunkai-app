@@ -38,7 +38,7 @@ export default function QuizConfigScreen() {
             หน้านี้จะเปิดให้ตั้งค่า · level filter · JP↔TH mode · cards per session
             ในรอบ polish ถัดไป
           </ThemedText>
-          <Link href={{ pathname: '/study', params: { deckId: deckId ?? '' } }} asChild>
+          <Link href={`/deck/${deckId ?? ''}/quiz` as never} asChild>
             <Pressable
               accessibilityRole="link"
               accessibilityLabel="เริ่มเรียนด้วยค่าเริ่มต้น"

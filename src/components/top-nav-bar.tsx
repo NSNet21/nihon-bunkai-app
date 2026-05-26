@@ -106,8 +106,12 @@ const TABS: Tab[] = [
   { href: '/settings',  label: 'Settings' },
 ];
 
-/* Routes that enter focus mode — nav links hide, only Back button shows. */
-const FOCUS_ROUTES = new Set(['/study']);
+/* Routes that enter focus mode — nav links hide, only Back button shows.
+   Memorize + Quiz + Quiz Config are immersive study paths. Practice Hub
+   (/deck/[id]) itself keeps nav so users can switch sections. */
+const FOCUS_PATTERNS = [
+  /^\/deck\/[^/]+\/(memorize|quiz|config)$/,
+];
 
 export function TopNavBar() {
   const pathname = usePathname();
@@ -115,7 +119,7 @@ export function TopNavBar() {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
 
-  const isFocusMode = FOCUS_ROUTES.has(pathname);
+  const isFocusMode = FOCUS_PATTERNS.some((re) => re.test(pathname));
 
   return (
     <SafeAreaView

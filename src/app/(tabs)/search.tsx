@@ -57,7 +57,9 @@ export default function SearchScreen() {
   }, []);
 
   function openEntry(deckId: string, entryId: string) {
-    router.push({ pathname: '/study', params: { deckId, entryId } });
+    /* Search jump-through opens Quiz mode at the matched entry — the
+       user came looking for that specific card, they want active study. */
+    router.push(`/deck/${deckId}/quiz?entryId=${encodeURIComponent(entryId)}` as never);
   }
 
   return (

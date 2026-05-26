@@ -14,7 +14,6 @@ export default function TabsLayout() {
             tabBarStyle: { display: 'none' },
           }}>
           <Tabs.Screen name="index"    options={{ title: 'Browse' }} />
-          <Tabs.Screen name="study"    options={{ title: 'Study' }} />
           <Tabs.Screen name="shop"     options={{ title: 'Shop' }} />
           <Tabs.Screen name="search"   options={{ title: 'Search' }} />
           <Tabs.Screen name="settings" options={{ title: 'Settings' }} />

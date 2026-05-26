@@ -24,7 +24,7 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiBarChart2, FiChevronLeft, FiClock, FiFlag, FiPlay, FiShuffle, FiSliders } from 'react-icons/fi';
+import { FiBarChart2, FiBookOpen, FiChevronLeft, FiChevronRight, FiClock, FiEdit3, FiFlag, FiGrid, FiLayers, FiLock, FiShuffle, FiSliders } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MiniCard } from '@/components/mini-card';
@@ -138,9 +138,14 @@ export default function DeckDetailScreen() {
      "DUE" pitch is misleading for first-time deck-open). */
   const startLabel = stats.due > 0 ? `เริ่ม · ${stats.due} due` : 'เริ่มเรียน';
 
-  function goStudy(extra?: Record<string, string>) {
+  function goQuiz(extra?: Record<string, string>) {
     if (!deckId) return;
-    router.push({ pathname: '/study', params: { deckId, ...(extra ?? {}) } });
+    const qs = new URLSearchParams(extra ?? {}).toString();
+    router.push(`/deck/${deckId}/quiz${qs ? `?${qs}` : ''}` as never);
+  }
+  function goMemorize() {
+    if (!deckId) return;
+    router.push(`/deck/${deckId}/memorize` as never);
   }
 
   if (!deck) {
@@ -331,34 +336,80 @@ export default function DeckDetailScreen() {
             </View>
           )}
 
-          {/* ── CTAs ── */}
-          <View style={styles.ctaStack}>
-            <Pressable
-              onPress={() => goStudy()}
-              accessibilityRole="button"
-              accessibilityLabel={startLabel}
-              style={({ pressed }) => [
-                styles.ctaPrimary,
-                { backgroundColor: Accent.base },
-                pressed && { opacity: 0.85 },
-              ]}>
-              <FiPlay size={14} color="#ffffff" strokeWidth={2.5} />
-              <ThemedText style={styles.ctaPrimaryText}>{startLabel.toUpperCase()}</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => goStudy({ shuffle: '1' })}
-              accessibilityRole="button"
-              accessibilityLabel="ทบทวนแบบสุ่ม"
-              style={({ pressed }) => [
-                styles.ctaSecondary,
-                { borderColor: colors.border },
-                pressed && { opacity: 0.85 },
-              ]}>
-              <FiShuffle size={14} color={colors.text} strokeWidth={2} />
-              <ThemedText type="defaultSemiBold" themeColor="textSecondary">
-                ทบทวนแบบสุ่ม · MIXED
+          {/* ── Section: Memorize (passive) ── */}
+          <View style={styles.section}>
+            <View style={styles.secLabel}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
+                การเรียนรู้ · LEARN
               </ThemedText>
+            </View>
+            <Pressable
+              onPress={goMemorize}
+              accessibilityRole="button"
+              accessibilityLabel="เปิดดูคำศัพท์เฉยๆ"
+              style={({ pressed }) => [
+                styles.memorizeCard,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                pressed && { opacity: 0.85 },
+              ]}>
+              <View style={[styles.topStripe, { backgroundColor: Accent.base }]} />
+              <View style={styles.memorizeBody}>
+                <FiBookOpen size={32} color={Accent.base} strokeWidth={1.5} />
+                <View style={{ alignItems: 'center', gap: 4 }}>
+                  <ThemedText style={[styles.memorizeTitle, { color: colors.text }]}>
+                    เปิดดู
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+                    ดูคำศัพท์ทั้งหมดเรียงตามลำดับ · ไม่มีการทดสอบ
+                  </ThemedText>
+                </View>
+              </View>
             </Pressable>
+          </View>
+
+          {/* ── Section: Test (active) ── */}
+          <View style={styles.section}>
+            <View style={styles.secLabel}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
+                แบบทดสอบ · TEST
+              </ThemedText>
+            </View>
+            <View style={[styles.testList, { borderColor: colors.border }]}>
+              <TestRow
+                icon={<FiLayers size={20} color={Accent.base} strokeWidth={2} />}
+                title="แฟลชการ์ด"
+                hint={startLabel}
+                colors={colors}
+                onPress={() => goQuiz()}
+                accent
+              />
+              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <TestRow
+                icon={<FiShuffle size={20} color={colors.textSecondary} strokeWidth={2} />}
+                title="ทบทวนแบบสุ่ม"
+                hint="MIXED · order shuffled"
+                colors={colors}
+                onPress={() => goQuiz({ shuffle: '1' })}
+              />
+              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <TestRow
+                icon={<FiGrid size={20} color={colors.textHint} strokeWidth={2} />}
+                title="ปรนัย"
+                hint="เร็วๆ นี้ · MULTIPLE CHOICE"
+                colors={colors}
+                locked
+              />
+              <View style={[styles.testRowDivider, { backgroundColor: colors.border }]} />
+              <TestRow
+                icon={<FiEdit3 size={20} color={colors.textHint} strokeWidth={2} />}
+                title="เขียนตามคำบอก"
+                hint="เร็วๆ นี้ · DICTATION"
+                colors={colors}
+                locked
+              />
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -390,6 +441,59 @@ function StatTile({
       </ThemedText>
       <ThemedText style={[styles.statMeta, { color: colors.textHint }]}>{meta}</ThemedText>
     </View>
+  );
+}
+
+function TestRow({
+  icon,
+  title,
+  hint,
+  colors,
+  onPress,
+  accent,
+  locked,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+  colors: typeof Colors.light;
+  onPress?: () => void;
+  accent?: boolean;
+  locked?: boolean;
+}) {
+  const Content = (
+    <View style={styles.testRowInner}>
+      <View style={[styles.testRowIcn, { borderColor: locked ? colors.border : (accent ? Accent.soft : colors.border), backgroundColor: locked ? 'transparent' : (accent ? Accent.bg : 'transparent') }]}>
+        {icon}
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <ThemedText
+          type="defaultSemiBold"
+          style={locked ? { color: colors.textHint } : undefined}>
+          {title}
+        </ThemedText>
+        <ThemedText type="small" themeColor={accent ? 'text' : 'textSecondary'} style={accent ? { color: Accent.base, fontWeight: '600' } : undefined}>
+          {hint}
+        </ThemedText>
+      </View>
+      {locked ? (
+        <FiLock size={14} color={colors.textHint} strokeWidth={2} />
+      ) : (
+        <FiChevronRight size={16} color={colors.textSecondary} strokeWidth={2} />
+      )}
+    </View>
+  );
+  if (locked) {
+    return <View style={[styles.testRow, { opacity: 0.65 }]}>{Content}</View>;
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${title} · ${hint}`}
+      style={({ pressed }) => [styles.testRow, pressed && { opacity: 0.85 }]}>
+      {Content}
+    </Pressable>
   );
 }
 
@@ -654,36 +758,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  /* ─── CTAs ─── */
-  ctaStack: {
-    gap: Spacing.two,
-    marginTop: Spacing.two,
+  /* ─── Practice sections (Memorize + Test) ─── */
+  section: { gap: Spacing.two },
+  topStripe: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 3,
   },
-  ctaPrimary: {
-    flexDirection: 'row',
+  memorizeCard: {
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    paddingVertical: Spacing.six,
+    paddingHorizontal: Spacing.four,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  memorizeBody: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.four,
-    paddingHorizontal: Spacing.five,
-    borderRadius: Radii.sm,
+    gap: Spacing.three,
   },
-  ctaPrimaryText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 13,
-    letterSpacing: 0.8,
+  memorizeTitle: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  ctaSecondary: {
+  testList: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+  },
+  testRow: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  testRowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.four,
-    paddingHorizontal: Spacing.five,
-    borderRadius: Radii.sm,
+    gap: Spacing.three,
+  },
+  testRowIcn: {
+    width: 36,
+    height: 36,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  testRowDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing.three,
   },
 });

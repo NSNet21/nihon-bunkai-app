@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiHelpCircle, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -58,6 +58,14 @@ export default function ShopScreen() {
   const scheme = useColorScheme();
   const colors = (scheme === 'dark' ? Colors.dark : Colors.light) as typeof Colors.light;
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
+  /* Grid only renders meaningfully when ≥2 cards fit per row. Card
+     minWidth = 240, gap = 12, container padding ~32 → grid needs ~520px
+     inner width = ~600px viewport. Below that, grid collapses to a single
+     column and looks identical to list — confusing toggle UX. Hide the
+     toggle + force list on narrow viewports. */
+  const { width: viewportW } = useWindowDimensions();
+  const showViewToggle = viewportW >= 600;
+  const effectiveViewMode: ViewMode = showViewToggle ? viewMode : 'list';
   const { status, entitledSkus } = useAuth();
   const router = useRouter();
   const { showToast } = useToast();
@@ -148,7 +156,7 @@ export default function ShopScreen() {
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <ThemedText type="title">ร้านค้า</ThemedText>
-              <ViewToggle mode={viewMode} onChange={setViewMode} colors={colors} />
+              {showViewToggle && <ViewToggle mode={viewMode} onChange={setViewMode} colors={colors} />}
             </View>
             <ThemedText type="small" themeColor="textSecondary">
               ราคาเดียวกับ landing · เช็คเอาท์ที่ Payhip
@@ -184,7 +192,7 @@ export default function ShopScreen() {
               blurb={group.blurb}
               products={group.products}
               colors={colors}
-              viewMode={viewMode}
+              viewMode={effectiveViewMode}
             />
           ))}
 
@@ -198,9 +206,9 @@ export default function ShopScreen() {
             <ThemedText type="small" themeColor="textSecondary" style={styles.bundleBlurb}>
               ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
             </ThemedText>
-            <View style={viewMode === 'grid' ? styles.productGrid : styles.productList}>
+            <View style={effectiveViewMode === 'grid' ? styles.productGrid : styles.productList}>
               {bundles.map((p) => (
-                <ProductCard key={p.slug} product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={viewMode} />
+                <ProductCard key={p.slug} product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={effectiveViewMode} />
               ))}
             </View>
           </View>
@@ -283,6 +291,18 @@ const TOGGLE_TRACK_WIDTH = 88;
 const TOGGLE_PADDING = 2;
 const TOGGLE_SEGMENT_WIDTH = (TOGGLE_TRACK_WIDTH - TOGGLE_PADDING * 2) / TOGGLE_SEGMENTS.length;
 
+/* Web-only CSS transition for the pill — compositor-thread animation
+   that handles rapid retargeting smoothly (browser cancels/restarts
+   on its own). See theme-toggle.tsx for the full rationale. */
+const TOGGLE_PILL_TRANSITION = Platform.select({
+  web: {
+    transitionProperty: 'transform',
+    transitionDuration: '180ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  } as object,
+  default: undefined,
+});
+
 function ViewToggle({
   mode,
   onChange,
@@ -293,30 +313,19 @@ function ViewToggle({
   colors: typeof Colors.light;
 }) {
   const selectedIndex = TOGGLE_SEGMENTS.findIndex((s) => s.value === mode);
-  const pillX = useSharedValue(selectedIndex * TOGGLE_SEGMENT_WIDTH);
-
-  useEffect(() => {
-    /* Match the theme-toggle pattern: 180ms timing reads as "instant" while
-       still smoothing the slide. Reanimated 4 changed withSpring semantics
-       (energyThreshold, perceptual duration ×1.5) — timing keeps it predictable. */
-    pillX.value = withTiming(selectedIndex * TOGGLE_SEGMENT_WIDTH, {
-      duration: 180,
-      easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
-    });
-  }, [selectedIndex, pillX]);
-
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: pillX.value }],
-  }));
 
   return (
     <View style={styles.toggleColumn}>
       <View style={[styles.toggleTrack, { width: TOGGLE_TRACK_WIDTH, borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-        <Animated.View
+        <View
           style={[
             styles.togglePill,
-            { backgroundColor: Accent.base, width: TOGGLE_SEGMENT_WIDTH },
-            pillStyle,
+            {
+              backgroundColor: Accent.base,
+              width: TOGGLE_SEGMENT_WIDTH,
+              transform: [{ translateX: selectedIndex * TOGGLE_SEGMENT_WIDTH }],
+            },
+            TOGGLE_PILL_TRANSITION,
           ]}
         />
         {TOGGLE_SEGMENTS.map((seg) => {

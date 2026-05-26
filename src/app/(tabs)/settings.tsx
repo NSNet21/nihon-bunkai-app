@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiLogIn, FiLogOut, FiPackage, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { cancelAnimation, Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { ColumnVisibility } from '@/components/flashcard';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -361,6 +361,18 @@ const LANG_SEGMENTS: { value: Lang; label: string }[] = [
 const LANG_TRACK_WIDTH = 200;
 const LANG_SEGMENT_WIDTH = LANG_TRACK_WIDTH / LANG_SEGMENTS.length;
 
+/* Web-only CSS transition for the LanguageToggle pill — see comment in
+   theme-toggle.tsx for why this is preferred over Reanimated for
+   slide-between-segments animations. */
+const LANG_PILL_TRANSITION = Platform.select({
+  web: {
+    transitionProperty: 'transform',
+    transitionDuration: '180ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  } as object,
+  default: undefined,
+});
+
 /** Persisted UI language preference. Toggle is wired (state persists), but
  *  the actual i18n string flip is Phase 2 — strings remain Thai for now.
  *  Sliding-pill animation mirrors ThemeToggle so the segmented-control
@@ -374,23 +386,6 @@ function LanguageToggle() {
      pill off-track left. Same defensive guard as ThemeToggle. */
   const rawIndex = LANG_SEGMENTS.findIndex((s) => s.value === lang);
   const selectedIndex = rawIndex < 0 ? 0 : rawIndex;
-  const pillX = useSharedValue(selectedIndex * LANG_SEGMENT_WIDTH);
-
-  useEffect(() => {
-    /* cancelAnimation prevents Reanimated 4's momentum-preservation from
-       compounding rapid retargets into runaway overshoot (see ThemeToggle). */
-    cancelAnimation(pillX);
-    pillX.value = withTiming(selectedIndex * LANG_SEGMENT_WIDTH, {
-      duration: 180,
-      easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
-    });
-  }, [selectedIndex, pillX]);
-
-  /* Same defensive clamp as ThemeToggle — see comment there. */
-  const langMaxX = (LANG_SEGMENTS.length - 1) * LANG_SEGMENT_WIDTH;
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: Math.max(0, Math.min(langMaxX, pillX.value)) }],
-  }));
 
   return (
     <View style={{ gap: Spacing.two }}>
@@ -399,11 +394,18 @@ function LanguageToggle() {
           langStyles.track,
           { borderColor: colors.border, backgroundColor: colors.backgroundElement },
         ]}>
-        <Animated.View
+        {/* Pill slides via CSS transition (web) — compositor-thread
+            animation that browser cancels/restarts smoothly on rapid
+            clicks, with zero JS thread cost. Same approach as ThemeToggle. */}
+        <View
           style={[
             langStyles.pill,
-            { backgroundColor: Accent.base, width: LANG_SEGMENT_WIDTH - 4 },
-            pillStyle,
+            {
+              backgroundColor: Accent.base,
+              width: LANG_SEGMENT_WIDTH - 4,
+              transform: [{ translateX: selectedIndex * LANG_SEGMENT_WIDTH }],
+            },
+            LANG_PILL_TRANSITION,
           ]}
         />
         {LANG_SEGMENTS.map((seg) => {

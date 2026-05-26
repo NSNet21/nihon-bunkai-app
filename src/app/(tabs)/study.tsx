@@ -1,7 +1,14 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Rating } from 'ts-fsrs';
 
@@ -23,6 +30,31 @@ export default function StudyScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const { showToast } = useToast();
+  /* Side rails — on narrow viewports they flip from inline (eating
+     row-space) to absolute OVER the card edges, freeing the full row
+     width for the card itself.
+
+     Rail size only needs MILD viewport scaling since overlay mode
+     already solves the "rails squeeze the card" problem. Floor raised
+     from 0.65 → 0.82 (was over-shrinking icons on mobile down to
+     36×36, awkward as a hit target). Now mobile = 52×46, desktop =
+     64×56 — both feel right for their context. */
+  const { width: viewportW } = useWindowDimensions();
+  const railT = Math.max(0, Math.min(1, (viewportW - 360) / (1024 - 360)));
+  const railScale = 0.82 + railT * 0.18;          // 0.82 → 1.0
+  const railWidth = Math.round(64 * railScale);   // 52 → 64
+  const railIcon = Math.round(56 * railScale);    // 46 → 56
+  const overlayRails = viewportW < 600;
+  /* On mobile, stretch the gradient OVERLAY wider than the Pressable's
+     tap column so the fade range is generous (compressed gradient in a
+     52px column reads as a hard band, not a fade). Tap area stays
+     railWidth — only the visible gradient extends inward.
+     Tuned 0.42→0.35 + cap 180→150 — earlier range felt too wide
+     (gradient was eating ~40% of card before fading out). Slight
+     pullback, not aggressive. */
+  const railFillWidth = overlayRails
+    ? Math.min(Math.round(viewportW * 0.35), 150)
+    : railWidth;
 
   useEffect(() => {
     // Reset session state on deck switch — fresh front-card start every time.
@@ -143,12 +175,16 @@ export default function StudyScreen() {
                 </ThemedText>
               </View>
               <View style={styles.cardRow}>
-                <SideRail
-                  direction="left"
-                  onPress={handlePrev}
-                  disabled={!canPrev}
-                  colors={colors}
-                />
+                {!overlayRails && (
+                  <SideRail
+                    direction="left"
+                    onPress={handlePrev}
+                    disabled={!canPrev}
+                    colors={colors}
+                    width={railWidth}
+                    iconSize={railIcon}
+                  />
+                )}
                 <View style={styles.cardSlot}>
                   <Flashcard
                     entry={current}
@@ -166,13 +202,48 @@ export default function StudyScreen() {
                     canSwipeNext={canNext}
                     canSwipePrev={canPrev}
                   />
+                  {/* Overlay rails on narrow viewports — full-height tap
+                      target on each edge. Icon hidden by default (opacity
+                      0), fades in briefly on tap then auto-fades back to
+                      hidden. Tap area always works because Pressable
+                      hit-testing ignores opacity. */}
+                  {overlayRails && (
+                    <OverlayRailButton
+                      direction="left"
+                      side="left"
+                      onPress={handlePrev}
+                      disabled={!canPrev}
+                      colors={colors}
+                      width={railWidth}
+                      iconSize={railIcon}
+                      fillWidth={railFillWidth}
+                      isDark={scheme === 'dark'}
+                    />
+                  )}
+                  {overlayRails && (
+                    <OverlayRailButton
+                      direction="right"
+                      side="right"
+                      onPress={handleNext}
+                      disabled={!canNext}
+                      colors={colors}
+                      width={railWidth}
+                      iconSize={railIcon}
+                      fillWidth={railFillWidth}
+                      isDark={scheme === 'dark'}
+                    />
+                  )}
                 </View>
-                <SideRail
-                  direction="right"
-                  onPress={handleNext}
-                  disabled={!canNext}
-                  colors={colors}
-                />
+                {!overlayRails && (
+                  <SideRail
+                    direction="right"
+                    onPress={handleNext}
+                    disabled={!canNext}
+                    colors={colors}
+                    width={railWidth}
+                    iconSize={railIcon}
+                  />
+                )}
               </View>
               <RatingButtons onRate={handleRate} disabled={!isFlipped} />
               <BrandStrip colors={colors} />
@@ -200,11 +271,18 @@ function SideRail({
   onPress,
   disabled,
   colors,
+  width = 64,
+  iconSize = 56,
 }: {
   direction: 'left' | 'right';
   onPress: () => void;
   disabled: boolean;
   colors: typeof Colors.light;
+  /** Continuous viewport-driven width — shrinks on mobile so the rails
+   *  don't eat 40% of the card's horizontal space. Defaults preserve
+   *  legacy desktop behavior. */
+  width?: number;
+  iconSize?: number;
 }) {
   const Icon = direction === 'left' ? FiChevronLeft : FiChevronRight;
   const accessibilityLabel = direction === 'left' ? 'Previous card' : 'Next card';
@@ -216,10 +294,11 @@ function SideRail({
       accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
         railStyles.button,
+        { width },
         pressed && !disabled && railStyles.pressed,
         disabled && railStyles.disabled,
       ]}>
-      <Icon size={56} color={colors.textSecondary} strokeWidth={1.5} />
+      <Icon size={iconSize} color={colors.textSecondary} strokeWidth={1.5} />
     </Pressable>
   );
 }
@@ -308,8 +387,8 @@ const styles = StyleSheet.create({
 });
 
 const railStyles = StyleSheet.create({
+  /* width supplied inline per-render so it can scale with viewport. */
   button: {
-    width: 64,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'stretch',
@@ -318,6 +397,142 @@ const railStyles = StyleSheet.create({
   pressed: { opacity: 0.5 },
   disabled: { opacity: 0.2 },
 });
+
+/* Overlay rail button — used on narrow viewports (<600px). Pressable
+   spans the FULL card height so the user can stab anywhere on the
+   left/right edge column without aiming at the small icon. Icon itself
+   is hidden by default (opacity 0) and fades in on tap → holds briefly
+   → fades out, so the chrome stays out of the way until the user asks
+   for it. Tap area still works while invisible since Pressable hit-
+   testing ignores opacity. zIndex 15 sits below cardOverlay (FootDots
+   z=20 inside flashcard.tsx) so progress dots stay clean. */
+const overlayRailStyles = StyleSheet.create({
+  btn: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    zIndex: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  /* bgFill — wide gradient layer that extends INWARD past the Pressable
+     bounds (mobile only) so the gradient fade range is generous, not
+     compressed into the 52px tap column. Anchored to `[side]: 0` +
+     explicit `width` via inline style; children = none. */
+  bgFill: {
+    position: 'absolute',
+    top: 0, bottom: 0,
+  },
+  /* iconBox — sits inside the Pressable's actual bounds + centers the
+     icon at the edge. Stacked on top of bgFill via render order. Both
+     layers share the same opacity (Animated.View aStyle). */
+  iconBox: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+/** Hide-until-tapped chevron on the card edge. Press DOWN → instant show
+ *  (no fade in — confirms input the moment finger lands). Press UP →
+ *  fade out over 520ms (gentle dismiss). Holding keeps it fully visible.
+ *  Background is a faint white tint that sits behind the chevron icon —
+ *  same fade timing, so it reads as "button surface materializing then
+ *  dissolving". */
+function OverlayRailButton({
+  direction,
+  side,
+  onPress,
+  disabled,
+  colors,
+  width,
+  iconSize,
+  fillWidth,
+  isDark,
+}: {
+  direction: 'left' | 'right';
+  side: 'left' | 'right';
+  onPress: () => void;
+  disabled: boolean;
+  colors: typeof Colors.light;
+  width: number;
+  iconSize: number;
+  /** How wide the visible gradient layer is. Can exceed `width` (the
+   *  Pressable's tap column) to give the fade more horizontal room. */
+  fillWidth: number;
+  /** Light theme needs DARK tint (white-on-cream is barely visible);
+   *  dark theme needs WHITE tint. Caller passes the resolved scheme. */
+  isDark: boolean;
+}) {
+  const opacity = useSharedValue(0);
+  const Icon = direction === 'left' ? FiChevronLeft : FiChevronRight;
+  const ariaLabel = direction === 'left' ? 'Previous card' : 'Next card';
+
+  /* Per-side + per-theme gradient:
+       - Light: warm-charcoal tint (rgba(20,18,16,0.22)) — shows up as
+         soft shadow on cream bg. Higher alpha than dark theme since
+         dark-on-cream contrast is gentler than white-on-charcoal.
+       - Dark: white tint (rgba(255,255,255,0.42)) — original.
+     Gradient starts solid at the edge (`to right` for left, `to left`
+     for right), fades to transparent toward card center.
+     Native fallback: flat solid tint (no backgroundImage support). */
+  const rgb = isDark ? '255, 255, 255' : '20, 18, 16';
+  const peakAlpha = isDark ? 0.42 : 0.22;
+  const direction_css = direction === 'left' ? 'to right' : 'to left';
+  const overlayBg = Platform.select({
+    web: {
+      backgroundImage: `linear-gradient(${direction_css}, rgba(${rgb}, ${peakAlpha}) 0%, rgba(${rgb}, 0) 100%)`,
+    } as object,
+    default: { backgroundColor: `rgba(${rgb}, ${isDark ? 0.18 : 0.10})` },
+  });
+
+  function handlePressIn() {
+    if (disabled) return;
+    /* Cancel any in-flight fade-out, snap to fully visible. duration 0 =
+       instant per Reanimated semantics — feels like a hard cut, matching
+       finger-down. */
+    opacity.value = withTiming(1, { duration: 0 });
+  }
+
+  function handlePressOut() {
+    /* Gentle dismiss on release. Slight delay (90ms) so even ultra-quick
+       taps stay visible long enough to perceive. Then 520ms fade out. */
+    opacity.value = withDelay(
+      90,
+      withTiming(0, { duration: 520, easing: Easing.bezier(0.4, 0, 1, 1) }),
+    );
+  }
+
+  function handlePress() {
+    if (disabled) return;
+    onPress();
+  }
+
+  const aStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={ariaLabel}
+      style={[overlayRailStyles.btn, { [side]: 0, width }]}>
+      {/* bgFill = wide gradient layer (can exceed Pressable bounds);
+          iconBox = icon centered inside Pressable's actual bounds. */}
+      <Animated.View
+        style={[overlayRailStyles.bgFill, overlayBg, aStyle, { [side]: 0, width: fillWidth }]}
+        pointerEvents="none"
+      />
+      <Animated.View style={[overlayRailStyles.iconBox, aStyle]} pointerEvents="none">
+        <Icon size={iconSize} color={colors.textSecondary} strokeWidth={1.5} />
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 const brandStyles = StyleSheet.create({
   row: {

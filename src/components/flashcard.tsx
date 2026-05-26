@@ -158,6 +158,32 @@ export function Flashcard({
   const COMMIT = tier === 'compact' ? 60 : tier === 'mid' ? 90 : 110;
   const FADE_END = tier === 'compact' ? 150 : tier === 'mid' ? 200 : 230;
 
+  /* ─── responsive sizing ──────────────────────────────────────────────
+     Card was designed at desktop scale (term=96, padding=32). On tablet/
+     mobile the hero overflows and breathing-room collapses.
+
+     Continuous scale (NOT stepped) — linear interpolation between a min
+     viewport (360px → scale 0.65) and a max viewport (1024px → scale 1.0).
+     Smoother than tier breakpoints; mirrors the landing's `clamp(min, vw,
+     max)` feel but in plain JS since RN has no `vw` unit.
+
+     Hero size also adapts to char count on top of the scale, so compound
+     vocab (勉強, 食べる) + grammar patterns (〜ます, ありがとう) don't
+     overflow even at desktop sizes. */
+  const MIN_W = 360;
+  const MAX_W = 1024;
+  const tCard = Math.max(0, Math.min(1, (screenW - MIN_W) / (MAX_W - MIN_W)));
+  const cardScale = 0.65 + tCard * 0.35;  // 0.65 → 1.0
+
+  const facePad        = Math.max(12, Math.round(Spacing.six * cardScale));   // 32 → 21
+  const heroBase       = Math.round(96 * cardScale);                          // 96 → 62
+  const secondarySize  = Math.max(13, Math.round(18 * cardScale));            // 18 → 13
+  const revealMonoSize = Math.max(10, Math.round(11 * cardScale));            // 11 → 10
+  const meaningSize    = Math.max(28, Math.round(48 * cardScale));            // 48 → 31
+  const backPSize      = Math.max(13, Math.round(16 * cardScale));            // 16 → 13
+  /* Pill-clearance offset — meta pill is ~14px tall at top:8, plus visual gap. */
+  const META_CLEARANCE = 36;
+
   const swipeStyle = useAnimatedStyle(() => {
     const dist = Math.abs(tx.value);
     const boundary =
@@ -289,13 +315,77 @@ export function Flashcard({
   const secondaryVisible = heroKey === 't' ? visibility.pf : visibility.t;
   const secondaryValue   = secondaryKey === 't' ? entry.t : entry.p;
 
+  /* Length-based shrink ON TOP of the continuous cardScale. Hero (CJK)
+     and back-face meaning (Thai/EN body) both can blow out width on long
+     entries — different shape per script:
+       • Hero: 1-char dominant, compounds (勉強, 食べる) + grammar patterns
+         (〜ます, ありがとう) need aggressive shrink to fit
+       • Meaning: usually short ("น้ำ"), but vocab entries with comma-
+         separated translations can hit 25+ chars ("ตะเกียบ, สะพาน,
+         ขอบ, ปลาย") and wrap awkwardly on narrow viewports
+       • backP: kana mostly short ("はし") but can hold full forms in
+         grammar entries — gentle taper only */
+  const heroLen = (heroValue ?? '').length;
+  /* Softer taper after 5 chars — old curve dropped to 0.32× at 6+ which
+     rendered "〜たり〜たりする" at ~20px on mobile (too small to read as
+     hero). New curve keeps long compounds + multi-syllable grammar
+     patterns at a comfortable hero size. Min 22 floor so even pathological
+     20-char entries stay legible. */
+  const heroSize = Math.max(22, (
+    heroLen <= 1  ? heroBase                       // 96 / 62 (desktop / mobile)
+    : heroLen <= 2  ? Math.round(heroBase * 0.68)  // 65 / 42  勉強, 食事
+    : heroLen <= 3  ? Math.round(heroBase * 0.60)  // 58 / 37  食べる, 〜ます
+    : heroLen <= 5  ? Math.round(heroBase * 0.54)  // 52 / 33  美味しい, ありがとう
+    : heroLen <= 8  ? Math.round(heroBase * 0.48)  // 46 / 30  〜たり〜たりする
+    : heroLen <= 12 ? Math.round(heroBase * 0.40)  // 38 / 25  longer grammar patterns
+    : Math.round(heroBase * 0.34)                  // 33 / 21  pathological cases
+  ));
+  const heroLineHeight = Math.round(heroSize * 1.05);
+
+  /* Type-aware meaning base — each content type has a different meaning
+     shape, so the "starting size" before length-based shrink differs:
+       • kanji    → short concise gloss ("ก่อน, หน้า")            full base
+       • vocab    → comma-separated translations (can be 4+ items)  0.85×
+       • grammar  → explanatory Thai sentence                       0.68×
+       • glossary → dictionary-style definition (longest avg)       0.58×
+     Then length-based multiplier shrinks further when the actual entry
+     overflows the typical-for-type range. */
+  const meaningTypeBase =
+    entry.type === 'kanji'    ? meaningSize
+    : entry.type === 'vocab'  ? meaningSize * 0.85
+    : entry.type === 'grammar'? meaningSize * 0.68
+    :                            meaningSize * 0.58;  // glossary
+  const meaningLen = (entry.d ?? '').length;
+  const meaningMul =
+    meaningLen <= 8  ? 1
+    : meaningLen <= 15 ? 0.88
+    : meaningLen <= 25 ? 0.76
+    : meaningLen <= 40 ? 0.66
+    : 0.56;
+  const meaningSizeFinal = Math.max(18, Math.round(meaningTypeBase * meaningMul));
+  /* Thai descenders + comma wrap → bump line-height to 1.25 vs the 1.15
+     used for short titles. Keeps multi-line meanings legible. */
+  const meaningLH = Math.round(meaningSizeFinal * 1.25);
+
+  const backPLen = (entry.p ?? '').length;
+  const backPMul = backPLen <= 6 ? 1 : backPLen <= 12 ? 0.9 : 0.8;
+  const backPSizeFinal = Math.max(12, Math.round(backPSize * backPMul));
+
+  /* Markdown body — scale with cardScale only (paragraphs wrap naturally
+     so length-based shrink would be over-engineering). */
+  const mdBody = Math.max(12, Math.round(14 * cardScale));
+
   const hasProgress = typeof index === 'number' && typeof total === 'number' && total > 0;
   /* Editorial top meta — `CARD 01 / 20 // KANJI N5 · PACK 01`.
      Falls back gracefully if either piece is missing. Hidden when the
-     user toggles it off in Settings (persisted under nb.show-card-meta). */
+     user toggles it off in Settings (persisted under nb.show-card-meta).
+     On narrow viewports (<600px) drop the deckTitle suffix — the deck
+     header above the card already shows it, and the full pill text wraps
+     to 2 lines + collides with the top-right speaker/settings cluster. */
   const [showMeta] = usePersistedState<boolean>('show-card-meta', true);
+  const showDeckInPill = deckTitle && screenW >= 600;
   const metaText = hasProgress && showMeta
-    ? `CARD ${String(index! + 1).padStart(2, '0')} / ${total}${deckTitle ? ` // ${deckTitle.toUpperCase()}` : ''}`
+    ? `CARD ${String(index! + 1).padStart(2, '0')} / ${total}${showDeckInPill ? ` // ${deckTitle!.toUpperCase()}` : ''}`
     : null;
 
   return (
@@ -311,7 +401,7 @@ export function Flashcard({
               style={[
                 styles.face,
                 styles.faceCenter,
-                { backgroundColor: colors.backgroundElement },
+                { backgroundColor: colors.backgroundElement, padding: facePad },
                 /* Front face: kill text selection on web so drag never gets
                    hijacked by browser's text-select. Back face KEEPS default
                    (selectable markdown — user might copy a kanji reading). */
@@ -331,17 +421,22 @@ export function Flashcard({
               <FaceSettingsButton colors={colors} side="front" onPress={(s) => setPopupOpen(s)} inline />
             </View>
             <View style={styles.frontContent}>
-              <ThemedText style={styles.term}>{heroValue}</ThemedText>
+              <ThemedText style={[styles.term, { fontSize: heroSize, lineHeight: heroLineHeight }]}>
+                {heroValue}
+              </ThemedText>
               {secondaryVisible && secondaryValue ? (
-                <ThemedText type="default" themeColor="textSecondary" style={styles.pronunciation}>
+                <ThemedText
+                  type="default"
+                  themeColor="textSecondary"
+                  style={[styles.pronunciation, { fontSize: secondarySize }]}>
                   {secondaryValue}
                 </ThemedText>
               ) : null}
               {/* Reveal cue — mono editorial label + pulsing crimson square */}
               <View style={styles.revealCue}>
                 <PulseDot />
-                <ThemedText style={[styles.revealMono, { color: colors.textHint }]}>
-                  แตะ <ThemedText style={[styles.revealMono, { color: Accent.base }]}>·</ThemedText> TAP TO REVEAL
+                <ThemedText style={[styles.revealMono, { color: colors.textHint, fontSize: revealMonoSize }]}>
+                  แตะ <ThemedText style={[styles.revealMono, { color: Accent.base, fontSize: revealMonoSize }]}>·</ThemedText> TAP TO REVEAL
                 </ThemedText>
               </View>
             </View>
@@ -359,17 +454,27 @@ export function Flashcard({
                    horizontal pans bubble up to RNGH's Pan gesture. */
                 Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
               ]}
-              contentContainerStyle={styles.backScrollContent}
+              contentContainerStyle={[
+                styles.backScrollContent,
+                {
+                  paddingTop: facePad + META_CLEARANCE,
+                  paddingHorizontal: facePad,
+                  paddingBottom: facePad,
+                },
+              ]}
               {...({ dataSet: { scroll: 'card' } } as object)}
               showsVerticalScrollIndicator>
               {visibility.d && (
-                <ThemedText type="title" style={styles.meaning}>
+                <ThemedText type="title" style={[styles.meaning, { fontSize: meaningSizeFinal, lineHeight: meaningLH }]}>
                   {entry.d}
                 </ThemedText>
               )}
               {visibility.pb && entry.p ? (
                 <View style={styles.backPRow}>
-                  <ThemedText type="default" themeColor="textSecondary" style={styles.backP}>
+                  <ThemedText
+                    type="default"
+                    themeColor="textSecondary"
+                    style={[styles.backP, { fontSize: backPSizeFinal }]}>
                     {entry.p}
                   </ThemedText>
                   <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
@@ -377,7 +482,7 @@ export function Flashcard({
               ) : null}
               {visibility.e && (
                 <View style={styles.markdownWrap}>
-                  <Markdown style={markdownStyles(colors)}>{entry.e}</Markdown>
+                  <Markdown style={markdownStyles(colors, mdBody)}>{entry.e}</Markdown>
                 </View>
               )}
             </ScrollView>
@@ -967,10 +1072,12 @@ const popupStyles = StyleSheet.create({
   footnote: { fontStyle: 'italic' },
 });
 
-function markdownStyles(colors: typeof Colors.light) {
+function markdownStyles(colors: typeof Colors.light, bodySize = 14) {
+  const lh = Math.round(bodySize * 1.55);
+  const headingSize = Math.max(13, Math.round(bodySize * 1.14));
   return {
-    body:        { color: colors.text, fontSize: 14, lineHeight: 22 },
-    heading3:    { color: colors.text, fontSize: 16, fontWeight: '600' as const, marginTop: Spacing.three, marginBottom: Spacing.one },
+    body:        { color: colors.text, fontSize: bodySize, lineHeight: lh },
+    heading3:    { color: colors.text, fontSize: headingSize, fontWeight: '600' as const, marginTop: Spacing.three, marginBottom: Spacing.one },
     strong:      { color: colors.text, fontWeight: '700' as const },
     em:          { color: colors.text, fontStyle: 'italic' as const },
     bullet_list: { marginVertical: Spacing.one },

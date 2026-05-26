@@ -287,9 +287,6 @@ export default function DeckDetailScreen() {
             </Pressable>
           </View>
 
-          {/* Divider between LEARN and TEST sections. */}
-          <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
-
           {/* ── Section: Test (active) ── */}
           <View style={styles.section}>
             <View style={styles.secLabel}>

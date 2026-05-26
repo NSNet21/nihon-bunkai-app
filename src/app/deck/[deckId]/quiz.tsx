@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
+import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -306,7 +306,21 @@ export default function StudyScreen() {
           ) : (
             <>
               <View style={styles.header}>
-                <ThemedText type="defaultSemiBold">{deck.title}</ThemedText>
+                <View style={styles.headerLeft}>
+                  <Link href="/" asChild>
+                    <Pressable
+                      accessibilityRole="link"
+                      accessibilityLabel="กลับ Browse"
+                      style={({ pressed }) => [
+                        styles.headerBackBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}>
+                      <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
+                      <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+                    </Pressable>
+                  </Link>
+                  <ThemedText type="defaultSemiBold" numberOfLines={1}>{deck.title}</ThemedText>
+                </View>
                 <View style={styles.headerRight}>
                   <ThemedText type="small" themeColor="textSecondary">
                     {index + 1} / {entries.length}
@@ -759,6 +773,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.three,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  headerBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
   },
   headerRight: {
     flexDirection: 'row',

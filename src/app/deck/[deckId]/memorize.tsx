@@ -15,16 +15,21 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiArrowLeft, FiBookOpen, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { FiArrowLeft, FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiSliders } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { VisibilityPopup, type ColumnVisibility } from '@/components/flashcard';
 import { SpeakButton } from '@/components/speak-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import type { Entry } from '@/data/types';
 
 export default function MemorizeScreen() {
@@ -36,6 +41,30 @@ export default function MemorizeScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [index, setIndex] = useState(0);
+  /* Self-quiz toggle — tap card to hide/show the "answer side" (P + D
+     + E). Persists across navigation so the user sets it once and all
+     subsequent cards follow. Default true = passive reading (default
+     Memorize use case). Per Vocat UX: the entire card is the tap
+     target, no separate eye button. */
+  const [showAnswer, setShowAnswer] = useState(true);
+  /* Column visibility shared with Quiz mode — same persisted key, so
+     the user's preference carries across both screens. Front (T/Pf)
+     vs back (D/Pb/E) split is Quiz semantics; in Memorize T drives the
+     hero, while D/Pb/E populate the answer block. Pf is irrelevant to
+     Memorize (no separate front-P) but stays in the popup for Quiz. */
+  const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
+    'visibility',
+    { t: true, pf: true, pb: true, d: true, e: true },
+  );
+  const [configOpen, setConfigOpen] = useState(false);
+  const visibleFrontCount = (visibility.t ? 1 : 0) + (visibility.pf ? 1 : 0);
+  const visibleBackCount  = (visibility.d ? 1 : 0) + (visibility.pb ? 1 : 0) + (visibility.e ? 1 : 0);
+  const toggleColumn = (key: keyof ColumnVisibility) => {
+    const next = { ...visibility, [key]: !visibility[key] };
+    if (!next.t && !next.pf) return;
+    if (!next.d && !next.pb && !next.e) return;
+    setVisibility(next);
+  };
 
   useEffect(() => {
     if (!deckId) return;
@@ -54,12 +83,73 @@ export default function MemorizeScreen() {
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
 
+  /* Swipe-to-navigate — fade-only (no drag visual / no rotation /
+     no scale). Per user direction: "มี swipe เปลี่ยน card ได้
+     เหมือนกัน แต่ไม่มี swipe fx มีแค่ fade transition พอ".
+
+     Pan only commits — no onUpdate visual feedback. On commit, the
+     card fades out, the index advances, then the new card fades in.
+     activeOffsetX + failOffsetY disambiguate from vertical scroll. */
+  const cardOpacity = useSharedValue(1);
+  const FADE_OUT_MS = 140;
+  const FADE_IN_MS = 180;
+  const fadeAndChange = (delta: -1 | 1) => {
+    cardOpacity.value = withTiming(
+      0,
+      { duration: FADE_OUT_MS, easing: Easing.bezier(0.4, 0, 1, 1) },
+      (finished) => {
+        if (!finished) return;
+        scheduleOnRN((d: number) => {
+          setIndex((i) => Math.max(0, Math.min(entries.length - 1, i + d)));
+        }, delta);
+        cardOpacity.value = withTiming(1, { duration: FADE_IN_MS, easing: Easing.bezier(0, 0, 0.2, 1) });
+      },
+    );
+  };
+  const cardFadeStyle = useAnimatedStyle(() => ({ opacity: cardOpacity.value }));
+
   function goPrev() {
-    if (canPrev) setIndex((i) => i - 1);
+    if (canPrev) fadeAndChange(-1);
   }
   function goNext() {
-    if (canNext) setIndex((i) => i + 1);
+    if (canNext) fadeAndChange(1);
   }
+
+  /* JS-thread refs mirrored into shared values so the gesture worklet
+     can read can-prev/can-next without triggering Pan rebuild. */
+  const canPrevSV = useSharedValue(canPrev);
+  const canNextSV = useSharedValue(canNext);
+  useEffect(() => { canPrevSV.value = canPrev; }, [canPrev, canPrevSV]);
+  useEffect(() => { canNextSV.value = canNext; }, [canNext, canNextSV]);
+
+  const swipePan = Gesture.Pan()
+    .activeOffsetX([-15, 15])
+    .failOffsetY([-12, 12])
+    .shouldCancelWhenOutside(false)
+    .onEnd((e) => {
+      const commit = Math.abs(e.translationX) > 60 || Math.abs(e.velocityX) > 600;
+      if (!commit) return;
+      const goNextSwipe = e.translationX < 0 && canNextSV.value;
+      const goPrevSwipe = e.translationX > 0 && canPrevSV.value;
+      if (goNextSwipe) {
+        scheduleOnRN(goNext);
+      } else if (goPrevSwipe) {
+        scheduleOnRN(goPrev);
+      }
+    });
+
+  /* Tap composed via Gesture.Race with Pan so swipe + tap never fire
+     together. maxDistance keeps it a true tap (no drag-then-release).
+     Replaces the previous Pressable wrapper which raced with Pan and
+     fired the toggle even on swipe-end. */
+  const toggleAnswer = () => setShowAnswer((v) => !v);
+  const tapToggle = Gesture.Tap()
+    .maxDistance(10)
+    .onEnd((_e, success) => {
+      if (!success) return;
+      scheduleOnRN(toggleAnswer);
+    });
+  const cardGesture = Gesture.Race(swipePan, tapToggle);
 
   if (!deck || !current) {
     return (
@@ -80,56 +170,110 @@ export default function MemorizeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <Header deck={deck} index={index} total={entries.length} colors={colors} />
+        <Header
+          deck={deck}
+          index={index}
+          total={entries.length}
+          colors={colors}
+          onOpenConfig={() => setConfigOpen(true)}
+        />
 
         <ScrollView
-          style={styles.scroll}
+          style={[
+            styles.scroll,
+            /* touch-action: pan-y so vertical scroll stays with the
+               ScrollView and horizontal pans bubble to RNGH's Pan
+               gesture below ([[next-session-resume]] rule). */
+            Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
+          ]}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + 96 }]}
           showsVerticalScrollIndicator={false}>
-          {/* Section label — editorial mono */}
-          <View style={styles.secLabel}>
-            <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-            <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
-              {`// CARD ${String(index + 1).padStart(2, '0')} / ${entries.length}`}
-            </ThemedText>
-            <View style={{ flex: 1 }} />
-            <FiBookOpen size={12} color={colors.textHint} strokeWidth={2} />
-            <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>MEMORIZE</ThemedText>
-          </View>
+          {/* Card frame — matches Quiz Flashcard's editorial shell (border +
+              top crimson stripe). Gesture.Race(pan, tap) ensures swipe and
+              tap never fire together (was a bug — Pressable inside
+              GestureDetector raced with Pan and toggled on swipe-end).
+              Inner SpeakButtons remain interactive via native touch
+              event bubbling. */}
+          <GestureDetector gesture={cardGesture}>
+            <Animated.View
+              accessibilityRole="button"
+              accessibilityLabel={showAnswer ? 'แตะเพื่อซ่อนคำตอบ' : 'แตะเพื่อแสดงคำตอบ'}
+              style={[
+                styles.card,
+                cardFadeStyle,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+              ]}>
+            <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
 
-          {/* Hero block — T (kanji/term) + speaker bound tight */}
-          <View style={styles.heroBlock}>
-            <ThemedText style={[styles.term, { color: colors.text }]}>{current.t}</ThemedText>
-            {current.t ? (
-              <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" />
-            ) : null}
-          </View>
-
-          {/* P (reading) in brackets — secondary type */}
-          {current.p ? (
-            <View style={styles.bracketRow}>
-              <ThemedText style={[styles.bracketText, { color: colors.textSecondary }]}>
-                {current.p}
+            {/* Glass meta — editorial top-left pill (mirrors Quiz GlassMeta). */}
+            <View style={[styles.glassMeta, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
+                {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'HIDDEN'}`}
               </ThemedText>
             </View>
-          ) : null}
 
-          {/* D (meaning) as crimson pill — short, prominent */}
-          {current.d ? (
-            <View style={[styles.meaningPill, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
-              <ThemedText style={[styles.meaningText, { color: Accent.base }]}>{current.d}</ThemedText>
+            {/* Eye indicator — top-right corner, shows current toggle state */}
+            <View style={styles.eyeIndicator} pointerEvents="none">
+              {showAnswer ? (
+                <FiEye size={14} color={colors.textHint} strokeWidth={2} />
+              ) : (
+                <FiEyeOff size={14} color={Accent.base} strokeWidth={2} />
+              )}
             </View>
-          ) : null}
 
-          {/* Divider — Vocat's dotted line. We use solid hairline (brutalist). */}
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            {/* FRONT block — T (hero) + P (reading). Always shown
+                (gated by visibility flags). T uses visibility.t, P uses
+                visibility.pf — matches Quiz front-face semantics. */}
+            {visibility.t ? (
+              <View style={styles.heroBlock}>
+                <ThemedText style={[styles.term, { color: colors.text }]}>{current.t}</ThemedText>
+                {current.t ? (
+                  <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" />
+                ) : null}
+              </View>
+            ) : null}
 
-          {/* E (markdown body) — sections, examples, notes */}
-          {current.e ? (
-            <View style={styles.bodyWrap}>
-              <Markdown style={markdownStyles(colors)}>{current.e}</Markdown>
-            </View>
-          ) : null}
+            {visibility.pf && current.p ? (
+              <View style={styles.bracketRow}>
+                <ThemedText style={[styles.bracketText, { color: colors.textSecondary }]}>
+                  {current.p}
+                </ThemedText>
+                <SpeakButton text={current.p} language="ja-JP" colors={colors} />
+              </View>
+            ) : null}
+
+            {/* BACK block — D (meaning) + E (markdown body). Toggleable
+                via tap. Uses visibility.d / visibility.e. Pb is unused
+                in Memorize (P lives on the front only per UX direction). */}
+            {showAnswer ? (
+              <View style={styles.answerBlock}>
+                {/* Divider separates FRONT (T + P) from BACK (D + E).
+                    Sits above D pill per user direction. */}
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+                {visibility.d && current.d ? (
+                  <View style={[styles.meaningPill, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+                    <ThemedText style={[styles.meaningText, { color: Accent.base }]}>{current.d}</ThemedText>
+                  </View>
+                ) : null}
+
+                {visibility.e && current.e ? (
+                  <View style={styles.bodyWrap}>
+                    <Markdown style={markdownStyles(colors)}>{current.e}</Markdown>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              /* Hidden state — reveal hint like Quiz front face. */
+              <View style={styles.revealCue}>
+                <View style={[styles.pulseDot, { backgroundColor: Accent.base }]} />
+                <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 11 }]}>
+                  แตะ <ThemedText style={[styles.mono, { color: Accent.base, fontSize: 11 }]}>·</ThemedText> TAP TO REVEAL
+                </ThemedText>
+              </View>
+            )}
+            </Animated.View>
+          </GestureDetector>
         </ScrollView>
 
         {/* Footer controls — prev / next, ChevronLeft/Right buttons.
@@ -153,6 +297,16 @@ export default function MemorizeScreen() {
             colors={colors}
           />
         </View>
+
+        <VisibilityPopup
+          visible={configOpen}
+          onClose={() => setConfigOpen(false)}
+          visibility={visibility}
+          onToggle={toggleColumn}
+          colors={colors}
+          visibleFrontCount={visibleFrontCount}
+          visibleBackCount={visibleBackCount}
+        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -165,16 +319,18 @@ function Header({
   index,
   total,
   colors,
+  onOpenConfig,
 }: {
   deck: { id: string; title: string } | undefined;
   index: number;
   total: number;
   colors: typeof Colors.light;
+  onOpenConfig?: () => void;
 }) {
   return (
     <View style={styles.headerBar}>
-      <Link href={`/deck/${deck?.id ?? ''}` as never} asChild>
-        <Pressable accessibilityRole="link" accessibilityLabel="กลับ Practice Hub" style={styles.backBtn}>
+      <Link href="/" asChild>
+        <Pressable accessibilityRole="link" accessibilityLabel="กลับ Browse" style={styles.backBtn}>
           <FiArrowLeft size={18} color={colors.text} strokeWidth={2} />
           <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
         </Pressable>
@@ -184,6 +340,19 @@ function Header({
         <ThemedText type="small" themeColor="textSecondary">
           {index + 1} / {total}
         </ThemedText>
+      )}
+      {onOpenConfig && (
+        <Pressable
+          onPress={onOpenConfig}
+          accessibilityRole="button"
+          accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์"
+          style={({ pressed }) => [
+            styles.headerConfigBtn,
+            { borderColor: colors.border, backgroundColor: colors.background },
+            pressed && { opacity: 0.7 },
+          ]}>
+          <FiSliders size={16} color={colors.text} strokeWidth={2} />
+        </Pressable>
       )}
     </View>
   );
@@ -259,6 +428,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
   },
+  headerConfigBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.two,
+  },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: Spacing.four,
@@ -271,6 +449,50 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.three,
     padding: Spacing.four,
+  },
+  /* ─── Card frame (matches Quiz Flashcard editorial shell) ─── */
+  card: {
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    padding: Spacing.five,
+    paddingTop: Spacing.six + Spacing.three,
+    position: 'relative',
+    overflow: 'hidden',
+    gap: Spacing.four,
+    minHeight: 320,
+  },
+  cardStripe: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: 3,
+  },
+  glassMeta: {
+    position: 'absolute',
+    top: 8, left: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderRadius: 0,
+    zIndex: 3,
+  },
+  eyeIndicator: {
+    position: 'absolute',
+    top: 10, right: 10,
+    zIndex: 3,
+  },
+  answerBlock: {
+    gap: Spacing.three,
+  },
+  revealCue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.six,
+  },
+  pulseDot: {
+    width: 6,
+    height: 6,
   },
   secLabel: {
     flexDirection: 'row',
@@ -299,13 +521,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bracketRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
   },
   bracketText: {
     fontSize: 16,
     letterSpacing: 0.3,
-    /* Visual frame — square brackets baked in. Skip if `p` already
-       wraps in brackets (Vocat-style data convention). */
+    textAlign: 'center',
+  },
+  hiddenHint: {
+    alignItems: 'center',
+    paddingVertical: Spacing.six,
   },
   meaningPill: {
     alignSelf: 'center',

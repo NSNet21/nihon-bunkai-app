@@ -279,15 +279,18 @@ export function Flashcard({
      <button>, triggering React's DOM validator). Composed via Race with
      swipePan so swipe and tap can't both fire.
 
-     Inner speaker buttons are wrapped with Gesture.Native() (refs below)
-     and tapFlip uses `requireExternalGestureToFail` so taps on speakers
-     don't trip the flip. useMemo keeps the Native refs stable across
-     renders — required for RNGH to correctly track the relationship. */
-  const speakerNativeHero = useMemo(() => Gesture.Native(), []);
-  const speakerNativeBackP = useMemo(() => Gesture.Native(), []);
+     Inner speaker zones each get their own Gesture.Tap (refs below); the
+     outer tapFlip uses `requireExternalGestureToFail` so when a tap lands
+     on a speaker its inner Tap wins the arena and the flip never fires.
+     SpeakButton's own Pressable.onPress still triggers TTS — RNGH observes
+     touches but doesn't block Pressable events. (Gesture.Native does NOT
+     activate for Pressable presses on web — Tap is what actually competes
+     in the RNGH arena.) useMemo keeps refs stable across renders. */
+  const speakerTapHero = useMemo(() => Gesture.Tap().maxDistance(10), []);
+  const speakerTapBackP = useMemo(() => Gesture.Tap().maxDistance(10), []);
   const tapFlip = Gesture.Tap()
     .maxDistance(10)
-    .requireExternalGestureToFail(speakerNativeHero, speakerNativeBackP)
+    .requireExternalGestureToFail(speakerTapHero, speakerTapBackP)
     .onEnd((_e, success) => {
       if (!success) return;
       scheduleOnRN(onFlip);
@@ -429,7 +432,7 @@ export function Flashcard({
                   {heroValue}
                 </ThemedText>
                 {heroValue ? (
-                  <GestureDetector gesture={speakerNativeHero}>
+                  <GestureDetector gesture={speakerTapHero}>
                     <View>
                       <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
                     </View>
@@ -498,7 +501,7 @@ export function Flashcard({
                     style={[styles.backP, { fontSize: backPSizeFinal }]}>
                     {entry.p}
                   </ThemedText>
-                  <GestureDetector gesture={speakerNativeBackP}>
+                  <GestureDetector gesture={speakerTapBackP}>
                     <View>
                       <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
                     </View>
@@ -526,7 +529,7 @@ export function Flashcard({
             disappearing edge-on at 90°. Shares swipeStyle so FootDots
             translates with the card during swipe (otherwise progress sits
             still while the card flies away — looks broken). */}
-        <Animated.View style={[styles.cardOverlay, swipeStyle, { pointerEvents: 'box-none' }]}>
+        <Animated.View pointerEvents="box-none" style={[styles.cardOverlay, swipeStyle]}>
           {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
         </Animated.View>
         </Animated.View>

@@ -138,17 +138,20 @@ export default function MemorizeScreen() {
      Replaces the previous Pressable wrapper which raced with Pan and
      fired the toggle even on swipe-end.
 
-     Inner speaker buttons are wrapped with Gesture.Native() (refs
-     below) and tapToggle uses `requireExternalGestureToFail` so taps
-     that land on a speaker icon don't bubble up and toggle the answer.
-     useMemo keeps the Native refs stable across renders — required
-     for RNGH to correctly track the inter-gesture relationship. */
+     Inner speaker zones each get their own Gesture.Tap (refs below);
+     the outer tapToggle uses `requireExternalGestureToFail` so when a
+     tap lands on a speaker its inner Tap wins the arena and the outer
+     never fires. SpeakButton's own Pressable.onPress still triggers
+     TTS — RNGH observes touches but doesn't block Pressable events.
+     (Note: Gesture.Native() does NOT activate for Pressable presses
+     on web — used Gesture.Tap instead so it actually competes in the
+     RNGH arena.) useMemo keeps the refs stable across renders. */
   const toggleAnswer = () => setShowAnswer((v) => !v);
-  const speakerNativeHero = useMemo(() => Gesture.Native(), []);
-  const speakerNativeReading = useMemo(() => Gesture.Native(), []);
+  const speakerTapHero = useMemo(() => Gesture.Tap().maxDistance(10), []);
+  const speakerTapReading = useMemo(() => Gesture.Tap().maxDistance(10), []);
   const tapToggle = Gesture.Tap()
     .maxDistance(10)
-    .requireExternalGestureToFail(speakerNativeHero, speakerNativeReading)
+    .requireExternalGestureToFail(speakerTapHero, speakerTapReading)
     .onEnd((_e, success) => {
       if (!success) return;
       scheduleOnRN(toggleAnswer);
@@ -230,7 +233,7 @@ export default function MemorizeScreen() {
               <View style={styles.heroBlock}>
                 <ThemedText style={[styles.term, { color: colors.text }]}>{current.t}</ThemedText>
                 {current.t ? (
-                  <GestureDetector gesture={speakerNativeHero}>
+                  <GestureDetector gesture={speakerTapHero}>
                     <View>
                       <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" />
                     </View>
@@ -244,7 +247,7 @@ export default function MemorizeScreen() {
                 <ThemedText style={[styles.bracketText, { color: colors.textSecondary }]}>
                   {current.p}
                 </ThemedText>
-                <GestureDetector gesture={speakerNativeReading}>
+                <GestureDetector gesture={speakerTapReading}>
                   <View>
                     <SpeakButton text={current.p} language="ja-JP" colors={colors} />
                   </View>

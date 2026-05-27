@@ -185,7 +185,7 @@ export default function MemorizeScreen() {
               event bubbling. */}
           <GestureDetector gesture={cardGesture}>
             <View
-              accessibilityRole="button"
+              accessibilityRole="none"
               accessibilityLabel={showAnswer ? 'แตะเพื่อซ่อนคำตอบ' : 'แตะเพื่อแสดงคำตอบ'}
               style={[
                 styles.card,

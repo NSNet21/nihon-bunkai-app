@@ -164,7 +164,8 @@ export default function GroupPickerScreen() {
               <ThemedText style={[styles.headline, { color: Accent.base }]}>กลุ่ม.</ThemedText>
             </ThemedText>
             <ThemedText style={[styles.heroSub, { color: colors.textMuted }]}>
-              ติ๊กชุดที่อยากเรียนพร้อมกัน · ทุกการ์ดจะถูกรวมเป็นชุดเดียว
+              รวมหลายชุดเป็น session เดียว{'\n'}
+              ไม่ต้องเข้าออกทีละ pack
             </ThemedText>
           </View>
 
@@ -182,7 +183,7 @@ export default function GroupPickerScreen() {
                   </ThemedText>
                   <View style={{ flex: 1 }} />
                   <ThemedText style={[styles.sectionMeta, { color: colors.textHint }]}>
-                    {groupSelected}/{group.decks.length}
+                    {groupSelected}/{group.decks.length} decks
                   </ThemedText>
                 </View>
                 <View style={styles.deckList}>
@@ -263,7 +264,7 @@ export default function GroupPickerScreen() {
             ]}>
             <FiPlay size={14} color="#fff" strokeWidth={2.2} />
             <ThemedText style={styles.ctaLabel}>
-              STUDY · เริ่ม
+              {selectedCount === 0 ? 'STUDY · เริ่ม' : `เริ่มเรียน · ${selectedCount} ชุด`}
             </ThemedText>
           </Pressable>
         </View>

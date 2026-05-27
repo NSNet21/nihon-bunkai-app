@@ -125,7 +125,9 @@ export default function WelcomeScreen() {
                 <ThemedText style={[styles.bulletNum, { color: Accent.base }]}>{b.num}</ThemedText>
                 <View style={styles.bulletBody}>
                   <ThemedText style={[styles.bulletTitle, { color: colors.text }]}>{b.title}</ThemedText>
-                  <ThemedText style={[styles.bulletJp, { color: colors.textMuted }]}>{b.jp}</ThemedText>
+                  {/* JP subtitle opacity reduced per GPT round-3 — was
+                      competing with TH description hierarchy. */}
+                  <ThemedText style={[styles.bulletJp, { color: colors.textHint }]}>{b.jp}</ThemedText>
                   <ThemedText style={[styles.bulletTh, { color: colors.textMuted }]}>{b.th}</ThemedText>
                 </View>
               </View>
@@ -147,13 +149,28 @@ export default function WelcomeScreen() {
             <ThemedText style={styles.ctaLabel}>เริ่มเลย · CONTINUE</ThemedText>
             <FiArrowRight size={16} color="#fff" strokeWidth={2.2} />
           </Pressable>
+          {/* SIGN IN link — emphasis reduced per GPT round-3 verdict.
+              Previously SIGN IN was full crimson which dual-focused with
+              the primary CTA on mobile. Now the prompt sits muted +
+              SIGN IN as a quieter underline (still scannable). */}
           <Pressable
             onPress={handleSignIn}
             accessibilityRole="link"
             accessibilityLabel="เข้าสู่ระบบ"
             style={({ pressed }) => [styles.signInLink, pressed && { opacity: 0.7 }]}>
             <ThemedText style={[styles.signInLabel, { color: colors.textHint }]}>
-              ALREADY HAVE AN ACCOUNT? · <ThemedText style={[styles.signInAccent, { color: Accent.base }]}>SIGN IN</ThemedText>
+              already have account?{' '}
+              <ThemedText
+                style={[
+                  styles.signInAccent,
+                  {
+                    color: colors.textMuted,
+                    textDecorationLine: 'underline',
+                    textDecorationColor: colors.textHint,
+                  } as any,
+                ]}>
+                sign in
+              </ThemedText>
             </ThemedText>
           </Pressable>
         </View>
@@ -327,14 +344,16 @@ const styles = StyleSheet.create({
   signInLink: {
     alignItems: 'center',
     paddingVertical: Spacing.one,
+    marginTop: Spacing.two,
   },
   signInLabel: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
     fontSize: 10,
     letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    textTransform: 'lowercase',
+    opacity: 0.85,
   },
   signInAccent: {
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

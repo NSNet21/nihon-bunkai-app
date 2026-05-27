@@ -176,11 +176,14 @@ export default function ShopScreen() {
               )}
             </View>
             <ThemedText style={[styles.shopHeadline, { color: colors.text }]}>
-              ราคา{'\n'}
-              <ThemedText style={[styles.shopHeadline, { color: Accent.base }]}>เป็นมิตร.</ThemedText>
+              จ่าย{'\n'}
+              <ThemedText style={[styles.shopHeadline, { color: Accent.base }]}>เท่าที่ใช้.</ThemedText>
             </ThemedText>
             <ThemedText style={[styles.shopHeroSub, { color: colors.textMuted }]}>
-              ไม่มีรายเดือน · จ่ายครั้งเดียวเฉพาะ pack ที่ต้องการ · ราคาเดียวกับ landing · เช็คเอาท์ที่ Payhip
+              ไม่มีรายเดือน · จ่ายครั้งเดียวเฉพาะ pack ที่ต้องการ
+            </ThemedText>
+            <ThemedText style={[styles.shopHeroSub, { color: colors.textHint, marginTop: 2 }]}>
+              ราคาเดียวกับ landing · เช็คเอาท์ผ่าน Payhip
             </ThemedText>
           </View>
 
@@ -385,12 +388,12 @@ function ViewToggle({
    same web-CSS-transition pill pattern as ViewToggle/LanguageToggle —
    compositor-thread animation, no Reanimated cost. */
 
-const TIER_SEGMENTS: { value: ShopTier; label: string }[] = [
-  { value: 'level',  label: 'PER LEVEL' },
-  { value: 'bundle', label: 'BUNDLE' },
+const TIER_SEGMENTS: { value: ShopTier; label: string; sub: string }[] = [
+  { value: 'level',  label: 'PER LEVEL', sub: 'แยกระดับ' },
+  { value: 'bundle', label: 'BUNDLE',    sub: 'ชุดรวม' },
 ];
 
-const TIER_TRACK_WIDTH = 220;
+const TIER_TRACK_WIDTH = 260;
 const TIER_PILL_PAD = 2;
 const TIER_SEGMENT_WIDTH = (TIER_TRACK_WIDTH - TIER_PILL_PAD * 2) / TIER_SEGMENTS.length;
 
@@ -445,6 +448,9 @@ function TierFilter({
             style={({ pressed }) => [styles.tierSegment, pressed && { opacity: 0.85 }]}>
             <ThemedText style={[styles.tierLabel, { color: fg }]}>
               {seg.label}
+            </ThemedText>
+            <ThemedText style={[styles.tierSub, { color: active ? '#fff' : colors.textHint }]}>
+              {seg.sub}
             </ThemedText>
           </Pressable>
         );
@@ -918,10 +924,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
 
-  /* Tier filter sliding-pill segmented control. */
+  /* Tier filter sliding-pill segmented control. 2-line label (Oswald EN
+     top + Sarabun TH sub) per GPT round-3 verdict — helps Thai users
+     parse the segment fast without losing brand mono identity. */
   tierTrack: {
     width: TIER_TRACK_WIDTH,
-    height: 36,
+    height: 48,
     flexDirection: 'row',
     borderRadius: Radii.sm,
     borderWidth: 1,
@@ -941,12 +949,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
+    gap: 1,
   },
   tierLabel: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.4,
+  },
+  tierSub: {
+    fontSize: 10,
+    letterSpacing: 0.4,
   },
   nudgeBanner: {
     flexDirection: 'row',

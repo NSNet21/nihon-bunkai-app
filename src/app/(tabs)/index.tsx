@@ -244,25 +244,27 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
               </ThemedText>
-              {/* Multi-deck Study entry point — opens the Group Picker.
-                  v1 = Learn mode only (Quiz is per-deck for FSRS reasons).
-                  Pill style matches the editorial mono kicker treatment. */}
+              {/* Multi-deck Study entry — utility row treatment per GPT
+                  round-3 verdict ("pill ควรเป็น tool/action ไม่ใช่
+                  content card"). Thin border on top only + tighter
+                  padding + stronger arrow distinguishes it from the
+                  Continue cards below. */}
               <Pressable
                 onPress={() => router.push('/group-picker')}
                 accessibilityRole="button"
-                accessibilityLabel="เลือกหลายชุดเรียนพร้อมกัน"
+                accessibilityLabel="รวมหลาย pack เป็น session เดียว"
                 style={({ pressed }) => [
                   styles.groupPickerEntry,
-                  { borderColor: colors.border, backgroundColor: colors.surface },
-                  pressed && { opacity: 0.85 },
+                  { borderTopColor: colors.border, borderBottomColor: colors.border },
+                  pressed && { opacity: 0.7 },
                 ]}>
-                <FiLayers size={14} color={Accent.base} strokeWidth={2} />
+                <FiLayers size={13} color={Accent.base} strokeWidth={2} />
                 <View style={{ flex: 1 }}>
                   <ThemedText style={[styles.groupPickerLabel, { color: Accent.base }]}>
-                    MULTI-DECK STUDY · เรียนหลายชุดติดกัน
+                    GROUP STUDY
                   </ThemedText>
                   <ThemedText style={[styles.groupPickerSub, { color: colors.textMuted }]}>
-                    เลือกหลายชุด → รวมการ์ดเป็นเซ็ตเดียว · Learn mode
+                    รวมหลาย pack เป็น session เดียว
                   </ThemedText>
                 </View>
                 <ThemedText style={[styles.groupPickerArrow, { color: Accent.base }]}>→</ThemedText>
@@ -604,17 +606,18 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     marginTop: Spacing.one,
   },
-  /* Multi-deck Study entry pill — sits between hero sub and the Continue
-     cluster so it reads as a primary CTA without competing with the
-     editorial headline. Subtle border + accent text keeps it within the
-     "calm utility" band of the Browse top area. */
+  /* Multi-deck Study utility row — sits between hero sub and the Continue
+     cluster. Top + bottom hairline borders (no left/right) keep it
+     reading as a divider-style action row rather than a content card,
+     per GPT round-3 verdict. */
   groupPickerEntry: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.one,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
     marginTop: Spacing.three,
   },
   groupPickerLabel: {
@@ -628,7 +631,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   groupPickerArrow: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
   },
   /* Toolbar visual weight reduced ~15% via opacity per GPT polish round

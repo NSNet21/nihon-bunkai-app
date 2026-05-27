@@ -19,54 +19,91 @@ export function OnboardingSteps({ current }: { current: 1 | 2 | 3 }) {
   const colors = useThemePalette();
 
   return (
-    <View style={styles.row}>
-      {STEPS.map((label, i) => {
-        const idx = i + 1;
-        const filled = idx <= current;
-        return (
-          <View key={label} style={styles.cluster}>
-            <View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: filled ? Accent.base : 'transparent',
-                  borderColor: filled ? Accent.base : colors.border,
-                },
-              ]}>
-              <ThemedText
-                style={[
-                  styles.dotLabel,
-                  { color: filled ? '#fff' : colors.textHint },
-                ]}>
-                {label}
-              </ThemedText>
-            </View>
-            {idx < STEPS.length && (
+    <View style={styles.outer}>
+      <View style={styles.row}>
+        {STEPS.map((label, i) => {
+          const idx = i + 1;
+          const filled = idx <= current;
+          return (
+            <View key={label} style={styles.cluster}>
               <View
                 style={[
-                  styles.line,
-                  { backgroundColor: idx < current ? Accent.base : colors.border },
-                ]}
-              />
-            )}
-          </View>
-        );
-      })}
-      <ThemedText
-        type="small"
-        themeColor="textHint"
-        style={styles.meta}>
-        STEP {String(current).padStart(2, '0')} / 03
-      </ThemedText>
+                  styles.dot,
+                  {
+                    backgroundColor: filled ? Accent.base : 'transparent',
+                    borderColor: filled ? Accent.base : colors.border,
+                  },
+                ]}>
+                <ThemedText
+                  style={[
+                    styles.dotLabel,
+                    { color: filled ? '#fff' : colors.textHint },
+                  ]}>
+                  {label}
+                </ThemedText>
+              </View>
+              {idx < STEPS.length && (
+                <View
+                  style={[
+                    styles.line,
+                    { backgroundColor: idx < current ? Accent.base : colors.border },
+                  ]}
+                />
+              )}
+            </View>
+          );
+        })}
+        <ThemedText
+          type="small"
+          themeColor="textHint"
+          style={styles.meta}>
+          STEP {String(current).padStart(2, '0')} / 03
+        </ThemedText>
+      </View>
+      {/* Mono numeric label under the dots — keeps the Roman dot aesthetic
+          (which GPT round-3 said "ดีอย่าเปลี่ยน structure") while adding
+          arabic-numeral scan speed for non-design users. Active position
+          colored crimson; remaining muted. */}
+      <View style={styles.numericRow} pointerEvents="none">
+        {STEPS.map((_, i) => {
+          const idx = i + 1;
+          const active = idx === current;
+          return (
+            <ThemedText
+              key={i}
+              style={[
+                styles.numericLabel,
+                {
+                  color: active ? Accent.base : colors.textHint,
+                  fontWeight: active ? '700' : '500',
+                },
+              ]}>
+              {String(idx).padStart(2, '0')}
+              {idx < STEPS.length && <ThemedText style={{ color: colors.textHint }}>  —  </ThemedText>}
+            </ThemedText>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outer: { gap: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
+  },
+  numericRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 4,
+  },
+  numericLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.2,
   },
   cluster: {
     flexDirection: 'row',

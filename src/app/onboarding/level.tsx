@@ -123,25 +123,30 @@ export default function LevelScreen() {
             </ThemedText>
           </View>
 
-          {/* Level grid */}
+          {/* Level grid. N2/N1 locked tiles are non-tappable per GPT round-3
+              verdict — semantic conflict if visually "locked" but persists
+              preference. Inline help row below the grid surfaces the
+              purchase requirement without a heavy modal. */}
           <View style={styles.grid}>
             {LEVELS.map((lv) => {
               const active = lv.value === level;
+              const disabled = !!lv.locked;
               return (
                 <Pressable
                   key={lv.value}
-                  onPress={() => setLevel(lv.value)}
+                  onPress={() => { if (!disabled) setLevel(lv.value); }}
+                  disabled={disabled}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`เลือกระดับ ${lv.label}`}
+                  accessibilityState={{ selected: active, disabled }}
+                  accessibilityLabel={`เลือกระดับ ${lv.label}${disabled ? ' (ปลดล็อกหลังซื้อ)' : ''}`}
                   style={({ pressed }) => [
                     styles.tile,
                     {
                       borderColor: active ? Accent.base : colors.border,
                       backgroundColor: active ? Accent.bg : colors.surface,
                     },
-                    lv.locked && !active && { opacity: 0.65 },
-                    pressed && { opacity: 0.85 },
+                    disabled && { opacity: 0.55 },
+                    pressed && !disabled && { opacity: 0.85 },
                   ]}>
                   <ThemedText style={[styles.tileKanji, { color: active ? Accent.base : colors.text }]}>
                     {lv.kanji}
@@ -165,6 +170,16 @@ export default function LevelScreen() {
                 </Pressable>
               );
             })}
+          </View>
+
+          {/* Locked levels notice — paired with the lock chips on N2/N1
+              tiles. Avoids a heavy modal for the same explanation. */}
+          <View style={[styles.tipBox, { borderLeftColor: colors.borderStrong, backgroundColor: colors.surface2 }]}>
+            <FiLock size={11} color={colors.textHint} strokeWidth={2} />
+            <ThemedText style={[styles.tipText, { color: colors.textMuted }]}>
+              <ThemedText style={[styles.tipLabel, { color: colors.text }]}>ปลดล็อก N2 · N1 หลังซื้อชุด</ThemedText>
+              {' · เริ่มจากระดับที่มีได้ก่อน · เปลี่ยนทีหลังได้'}
+            </ThemedText>
           </View>
 
           {/* Tip */}

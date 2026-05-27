@@ -62,7 +62,7 @@ export function MiniCard({
         ) : null}
       </View>
 
-      <View style={styles.navDots} pointerEvents="none">
+      <View style={[styles.navDots, { pointerEvents: 'none' }]}>
         {[0, 1, 2, 3, 4].map((i) => (
           <View
             key={i}

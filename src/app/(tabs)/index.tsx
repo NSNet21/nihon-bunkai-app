@@ -1,4 +1,4 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -88,7 +88,7 @@ export default function BrowseScreen() {
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
-  const listRef = useRef<FlashList<Row>>(null);
+  const listRef = useRef<FlashListRef<Row>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const { scheme, colors } = useThemeColors();
 
@@ -172,9 +172,9 @@ export default function BrowseScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* Top crimson accent stripe — runs edge-to-edge above safe area. */}
-      <View style={styles.topAccentBar} pointerEvents="none" />
+      <View style={[styles.topAccentBar, { pointerEvents: 'none' }]} />
       {/* Ghost kanji 学 — faint editorial decoration, behind all content. */}
-      <ThemedText style={styles.ghostKanji} pointerEvents="none">学</ThemedText>
+      <ThemedText style={[styles.ghostKanji, { pointerEvents: 'none' }]}>学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<Row>
           ref={listRef}

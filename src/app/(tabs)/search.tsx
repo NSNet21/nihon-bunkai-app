@@ -87,8 +87,8 @@ export default function SearchScreen() {
                       transition: 'transform 240ms cubic-bezier(0.4, 0, 0.2, 1)',
                     } as unknown as object)
                   : { transform: [{ scaleX: focused ? 1 : 0 }] },
+                { pointerEvents: 'none' },
               ]}
-              pointerEvents="none"
             />
             <FiSearch size={18} color={focused ? Accent.base : c.textHint} />
             <TextInput

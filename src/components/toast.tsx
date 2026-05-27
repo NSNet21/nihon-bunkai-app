@@ -74,8 +74,7 @@ function ToastViewport({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: 
 
   return (
     <View
-      pointerEvents="box-none"
-      style={[styles.viewport, isDesktop ? styles.viewportDesktop : styles.viewportMobile]}>
+      style={[styles.viewport, isDesktop ? styles.viewportDesktop : styles.viewportMobile, { pointerEvents: 'box-none' }]}>
       {toasts.map((t) => (
         <Toast key={t.id} item={t} onDismiss={() => onDismiss(t.id)} />
       ))}
@@ -133,10 +132,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     borderRadius: Radii.sm,
     minHeight: 44,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.18)',
     elevation: 6,
   },
   toastSuccess: { backgroundColor: Accent.base },

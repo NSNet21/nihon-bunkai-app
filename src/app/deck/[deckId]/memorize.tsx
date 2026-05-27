@@ -201,7 +201,7 @@ export default function MemorizeScreen() {
             </View>
 
             {/* Eye indicator — top-right corner, shows current toggle state */}
-            <View style={styles.eyeIndicator} pointerEvents="none">
+            <View style={[styles.eyeIndicator, { pointerEvents: 'none' }]}>
               {showAnswer ? (
                 <FiEye size={14} color={colors.textHint} strokeWidth={2} />
               ) : (

@@ -77,7 +77,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return system === 'dark' ? 'dark' : 'light';
   }, [hasHydrated, override, system]);
 
-  const colors = useMemo(() => Colors[scheme], [scheme]);
+  /* Cast widens Colors[scheme] (union of light|dark literal types) to the
+     light-shaped ThemeColors. Runtime values share the same key shape;
+     literal-type mismatch is purely a TS artifact of `as const` color defs. */
+  const colors = useMemo(() => Colors[scheme] as ThemeColors, [scheme]);
 
   const colorsValue = useMemo<ThemeColorsValue>(
     () => ({ scheme, colors }),

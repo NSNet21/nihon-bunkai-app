@@ -43,13 +43,13 @@ export function ScrollToTop({ visible, onPress }: Props) {
 
   return (
     <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
       style={[
         {
           position: 'absolute',
           right: 24,
           bottom: 24,
           zIndex: 100,
+          pointerEvents: visible ? 'auto' : 'none',
         },
         containerStyle,
       ]}>
@@ -75,10 +75,7 @@ export function ScrollToTop({ visible, onPress }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
           opacity: pressed ? 0.9 : 1,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.22,
-          shadowRadius: 14,
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.22)',
           elevation: 6,
         })}>
         <FiArrowUp size={20} color="#ffffff" strokeWidth={2.5} />

@@ -180,12 +180,12 @@ export default function QuizConfigScreen() {
                   return (
                     <View
                       key={i}
-                      pointerEvents="none"
                       style={[
                         styles.tickMark,
                         {
                           left: left - 3,
                           backgroundColor: active ? Accent.base : colors.borderStrong,
+                          pointerEvents: 'none',
                         },
                       ]}
                     />
@@ -193,12 +193,12 @@ export default function QuizConfigScreen() {
                 })}
                 {/* Draggable thumb — sits above ticks */}
                 <Animated.View
-                  pointerEvents="none"
                   style={[
                     styles.thumb,
                     {
                       backgroundColor: Accent.base,
                       borderColor: colors.background,
+                      pointerEvents: 'none',
                     },
                     thumbStyle,
                   ]}

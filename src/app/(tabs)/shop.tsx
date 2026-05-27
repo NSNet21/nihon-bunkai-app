@@ -861,10 +861,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.four,
-    shadowColor: '#e0202c',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
+    boxShadow: '0 2px 10px rgba(224, 32, 44, 0.18)',
     elevation: 3,
   },
   buyBtn: {
@@ -891,10 +888,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three + 2,
     paddingHorizontal: Spacing.four,
     borderRadius: Radii.sm,
-    shadowColor: '#e0202c',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.30,
-    shadowRadius: 12,
+    boxShadow: '0 3px 12px rgba(224, 32, 44, 0.30)',
     elevation: 4,
   },
   primaryDownloadBtnLabel: {

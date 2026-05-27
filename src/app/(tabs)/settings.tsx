@@ -766,7 +766,7 @@ function AccountCard({
   status: 'loading' | 'signed-in' | 'signed-out';
   email?: string;
   entitlementCount: number;
-  onSignOut: () => Promise<void>;
+  onSignOut: () => Promise<unknown>;
   onRefresh: () => Promise<void>;
 }) {
   const { scheme, colors } = useThemeColors();

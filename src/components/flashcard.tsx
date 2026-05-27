@@ -367,6 +367,7 @@ export function Flashcard({
       <GestureDetector gesture={swipePan}>
         <Pressable
           onPress={onFlip}
+          accessibilityRole="none"
           style={({ pressed }) => [styles.cardPress, pressed && styles.pressed]}
           accessibilityLabel={isFlipped ? 'แตะเพื่อกลับด้านหน้า' : 'แตะเพื่อดูคำตอบ'}>
           <Animated.View style={[styles.cardWrapper, swipeStyle]}>
@@ -383,7 +384,7 @@ export function Flashcard({
                 frontStyle,
               ]}>
             {/* Top crimson stripe — editorial frame edge */}
-            <View style={styles.topStripe} pointerEvents="none" />
+            <View style={[styles.topStripe, { pointerEvents: 'none' }]} />
             {metaText && <GlassMeta text={metaText} colors={colors} />}
             {/* Config button MOVED OUT to study.tsx header (2026-05-26)
                 so it doesn't collide with the overlay-rail hit zone on
@@ -478,7 +479,7 @@ export function Flashcard({
             {/* Top crimson stripe — rendered AFTER ScrollView so it cleanly
                 covers the scrollbar's top edge (otherwise scrollbar shows
                 the stripe red bleeding through). */}
-            <View style={styles.topStripe} pointerEvents="none" />
+            <View style={[styles.topStripe, { pointerEvents: 'none' }]} />
             {/* Glass meta — absolute-positioned overlay; scrolling content
                 slides UNDER it (backdrop-blur for the frosted editorial edge). */}
             {metaText && <GlassMeta text={metaText} colors={colors} />}
@@ -490,7 +491,7 @@ export function Flashcard({
             disappearing edge-on at 90°. Shares swipeStyle so FootDots
             translates with the card during swipe (otherwise progress sits
             still while the card flies away — looks broken). */}
-        <Animated.View style={[styles.cardOverlay, swipeStyle]} pointerEvents="box-none">
+        <Animated.View style={[styles.cardOverlay, swipeStyle, { pointerEvents: 'box-none' }]}>
           {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
         </Animated.View>
       </Pressable>
@@ -519,7 +520,9 @@ function GlassMeta({
   colors: typeof Colors.light;
   variant?: 'overlay' | 'inline';
 }) {
-  const isDark = colors.background === Colors.dark.background;
+  /* Compare as plain string — `colors` is typed as Colors.light shape so
+     literal-type overlap check rejects direct `===` against Colors.dark. */
+  const isDark = (colors.background as string) === Colors.dark.background;
   /* Solid-bg editorial pill — was using backdrop-filter for a frosted-glass
      look, but that (a) blurred buttons that overlapped the pill rect, (b)
      misaligned on mobile chrome, and (c) created a stacking context that
@@ -530,11 +533,10 @@ function GlassMeta({
   const border = isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.08)';
   return (
     <View
-      pointerEvents="none"
       style={[
         glassStyles.pill,
         variant === 'overlay' ? glassStyles.overlay : glassStyles.inline,
-        { backgroundColor: bg, borderColor: border },
+        { backgroundColor: bg, borderColor: border, pointerEvents: 'none' },
       ]}>
       <ThemedText style={[glassStyles.text, { color: colors.textSecondary }]}>{text}</ThemedText>
     </View>
@@ -600,7 +602,7 @@ function FootDots({
   }, [isFlipped, opacity, mounted]);
   const aStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
-    <Animated.View style={[footDotsStyles.row, aStyle]} pointerEvents="none">
+    <Animated.View style={[footDotsStyles.row, aStyle, { pointerEvents: 'none' }]}>
       {[0, 1, 2, 3, 4].map((i) => {
         const filled = (i + 1) / 5 <= progress;
         return (
@@ -834,7 +836,7 @@ const styles = StyleSheet.create({
   } as any,
   /* Overlay layer covering the entire card area — siblings of cardWrapper
      so they live OUTSIDE the 3D rendering context and stay visible during
-     the rotateY flip animation. pointerEvents="box-none" lets card taps
+     the rotateY flip animation. pointerEvents: 'box-none' lets card taps
      fall through except where actual buttons sit. */
   cardOverlay: {
     position: 'absolute',

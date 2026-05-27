@@ -434,7 +434,7 @@ export default function StudyScreen() {
 /** Editorial footer mark — anchors the study session in the brand. */
 function BrandStrip({ colors }: { colors: typeof Colors.light }) {
   return (
-    <View style={brandStyles.row} pointerEvents="none">
+    <View style={[brandStyles.row, { pointerEvents: 'none' }]}>
       <ThemedText style={[brandStyles.text, { color: colors.textHint }]}>
         NIHON BUNKAI · 鍛練精進
       </ThemedText>
@@ -960,10 +960,9 @@ function OverlayRailButton({
       {/* bgFill = wide gradient layer (can exceed Pressable bounds);
           iconBox = icon centered inside Pressable's actual bounds. */}
       <Animated.View
-        style={[overlayRailStyles.bgFill, overlayBg, aStyle, { [side]: 0, width: fillWidth }]}
-        pointerEvents="none"
+        style={[overlayRailStyles.bgFill, overlayBg, aStyle, { [side]: 0, width: fillWidth, pointerEvents: 'none' }]}
       />
-      <Animated.View style={[overlayRailStyles.iconBox, aStyle]} pointerEvents="none">
+      <Animated.View style={[overlayRailStyles.iconBox, aStyle, { pointerEvents: 'none' }]}>
         <Icon size={iconSize} color={colors.textSecondary} strokeWidth={1.5} />
       </Animated.View>
     </Pressable>

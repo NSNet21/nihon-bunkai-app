@@ -51,7 +51,7 @@ export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
           pressed && styles.pressed,
         ]}>
         {/* Left crimson rail — matches DeckRow stripe pattern */}
-        <View style={[styles.stripe, { pointerEvents: 'none' }]} />
+        <View style={styles.stripe} />
         <View style={styles.body}>
           <ThemedText style={[styles.label, { color: colors.textHint }]}>
             {`// ${modeBadge} · CONTINUE`}
@@ -92,6 +92,7 @@ const styles = StyleSheet.create({
     width: 3,
     alignSelf: 'stretch',
     backgroundColor: Accent.base,
+    pointerEvents: 'none',
   },
   body: {
     flex: 1,

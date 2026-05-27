@@ -204,7 +204,7 @@ export default function MemorizeScreen() {
             </View>
 
             {/* Eye indicator — top-right, nudged left to clear the scrollbar */}
-            <View style={[styles.eyeIndicator, { pointerEvents: 'none' }]}>
+            <View style={styles.eyeIndicator}>
               {showAnswer ? (
                 <FiEye size={14} color={colors.textHint} strokeWidth={2} />
               ) : (
@@ -472,6 +472,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10, right: 24,           // 24 (was 10) clears the scrollbar gutter
     zIndex: 3,
+    pointerEvents: 'none',
   },
   answerBlock: {
     gap: Spacing.three,

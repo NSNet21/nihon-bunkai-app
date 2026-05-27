@@ -418,7 +418,7 @@ export function Flashcard({
                 frontStyle,
               ]}>
             {/* Top crimson stripe — editorial frame edge */}
-            <View style={[styles.topStripe, { pointerEvents: 'none' }]} />
+            <View style={styles.topStripe} />
             {metaText && <GlassMeta text={metaText} colors={colors} />}
             {/* Config button MOVED OUT to study.tsx header (2026-05-26)
                 so it doesn't collide with the overlay-rail hit zone on
@@ -522,7 +522,7 @@ export function Flashcard({
             {/* Top crimson stripe — rendered AFTER ScrollView so it cleanly
                 covers the scrollbar's top edge (otherwise scrollbar shows
                 the stripe red bleeding through). */}
-            <View style={[styles.topStripe, { pointerEvents: 'none' }]} />
+            <View style={styles.topStripe} />
             {/* Glass meta — absolute-positioned overlay; scrolling content
                 slides UNDER it (backdrop-blur for the frosted editorial edge). */}
             {metaText && <GlassMeta text={metaText} colors={colors} />}
@@ -579,7 +579,7 @@ function GlassMeta({
       style={[
         glassStyles.pill,
         variant === 'overlay' ? glassStyles.overlay : glassStyles.inline,
-        { backgroundColor: bg, borderColor: border, pointerEvents: 'none' },
+        { backgroundColor: bg, borderColor: border },
       ]}>
       <ThemedText style={[glassStyles.text, { color: colors.textSecondary }]}>{text}</ThemedText>
     </View>
@@ -594,6 +594,7 @@ const glassStyles = StyleSheet.create({
     borderWidth: 1,
     alignSelf: 'flex-start',
     maxWidth: '100%',
+    pointerEvents: 'none',
   },
   /* Compact pill in the top-left corner of each face, sits below red stripe. */
   overlay: {
@@ -645,7 +646,7 @@ function FootDots({
   }, [isFlipped, opacity, mounted]);
   const aStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
-    <Animated.View style={[footDotsStyles.row, aStyle, { pointerEvents: 'none' }]}>
+    <Animated.View style={[footDotsStyles.row, aStyle]}>
       {[0, 1, 2, 3, 4].map((i) => {
         const filled = (i + 1) / 5 <= progress;
         return (
@@ -670,6 +671,7 @@ const footDotsStyles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
     zIndex: 6,
+    pointerEvents: 'none',
   },
   dot: {
     width: 5,
@@ -899,6 +901,7 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0,
     height: 3,
     backgroundColor: Accent.base,
+    pointerEvents: 'none',
   },
   backScrollStripe: {
     height: 3,

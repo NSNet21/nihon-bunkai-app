@@ -62,7 +62,7 @@ export function MiniCard({
         ) : null}
       </View>
 
-      <View style={[styles.navDots, { pointerEvents: 'none' }]}>
+      <View style={styles.navDots}>
         {[0, 1, 2, 3, 4].map((i) => (
           <View
             key={i}
@@ -136,6 +136,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     left: 12,
+    pointerEvents: 'none',
   },
   dot: {
     width: 5,

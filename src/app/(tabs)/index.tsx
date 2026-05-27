@@ -172,9 +172,9 @@ export default function BrowseScreen() {
   return (
     <ThemedView style={styles.container}>
       {/* Top crimson accent stripe — runs edge-to-edge above safe area. */}
-      <View style={[styles.topAccentBar, { pointerEvents: 'none' }]} />
+      <View style={styles.topAccentBar} />
       {/* Ghost kanji 学 — faint editorial decoration, behind all content. */}
-      <ThemedText style={[styles.ghostKanji, { pointerEvents: 'none' }]}>学</ThemedText>
+      <ThemedText style={styles.ghostKanji}>学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<Row>
           ref={listRef}
@@ -476,6 +476,7 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: Accent.base,
     zIndex: 2,
+    pointerEvents: 'none',
   },
   ghostKanji: {
     position: 'absolute',
@@ -488,6 +489,7 @@ const styles = StyleSheet.create({
     color: Accent.base,
     opacity: 0.06,
     zIndex: 0,
+    pointerEvents: 'none',
   },
   subLabelRow: {
     flexDirection: 'row',

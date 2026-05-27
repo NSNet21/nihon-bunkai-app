@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FiCheckSquare, FiSquare, FiX } from 'react-icons/fi';
@@ -273,6 +273,27 @@ export function Flashcard({
       }
     });
 
+  /* Tap-to-flip — replaces the previous Pressable wrapper (which (a) blocked
+     SpeakButton presses, since RN-Web Pressable claimed the pointer up
+     before children, and (b) rendered as <button> nested with the speaker
+     <button>, triggering React's DOM validator). Composed via Race with
+     swipePan so swipe and tap can't both fire.
+
+     Inner speaker buttons are wrapped with Gesture.Native() (refs below)
+     and tapFlip uses `requireExternalGestureToFail` so taps on speakers
+     don't trip the flip. useMemo keeps the Native refs stable across
+     renders — required for RNGH to correctly track the relationship. */
+  const speakerNativeHero = useMemo(() => Gesture.Native(), []);
+  const speakerNativeBackP = useMemo(() => Gesture.Native(), []);
+  const tapFlip = Gesture.Tap()
+    .maxDistance(10)
+    .requireExternalGestureToFail(speakerNativeHero, speakerNativeBackP)
+    .onEnd((_e, success) => {
+      if (!success) return;
+      scheduleOnRN(onFlip);
+    });
+  const cardGesture = Gesture.Race(swipePan, tapFlip);
+
   /* Resolve front hero: respect setting, but fall back if chosen column is hidden. */
   const heroKey: FrontHero =
     frontHero === 't' && visibility.t  ? 't'
@@ -364,12 +385,18 @@ export function Flashcard({
 
   return (
     <>
-      <GestureDetector gesture={swipePan}>
-        <Pressable
-          onPress={onFlip}
-          accessibilityRole="none"
-          style={({ pressed }) => [styles.cardPress, pressed && styles.pressed]}
-          accessibilityLabel={isFlipped ? 'แตะเพื่อกลับด้านหน้า' : 'แตะเพื่อดูคำตอบ'}>
+      <GestureDetector gesture={cardGesture}>
+        <Animated.View
+          accessibilityLabel={isFlipped ? 'แตะเพื่อกลับด้านหน้า' : 'แตะเพื่อดูคำตอบ'}
+          style={[
+            styles.cardPress,
+            /* Vertical scroll on web — RNGH wraps GestureDetector children with
+               touchAction:'none' by default, which blocks mouse-wheel + touch
+               scroll inside the back-face ScrollView. swipePan's activeOffsetX
+               + failOffsetY already make vertical pans fail; explicit pan-y
+               lets the browser deliver them to the ScrollView. */
+            Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
+          ]}>
           <Animated.View style={[styles.cardWrapper, swipeStyle]}>
             {/* Front face — hero (T or P) + (optionally) the other as secondary */}
             <Animated.View
@@ -402,7 +429,11 @@ export function Flashcard({
                   {heroValue}
                 </ThemedText>
                 {heroValue ? (
-                  <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
+                  <GestureDetector gesture={speakerNativeHero}>
+                    <View>
+                      <SpeakButton text={heroValue} language="ja-JP" colors={colors} size="md" />
+                    </View>
+                  </GestureDetector>
                 ) : null}
               </View>
               {secondaryVisible && secondaryValue ? (
@@ -467,7 +498,11 @@ export function Flashcard({
                     style={[styles.backP, { fontSize: backPSizeFinal }]}>
                     {entry.p}
                   </ThemedText>
-                  <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
+                  <GestureDetector gesture={speakerNativeBackP}>
+                    <View>
+                      <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
+                    </View>
+                  </GestureDetector>
                 </View>
               ) : null}
               {visibility.e && (
@@ -494,7 +529,7 @@ export function Flashcard({
         <Animated.View style={[styles.cardOverlay, swipeStyle, { pointerEvents: 'box-none' }]}>
           {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
         </Animated.View>
-      </Pressable>
+        </Animated.View>
       </GestureDetector>
     </>
   );

@@ -13,7 +13,7 @@
  */
 
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
@@ -136,10 +136,19 @@ export default function MemorizeScreen() {
   /* Tap composed via Gesture.Race with Pan so swipe + tap never fire
      together. maxDistance keeps it a true tap (no drag-then-release).
      Replaces the previous Pressable wrapper which raced with Pan and
-     fired the toggle even on swipe-end. */
+     fired the toggle even on swipe-end.
+
+     Inner speaker buttons are wrapped with Gesture.Native() (refs
+     below) and tapToggle uses `requireExternalGestureToFail` so taps
+     that land on a speaker icon don't bubble up and toggle the answer.
+     useMemo keeps the Native refs stable across renders — required
+     for RNGH to correctly track the inter-gesture relationship. */
   const toggleAnswer = () => setShowAnswer((v) => !v);
+  const speakerNativeHero = useMemo(() => Gesture.Native(), []);
+  const speakerNativeReading = useMemo(() => Gesture.Native(), []);
   const tapToggle = Gesture.Tap()
     .maxDistance(10)
+    .requireExternalGestureToFail(speakerNativeHero, speakerNativeReading)
     .onEnd((_e, success) => {
       if (!success) return;
       scheduleOnRN(toggleAnswer);
@@ -216,7 +225,11 @@ export default function MemorizeScreen() {
               <View style={styles.heroBlock}>
                 <ThemedText style={[styles.term, { color: colors.text }]}>{current.t}</ThemedText>
                 {current.t ? (
-                  <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" />
+                  <GestureDetector gesture={speakerNativeHero}>
+                    <View>
+                      <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" />
+                    </View>
+                  </GestureDetector>
                 ) : null}
               </View>
             ) : null}
@@ -226,7 +239,11 @@ export default function MemorizeScreen() {
                 <ThemedText style={[styles.bracketText, { color: colors.textSecondary }]}>
                   {current.p}
                 </ThemedText>
-                <SpeakButton text={current.p} language="ja-JP" colors={colors} />
+                <GestureDetector gesture={speakerNativeReading}>
+                  <View>
+                    <SpeakButton text={current.p} language="ja-JP" colors={colors} />
+                  </View>
+                </GestureDetector>
               </View>
             ) : null}
 

@@ -401,8 +401,12 @@ export function Flashcard({
             Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
           ]}>
           <Animated.View style={[styles.cardWrapper, swipeStyle]}>
-            {/* Front face — hero (T or P) + (optionally) the other as secondary */}
+            {/* Front face — hero (T or P) + (optionally) the other as secondary.
+                pointerEvents flips with isFlipped so the inactive face stops
+                intercepting clicks + wheel — backface-visibility:hidden on
+                preserve-3d elements doesn't always block hit-testing on web. */}
             <Animated.View
+              pointerEvents={isFlipped ? 'none' : 'auto'}
               style={[
                 styles.face,
                 styles.faceCenter,
@@ -468,6 +472,7 @@ export function Flashcard({
 
           {/* Back face — D (meaning) + E (explanation), each toggleable */}
           <Animated.View
+            pointerEvents={isFlipped ? 'auto' : 'none'}
             style={[styles.face, { backgroundColor: colors.backgroundElement }, backStyle]}>
             <ScrollView
               style={[

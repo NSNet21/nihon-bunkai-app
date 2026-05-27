@@ -1,6 +1,6 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLock } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -132,23 +132,27 @@ export default function BrowseScreen() {
     return { allLevelKeys: Array.from(lvls), allCategoryKeys: Array.from(cats) };
   }, [decks]);
 
-  function toggleLevel(level: string) {
+  /* Stable callbacks so memoized list rows (DeckRow / LevelHeader /
+     CategoryHeader) can skip re-renders when only unrelated state
+     changes. setClosedLevels uses the functional updater form so the
+     closure doesn't need to track current state. */
+  const toggleLevel = useCallback((level: string) => {
     setClosedLevels((prev) => {
       const next = new Set(prev);
       if (next.has(level)) next.delete(level);
       else next.add(level);
       return next;
     });
-  }
+  }, []);
 
-  function toggleCategory(key: string) {
+  const toggleCategory = useCallback((key: string) => {
     setClosedCategories((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
-  }
+  }, []);
 
   function expandAll() {
     if (!subsOnly) setClosedLevels(new Set());
@@ -168,6 +172,37 @@ export default function BrowseScreen() {
     .filter((d) => d.isFree)
     .reduce((s, d) => s + d.entryCount, 0);
   const freePackCount = decks.filter((d) => d.isFree).length;
+
+  /* renderItem stable across renders — depends only on the two stable
+     toggle callbacks. Together with React.memo'd row components, this
+     lets FlashList skip re-rendering rows when only unrelated state
+     (e.g. showScrollTop) changes in the parent. */
+  const renderItem = useCallback(({ item }: { item: Row }) => {
+    let inner;
+    if (item.kind === 'levelHeader')
+      inner = (
+        <LevelHeader
+          level={item.level}
+          title={item.title}
+          isOpen={item.isOpen}
+          childCount={item.childCount}
+          onToggle={toggleLevel}
+        />
+      );
+    else if (item.kind === 'categoryHeader')
+      inner = (
+        <CategoryHeader
+          levelKey={`${item.level}/${item.category}`}
+          title={item.title}
+          isOpen={item.isOpen}
+          childCount={item.childCount}
+          onToggle={toggleCategory}
+        />
+      );
+    else inner = <DeckRow deck={item.deck} isLast={item.isLast} />;
+
+    return <View style={styles.rowWrap}>{inner}</View>;
+  }, [toggleLevel, toggleCategory]);
 
   return (
     <ThemedView style={styles.container}>
@@ -235,16 +270,7 @@ export default function BrowseScreen() {
               />
             </View>
           }
-          renderItem={({ item }) => {
-            let inner;
-            if (item.kind === 'levelHeader')
-              inner = <LevelHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleLevel(item.level)} />;
-            else if (item.kind === 'categoryHeader')
-              inner = <CategoryHeader title={item.title} isOpen={item.isOpen} childCount={item.childCount} onPress={() => toggleCategory(`${item.level}/${item.category}`)} />;
-            else inner = <DeckRow deck={item.deck} isLast={item.isLast} />;
-
-            return <View style={styles.rowWrap}>{inner}</View>;
-          }}
+          renderItem={renderItem}
           contentContainerStyle={styles.listContent}
         />
       </SafeAreaView>
@@ -357,10 +383,27 @@ function AnimatedChevron({ isOpen, size, color }: { isOpen: boolean; size: numbe
   );
 }
 
-function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
+/* React.memo so rows skip re-render when parent state changes for
+   unrelated reasons (showScrollTop tick, etc.). onToggle is a stable
+   callback from the parent (useCallback []); level/levelKey ride
+   along so the row can bind locally without un-stable closures. */
+const LevelHeader = memo(function LevelHeader({
+  level,
+  title,
+  isOpen,
+  childCount,
+  onToggle,
+}: {
+  level: string;
+  title: string;
+  isOpen: boolean;
+  childCount: number;
+  onToggle: (level: string) => void;
+}) {
   const colors = useThemePalette();
+  const handlePress = useCallback(() => onToggle(level), [level, onToggle]);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.levelHeader, pressed && styles.headerPressed]}>
+    <Pressable onPress={handlePress} style={({ pressed }) => [styles.levelHeader, pressed && styles.headerPressed]}>
       <View style={styles.levelRule} />
       <ThemedText type="defaultSemiBold" style={[styles.levelTitle, { color: Accent.base }]}>
         {title}
@@ -373,12 +416,25 @@ function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; is
       </View>
     </Pressable>
   );
-}
+});
 
-function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
+const CategoryHeader = memo(function CategoryHeader({
+  levelKey,
+  title,
+  isOpen,
+  childCount,
+  onToggle,
+}: {
+  levelKey: string;
+  title: string;
+  isOpen: boolean;
+  childCount: number;
+  onToggle: (key: string) => void;
+}) {
   const colors = useThemePalette();
+  const handlePress = useCallback(() => onToggle(levelKey), [levelKey, onToggle]);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.categoryHeader, pressed && styles.headerPressed]}>
+    <Pressable onPress={handlePress} style={({ pressed }) => [styles.categoryHeader, pressed && styles.headerPressed]}>
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.categoryTitle}>
         {title}
       </ThemedText>
@@ -390,9 +446,9 @@ function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string;
       </View>
     </Pressable>
   );
-}
+});
 
-function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
+const DeckRow = memo(function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
   const colors = useThemePalette();
   const router = useRouter();
 
@@ -455,7 +511,7 @@ function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
       </ThemedView>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

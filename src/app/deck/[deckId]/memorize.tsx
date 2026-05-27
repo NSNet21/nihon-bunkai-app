@@ -14,9 +14,9 @@
 
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -184,7 +184,7 @@ export default function MemorizeScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <Header deck={deck} index={0} total={0} colors={colors} />
+          <Header />
           <View style={styles.centerFill}>
             <ThemedText type="title">{deck ? 'ยังไม่มีคำในชุดนี้' : 'ไม่พบ Deck'}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', maxWidth: 320 }}>
@@ -199,7 +199,10 @@ export default function MemorizeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <Header deck={deck} index={index} total={entries.length} colors={colors} />
+        {/* In-page header now empty — counter moved to bottom row
+            (user request 2026-05-27). Header kept as a thin spacer
+            so the card doesn't snap up against the TopNavBar. */}
+        <Header />
 
         {/* Card-as-scroll-container restructure 2026-05-27 (user request):
             page no longer scrolls — the card frame fills available space and
@@ -208,6 +211,15 @@ export default function MemorizeScreen() {
             Footer. Stripe + GlassMeta + EyeIndicator stay absolute over the
             ScrollView so they don't scroll with content. */}
         <View style={styles.cardOuter}>
+          <View style={compact ? styles.cardSlot : styles.cardRow}>
+            {!compact && (
+              <SideRailBtn
+                direction="left"
+                onPress={goPrev}
+                disabled={!canPrev}
+                colors={colors}
+              />
+            )}
           <GestureDetector gesture={cardGesture}>
             <View
               accessibilityRole="none"
@@ -317,36 +329,60 @@ export default function MemorizeScreen() {
             )}
             </ScrollView>
 
-            {/* Edge overlay rails — idle opacity 0, press reveals (mirrors
-                Quiz card prev/next pattern). Sit absolute over the card,
-                above ScrollView. Footer prev/next buttons removed in favor
-                of these — they sit on the same surface as the tap-to-flip
-                area + read alongside content (no separate footer bar). */}
-            <OverlayRailButton
-              direction="left"
-              side="left"
-              onPress={goPrev}
-              disabled={!canPrev}
-              colors={colors}
-              width={railWidth}
-              iconSize={railIcon}
-              fillWidth={railFillWidth}
-              isDark={scheme === 'dark'}
-            />
-            <OverlayRailButton
-              direction="right"
-              side="right"
-              onPress={goNext}
-              disabled={!canNext}
-              colors={colors}
-              width={railWidth}
-              iconSize={railIcon}
-              fillWidth={railFillWidth}
-              isDark={scheme === 'dark'}
-            />
+            {/* Edge overlay rails — only on compact viewports. Idle
+                opacity 0, press reveals (mirrors Quiz overlay rails).
+                Wide viewports use SideRailBtn outside the card instead
+                so the chevron doesn't overlap content (user request
+                2026-05-27). */}
+            {compact && (
+              <OverlayRailButton
+                direction="left"
+                side="left"
+                onPress={goPrev}
+                disabled={!canPrev}
+                colors={colors}
+                width={railWidth}
+                iconSize={railIcon}
+                fillWidth={railFillWidth}
+                isDark={scheme === 'dark'}
+              />
+            )}
+            {compact && (
+              <OverlayRailButton
+                direction="right"
+                side="right"
+                onPress={goNext}
+                disabled={!canNext}
+                colors={colors}
+                width={railWidth}
+                iconSize={railIcon}
+                fillWidth={railFillWidth}
+                isDark={scheme === 'dark'}
+              />
+            )}
             </View>
           </GestureDetector>
+            {!compact && (
+              <SideRailBtn
+                direction="right"
+                onPress={goNext}
+                disabled={!canNext}
+                colors={colors}
+              />
+            )}
+          </View>
         </View>
+
+        {/* Bottom counter row — minimal, just the index. Prev/next
+            live in the card-edge overlay rails now, so this row has
+            no controls. Per user request 2026-05-27. */}
+        {entries.length > 0 && (
+          <View style={styles.bottomCounter}>
+            <ThemedText type="small" themeColor="textSecondary">
+              {index + 1} / {entries.length}
+            </ThemedText>
+          </View>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -354,28 +390,41 @@ export default function MemorizeScreen() {
 
 /* ─── Subcomponents ─────────────────────────────────────────────────── */
 
-function Header({
-  deck,
-  index,
-  total,
+function Header() {
+  /* In-page header — thin spacer only. Counter moved to bottomCounter.
+     Kept so the card doesn't crash into the TopNavBar. */
+  return <View style={styles.headerBar} />;
+}
+
+/** Side rail button — always-visible chevron beside the card on wide
+ *  viewports (PC / tablet). Mirrors Quiz's SideRail. Sits OUTSIDE
+ *  the card so it never overlaps content (user request 2026-05-27). */
+function SideRailBtn({
+  direction,
+  onPress,
+  disabled,
   colors,
 }: {
-  deck: { id: string; title: string } | undefined;
-  index: number;
-  total: number;
+  direction: 'left' | 'right';
+  onPress: () => void;
+  disabled: boolean;
   colors: typeof Colors.light;
 }) {
-  /* In-page BACK removed 2026-05-27 — TopNavBar's right-aligned BACK
-     (focus mode) handles return. Index counter now right-aligned alone. */
+  const Icon = direction === 'left' ? FiChevronLeft : FiChevronRight;
+  const ariaLabel = direction === 'left' ? 'Previous card' : 'Next card';
   return (
-    <View style={styles.headerBar}>
-      <View style={{ flex: 1 }} />
-      {total > 0 && (
-        <ThemedText type="small" themeColor="textSecondary">
-          {index + 1} / {total}
-        </ThemedText>
-      )}
-    </View>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={ariaLabel}
+      style={({ pressed }) => [
+        styles.sideRailBtn,
+        pressed && !disabled && { opacity: 0.5 },
+        disabled && { opacity: 0.2 },
+      ]}>
+      <Icon size={48} color={colors.textSecondary} strokeWidth={1.5} />
+    </Pressable>
   );
 }
 
@@ -426,6 +475,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
+  },
+  /* Wide-viewport layout — side buttons flanking the card. */
+  cardRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: Spacing.two,
+  },
+  cardSlot: { flex: 1, alignSelf: 'stretch' },
+  sideRailBtn: {
+    width: 56,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   cardBodyScroll: { flex: 1, alignSelf: 'stretch' },
   cardBodyContent: {
@@ -560,4 +624,9 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.two,
   },
   bodyWrap: { paddingHorizontal: Spacing.one },
+  /* Bottom counter — minimal index display, no controls (rails handle nav). */
+  bottomCounter: {
+    alignItems: 'center',
+    paddingVertical: Spacing.three,
+  },
 });

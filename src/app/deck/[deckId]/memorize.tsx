@@ -223,7 +223,7 @@ export default function MemorizeScreen() {
                 Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
               ]}
               contentContainerStyle={styles.cardBodyContent}
-              {...({ dataSet: { scroll: 'card' } } as object)}
+              {...({ dataSet: { scroll: 'card-memorize' } } as object)}
               showsVerticalScrollIndicator>
             {/* FRONT block — T (hero) + P (reading). Always shown
                 (gated by visibility flags). T uses visibility.t, P uses

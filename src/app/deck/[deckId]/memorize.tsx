@@ -230,15 +230,17 @@ export default function MemorizeScreen() {
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
 
-            {/* Glass meta — editorial top-left pill (mirrors Quiz GlassMeta). */}
-            <View style={[styles.glassMeta, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
-                {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'RECALL'}`}
-              </ThemedText>
-            </View>
-
-            {/* Eye indicator — top-right, nudged left to clear the scrollbar */}
-            <View style={styles.eyeIndicator}>
+            {/* Top-left meta cluster — GlassMeta pill + eye-state
+                indicator side by side. Eye used to live in the top-
+                right corner but the right-edge overlay rail covers
+                that whole column on mobile, swallowing eye taps.
+                Moved here 2026-05-27 so it sits clear of the rail. */}
+            <View style={styles.topMetaCluster}>
+              <View style={[styles.glassMeta, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
+                  {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'RECALL'}`}
+                </ThemedText>
+              </View>
               {showAnswer ? (
                 <FiEye size={14} color={colors.textHint} strokeWidth={2} />
               ) : (
@@ -527,20 +529,20 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0,
     height: 3,
   },
-  glassMeta: {
+  topMetaCluster: {
     position: 'absolute',
     top: 8, left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 3,
+    pointerEvents: 'none',
+  },
+  glassMeta: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
     borderRadius: 0,
-    zIndex: 3,
-  },
-  eyeIndicator: {
-    position: 'absolute',
-    top: 10, right: 24,           // 24 (was 10) clears the scrollbar gutter
-    zIndex: 3,
-    pointerEvents: 'none',
   },
   answerBlock: {
     gap: Spacing.three,

@@ -14,15 +14,16 @@
 
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { type ColumnVisibility } from '@/components/flashcard';
+import { OverlayRailButton } from '@/components/overlay-rail-button';
 import { SpeakButton } from '@/components/speak-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -36,6 +37,27 @@ import type { LastSession } from '@/lib/last-session';
 export default function MemorizeScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
   const { scheme, colors } = useThemeColors();
+  const { width: screenW } = useWindowDimensions();
+
+  /* Responsive scale — mirrors flashcard.tsx pattern. Smooth interpolate
+     between 360px viewport (0.65×) and 1024px (1.0×). Affects hero term,
+     meaning pill, bracket reading, markdown body. */
+  const MIN_W = 360;
+  const MAX_W = 1024;
+  const tCard = Math.max(0, Math.min(1, (screenW - MIN_W) / (MAX_W - MIN_W)));
+  const cardScale = 0.65 + tCard * 0.35;
+  const termSize = Math.max(36, Math.round(72 * cardScale));
+  const termLineHeight = Math.round(termSize * 1.08);
+  const bracketSize = Math.max(13, Math.round(16 * cardScale));
+  const meaningSize = Math.max(12, Math.round(14 * cardScale));
+  const mdBody = Math.max(12, Math.round(14 * cardScale));
+
+  /* Edge rail sizing — narrow on mobile, wider tap target on desktop.
+     fillWidth gives the gradient room past the tap column. */
+  const compact = screenW < 600;
+  const railWidth = compact ? 44 : 56;
+  const railIcon = compact ? 24 : 28;
+  const railFillWidth = compact ? 72 : 96;
 
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
@@ -230,7 +252,7 @@ export default function MemorizeScreen() {
                 visibility.pf — matches Quiz front-face semantics. */}
             {visibility.t ? (
               <View style={styles.heroBlock}>
-                <ThemedText style={[styles.term, { color: colors.text }]}>{current.t}</ThemedText>
+                <ThemedText style={[styles.term, { color: colors.text, fontSize: termSize, lineHeight: termLineHeight }]}>{current.t}</ThemedText>
                 {current.t ? (
                   <GestureDetector gesture={speakerTapHero}>
                     <View>
@@ -243,7 +265,7 @@ export default function MemorizeScreen() {
 
             {visibility.pf && current.p ? (
               <View style={styles.bracketRow}>
-                <ThemedText style={[styles.bracketText, { color: colors.textSecondary }]}>
+                <ThemedText style={[styles.bracketText, { color: colors.textSecondary, fontSize: bracketSize }]}>
                   {current.p}
                 </ThemedText>
                 <GestureDetector gesture={speakerTapReading}>
@@ -265,13 +287,13 @@ export default function MemorizeScreen() {
 
                 {visibility.d && current.d ? (
                   <View style={[styles.meaningPill, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
-                    <ThemedText style={[styles.meaningText, { color: Accent.base }]}>{current.d}</ThemedText>
+                    <ThemedText style={[styles.meaningText, { color: Accent.base, fontSize: Math.max(13, meaningSize + 1) }]}>{current.d}</ThemedText>
                   </View>
                 ) : null}
 
                 {visibility.e && current.e ? (
                   <View style={styles.bodyWrap}>
-                    <Markdown style={markdownStyles(colors)}>{current.e}</Markdown>
+                    <Markdown style={markdownStyles(colors, mdBody)}>{current.e}</Markdown>
                   </View>
                 ) : null}
               </View>
@@ -294,32 +316,37 @@ export default function MemorizeScreen() {
               </View>
             )}
             </ScrollView>
+
+            {/* Edge overlay rails — idle opacity 0, press reveals (mirrors
+                Quiz card prev/next pattern). Sit absolute over the card,
+                above ScrollView. Footer prev/next buttons removed in favor
+                of these — they sit on the same surface as the tap-to-flip
+                area + read alongside content (no separate footer bar). */}
+            <OverlayRailButton
+              direction="left"
+              side="left"
+              onPress={goPrev}
+              disabled={!canPrev}
+              colors={colors}
+              width={railWidth}
+              iconSize={railIcon}
+              fillWidth={railFillWidth}
+              isDark={scheme === 'dark'}
+            />
+            <OverlayRailButton
+              direction="right"
+              side="right"
+              onPress={goNext}
+              disabled={!canNext}
+              colors={colors}
+              width={railWidth}
+              iconSize={railIcon}
+              fillWidth={railFillWidth}
+              isDark={scheme === 'dark'}
+            />
             </View>
           </GestureDetector>
         </View>
-
-        {/* Footer controls — prev / next, ChevronLeft/Right buttons.
-            Match Quiz mode's rail style for consistency. */}
-        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
-          <NavButton
-            direction="left"
-            onPress={goPrev}
-            disabled={!canPrev}
-            colors={colors}
-          />
-          <View style={styles.progressWrap}>
-            <ThemedText style={[styles.mono, { color: colors.textHint, fontSize: 10 }]}>
-              {`${index + 1} / ${entries.length}`}
-            </ThemedText>
-          </View>
-          <NavButton
-            direction="right"
-            onPress={goNext}
-            disabled={!canNext}
-            colors={colors}
-          />
-        </View>
-
       </SafeAreaView>
     </ThemedView>
   );
@@ -352,41 +379,18 @@ function Header({
   );
 }
 
-function NavButton({
-  direction,
-  onPress,
-  disabled,
-  colors,
-}: {
-  direction: 'left' | 'right';
-  onPress: () => void;
-  disabled: boolean;
-  colors: typeof Colors.light;
-}) {
-  const Icon = direction === 'left' ? FiChevronLeft : FiChevronRight;
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={direction === 'left' ? 'การ์ดก่อนหน้า' : 'การ์ดถัดไป'}
-      style={({ pressed }) => [
-        styles.navBtn,
-        { borderColor: colors.border },
-        pressed && !disabled && { opacity: 0.6 },
-        disabled && { opacity: 0.25 },
-      ]}>
-      <Icon size={22} color={colors.text} strokeWidth={2} />
-    </Pressable>
-  );
-}
+/* NavButton removed 2026-05-27 — prev/next now lives as edge
+   OverlayRailButton (idle opacity 0 / press reveal), matching the
+   Quiz card pattern. Footer area is gone. */
 
 /* ─── Markdown styles ───────────────────────────────────────────────── */
 
-function markdownStyles(colors: typeof Colors.light) {
+function markdownStyles(colors: typeof Colors.light, bodySize = 14) {
+  const lh = Math.round(bodySize * 1.55);
+  const headingSize = Math.max(13, Math.round(bodySize * 1.14));
   return {
-    body:        { color: colors.text, fontSize: 14, lineHeight: 22 },
-    heading3:    { color: colors.text, fontSize: 16, fontWeight: '600' as const, marginTop: Spacing.three, marginBottom: Spacing.one },
+    body:        { color: colors.text, fontSize: bodySize, lineHeight: lh },
+    heading3:    { color: colors.text, fontSize: headingSize, fontWeight: '600' as const, marginTop: Spacing.three, marginBottom: Spacing.one },
     strong:      { color: colors.text, fontWeight: '700' as const },
     em:          { color: colors.text, fontStyle: 'italic' as const },
     bullet_list: { marginVertical: Spacing.one },
@@ -556,26 +560,4 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.two,
   },
   bodyWrap: { paddingHorizontal: Spacing.one },
-  /* ─── Footer ─── */
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    borderTopWidth: 1,
-  },
-  navBtn: {
-    width: 48,
-    height: 48,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

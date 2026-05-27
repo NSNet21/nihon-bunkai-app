@@ -53,10 +53,12 @@ function openExternal(url: string) {
 }
 
 type ViewMode = 'list' | 'grid';
+type ShopTier = 'level' | 'bundle';
 
 export default function ShopScreen() {
   const { scheme, colors } = useThemeColors();
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
+  const [shopTier, setShopTier] = usePersistedState<ShopTier>('shop-tier', 'level');
   /* Grid only renders meaningfully when ≥2 cards fit per row. Card
      minWidth = 240, gap = 12, container padding ~32 → grid needs ~520px
      inner width = ~600px viewport. Below that, grid collapses to a single
@@ -152,15 +154,40 @@ export default function ShopScreen() {
           }}
           scrollEventThrottle={100}>
          <View style={styles.scrollInner}>
-          <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <ThemedText type="title">ร้านค้า</ThemedText>
-              {showViewToggle && <ViewToggle mode={viewMode} onChange={setViewMode} colors={colors} />}
+          {/* Editorial brutalism header — mirrors design/handoff-app Screen 11.
+              Ghost kanji "価" sits behind the headline; kicker line + display
+              type + sub copy carry the "content-based pricing" framing.
+              View toggle moves into the meta row to keep the headline clean. */}
+          <View style={styles.shopHero}>
+            <ThemedText
+              style={[styles.shopGhostKanji, { color: colors.textHint }]}
+              pointerEvents="none">
+              価
+            </ThemedText>
+            <View style={styles.shopKickerRow}>
+              <View style={[styles.shopPip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.shopKicker, { color: colors.textMuted }]}>
+                // CONTENT-BASED · จ่ายตามใช้
+              </ThemedText>
+              {showViewToggle && (
+                <View style={{ marginLeft: 'auto' }}>
+                  <ViewToggle mode={viewMode} onChange={setViewMode} colors={colors} />
+                </View>
+              )}
             </View>
-            <ThemedText type="small" themeColor="textSecondary">
-              ราคาเดียวกับ landing · เช็คเอาท์ที่ Payhip
+            <ThemedText style={[styles.shopHeadline, { color: colors.text }]}>
+              ราคา{'\n'}
+              <ThemedText style={[styles.shopHeadline, { color: Accent.base }]}>เป็นมิตร.</ThemedText>
+            </ThemedText>
+            <ThemedText style={[styles.shopHeroSub, { color: colors.textMuted }]}>
+              ไม่มีรายเดือน · จ่ายครั้งเดียวเฉพาะ pack ที่ต้องการ · ราคาเดียวกับ landing · เช็คเอาท์ที่ Payhip
             </ThemedText>
           </View>
+
+          {/* Tier filter — PER LEVEL / BUNDLE. Mirrors Screen 11's segmented
+              control. Persisted so a user who only cares about bundles
+              doesn't see 17 SKUs every visit. */}
+          <TierFilter tier={shopTier} onChange={setShopTier} colors={colors} />
 
           {status === 'signed-out' && (
             <Pressable
@@ -183,7 +210,7 @@ export default function ShopScreen() {
             </Pressable>
           )}
 
-          {perLevel.map((group) => (
+          {shopTier === 'level' && perLevel.map((group) => (
             <LevelSection
               key={group.level}
               level={group.level}
@@ -195,22 +222,24 @@ export default function ShopScreen() {
             />
           ))}
 
-          <View style={styles.bundlesSection}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.rule, { backgroundColor: Accent.base }]} />
-              <ThemedText type="defaultSemiBold" style={[styles.sectionTitle, { color: Accent.base }]}>
-                ชุดรวมหลายระดับ
+          {shopTier === 'bundle' && (
+            <View style={styles.bundlesSection}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.rule, { backgroundColor: Accent.base }]} />
+                <ThemedText type="defaultSemiBold" style={[styles.sectionTitle, { color: Accent.base }]}>
+                  ชุดรวมหลายระดับ
+                </ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.bundleBlurb}>
+                ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
               </ThemedText>
+              <View style={effectiveViewMode === 'grid' ? styles.productGrid : styles.productList}>
+                {bundles.map((p) => (
+                  <ProductCard key={p.slug} product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={effectiveViewMode} />
+                ))}
+              </View>
             </View>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.bundleBlurb}>
-              ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
-            </ThemedText>
-            <View style={effectiveViewMode === 'grid' ? styles.productGrid : styles.productList}>
-              {bundles.map((p) => (
-                <ProductCard key={p.slug} product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={effectiveViewMode} />
-              ))}
-            </View>
-          </View>
+          )}
 
           <View style={styles.footerLinks}>
             <Pressable onPress={() => openExternal(LANDING_URL)} style={styles.landingLink}>
@@ -346,6 +375,80 @@ function ViewToggle({
       <ThemedText type="small" themeColor="textHint" style={styles.toggleHint}>
         View: {mode === 'list' ? 'List' : 'Grid'}
       </ThemedText>
+    </View>
+  );
+}
+
+/* ── Tier filter (PER LEVEL · BUNDLE) ────────────────────────────────────
+   Segmented control mirroring Screen 11 of the design handoff. Persisted
+   so a returning user lands on whichever tier they used last. Uses the
+   same web-CSS-transition pill pattern as ViewToggle/LanguageToggle —
+   compositor-thread animation, no Reanimated cost. */
+
+const TIER_SEGMENTS: { value: ShopTier; label: string }[] = [
+  { value: 'level',  label: 'PER LEVEL' },
+  { value: 'bundle', label: 'BUNDLE' },
+];
+
+const TIER_TRACK_WIDTH = 220;
+const TIER_PILL_PAD = 2;
+const TIER_SEGMENT_WIDTH = (TIER_TRACK_WIDTH - TIER_PILL_PAD * 2) / TIER_SEGMENTS.length;
+
+const TIER_PILL_TRANSITION = Platform.select({
+  web: {
+    transitionProperty: 'transform',
+    transitionDuration: '180ms',
+    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  } as object,
+  default: undefined,
+});
+
+function TierFilter({
+  tier,
+  onChange,
+  colors,
+}: {
+  tier: ShopTier;
+  onChange: (next: ShopTier) => void;
+  colors: typeof Colors.light;
+}) {
+  const rawIndex = TIER_SEGMENTS.findIndex((s) => s.value === tier);
+  const selectedIndex = rawIndex < 0 ? 0 : rawIndex;
+
+  return (
+    <View
+      style={[
+        styles.tierTrack,
+        { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+      ]}>
+      <View
+        style={[
+          styles.tierPill,
+          {
+            backgroundColor: Accent.base,
+            width: TIER_SEGMENT_WIDTH - 4,
+            transform: [{ translateX: selectedIndex * TIER_SEGMENT_WIDTH }],
+          },
+          TIER_PILL_TRANSITION,
+        ]}
+      />
+      {TIER_SEGMENTS.map((seg) => {
+        const active = seg.value === tier;
+        const fg = active ? '#fff' : colors.text;
+        return (
+          <Pressable
+            key={seg.value}
+            onPress={() => onChange(seg.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={`เลือก ${seg.label}`}
+            style={({ pressed }) => [styles.tierSegment, pressed && { opacity: 0.85 }]}>
+            <ThemedText style={[styles.tierLabel, { color: fg }]}>
+              {seg.label}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -767,6 +870,84 @@ const styles = StyleSheet.create({
   },
   header: { gap: Spacing.two, marginBottom: Spacing.two },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
+  /* Editorial hero — Screen 11 layout. Ghost kanji sits behind the
+     headline as a faded backdrop; zIndex on foreground elements keeps
+     the kicker/headline/sub above it. */
+  shopHero: { gap: Spacing.two, marginBottom: Spacing.two, position: 'relative' },
+  shopGhostKanji: {
+    position: 'absolute',
+    top: -8,
+    right: -16,
+    fontFamily: Platform.select({ web: '"Noto Serif JP", serif', default: undefined }),
+    fontSize: 200,
+    lineHeight: 200,
+    opacity: 0.04,
+    zIndex: 0,
+  } as any,
+  shopKickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    zIndex: 1,
+  },
+  shopPip: {
+    width: 6,
+    height: 6,
+    borderRadius: 1,
+  },
+  shopKicker: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  shopHeadline: {
+    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
+    fontSize: 44,
+    lineHeight: 50,
+    fontWeight: '700',
+    letterSpacing: -1,
+    zIndex: 1,
+  },
+  shopHeroSub: {
+    fontSize: 12,
+    lineHeight: 18,
+    maxWidth: 460,
+    zIndex: 1,
+  },
+
+  /* Tier filter sliding-pill segmented control. */
+  tierTrack: {
+    width: TIER_TRACK_WIDTH,
+    height: 36,
+    flexDirection: 'row',
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    padding: TIER_PILL_PAD,
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  tierPill: {
+    position: 'absolute',
+    top: 2,
+    bottom: 2,
+    left: 2,
+    borderRadius: 2,
+  },
+  tierSegment: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  tierLabel: {
+    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+  },
   nudgeBanner: {
     flexDirection: 'row',
     alignItems: 'center',

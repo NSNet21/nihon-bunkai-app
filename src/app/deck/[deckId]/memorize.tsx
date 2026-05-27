@@ -199,6 +199,11 @@ export default function MemorizeScreen() {
               style={[
                 styles.card,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                /* RNGH default touchAction:'none' blocks browser touch scroll.
+                   pan-y lets vertical pans bubble to the outer ScrollView while
+                   keeping horizontal swipe handled by RNGH (swipePan has
+                   activeOffsetX + failOffsetY). */
+                Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
 

@@ -256,11 +256,13 @@ export default function BrowseScreen() {
                   </ThemedText>
                 </View>
               )}
-              {showContinue && lastSession && (
-                <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
-              )}
+              {/* LEARN above QUIZ — passive review usually precedes active
+                  testing in the user's flow (user preference 2026-05-27). */}
               {showContinueLearn && lastSessionLearn && (
                 <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
+              )}
+              {showContinue && lastSession && (
+                <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
               <Toolbar
                 onExpandAll={expandAll}

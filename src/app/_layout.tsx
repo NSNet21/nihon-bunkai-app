@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,6 +10,35 @@ import { AuthProvider } from '@/context/auth';
 import { ThemeProvider as AppThemeProvider } from '@/context/theme';
 import { useThemeColors } from '@/context/theme';
 import { requestPersistentStorage } from '@/lib/persistent-storage';
+
+/* First-run gate. Reads nb.onboarded synchronously on mount and redirects to
+   /onboarding/welcome when missing. Lives at root so it covers every entry
+   path (direct deep link, bookmark, magic-link return). Splash overlay
+   hides the brief flash before the redirect commits. */
+function OnboardingGate() {
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    let onboarded = false;
+    try {
+      onboarded = window.localStorage.getItem('nb.onboarded') === 'true';
+    } catch {
+      onboarded = true; /* localStorage blocked → don't trap user in onboarding */
+    }
+    const root = segments[0];
+    const inOnboarding = root === 'onboarding';
+    /* Login must stay reachable even when not yet onboarded, otherwise the
+       SIGN IN link on the welcome screen would redirect right back to it. */
+    const inAuthFlow = root === 'login';
+    if (!onboarded && !inOnboarding && !inAuthFlow) {
+      router.replace('/onboarding/welcome');
+    }
+  }, [segments, router]);
+
+  return null;
+}
 
 function ThemedRoot() {
   const { scheme: colorScheme } = useThemeColors();
@@ -30,8 +59,10 @@ function ThemedRoot() {
     <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
       <SearchShortcut />
+      <OnboardingGate />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="onboarding" />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
       </Stack>
     </NavThemeProvider>

@@ -26,7 +26,7 @@ import { type ColumnVisibility } from '@/components/flashcard';
 import { SpeakButton } from '@/components/speak-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -179,22 +179,13 @@ export default function MemorizeScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <Header deck={deck} index={index} total={entries.length} colors={colors} />
 
-        <ScrollView
-          style={[
-            styles.scroll,
-            /* touch-action: pan-y so vertical scroll stays with the
-               ScrollView and horizontal pans bubble to RNGH's Pan
-               gesture below ([[next-session-resume]] rule). */
-            Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
-          ]}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + 96 }]}
-          showsVerticalScrollIndicator={false}>
-          {/* Card frame — matches Quiz Flashcard's editorial shell (border +
-              top crimson stripe). Gesture.Race(pan, tap) ensures swipe and
-              tap never fire together (was a bug — Pressable inside
-              GestureDetector raced with Pan and toggled on swipe-end).
-              Inner SpeakButtons remain interactive via native touch
-              event bubbling. */}
+        {/* Card-as-scroll-container restructure 2026-05-27 (user request):
+            page no longer scrolls — the card frame fills available space and
+            its inner body ScrollView handles overflow with an always-visible
+            scrollbar (y-only). Outer flex column = Header / card flex:1 /
+            Footer. Stripe + GlassMeta + EyeIndicator stay absolute over the
+            ScrollView so they don't scroll with content. */}
+        <View style={styles.cardOuter}>
           <GestureDetector gesture={cardGesture}>
             <View
               accessibilityRole="none"
@@ -202,11 +193,6 @@ export default function MemorizeScreen() {
               style={[
                 styles.card,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                /* RNGH default touchAction:'none' blocks browser touch scroll.
-                   pan-y lets vertical pans bubble to the outer ScrollView while
-                   keeping horizontal swipe handled by RNGH (swipePan has
-                   activeOffsetX + failOffsetY). */
-                Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
 
@@ -217,7 +203,7 @@ export default function MemorizeScreen() {
               </ThemedText>
             </View>
 
-            {/* Eye indicator — top-right corner, shows current toggle state */}
+            {/* Eye indicator — top-right, nudged left to clear the scrollbar */}
             <View style={[styles.eyeIndicator, { pointerEvents: 'none' }]}>
               {showAnswer ? (
                 <FiEye size={14} color={colors.textHint} strokeWidth={2} />
@@ -226,6 +212,19 @@ export default function MemorizeScreen() {
               )}
             </View>
 
+            <ScrollView
+              style={[
+                styles.cardBodyScroll,
+                /* touch-action: pan-y so vertical touch-scroll bubbles
+                   through RNGH's tap arena (tap maxDistance 10 fails
+                   immediately on scroll motion). Matches Quiz back-face
+                   ScrollView styling — uses RN-Web's default scrollbar
+                   (no explicit overflow override, no persistentScrollbar). */
+                Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
+              ]}
+              contentContainerStyle={styles.cardBodyContent}
+              {...({ dataSet: { scroll: 'card' } } as object)}
+              showsVerticalScrollIndicator>
             {/* FRONT block — T (hero) + P (reading). Always shown
                 (gated by visibility flags). T uses visibility.t, P uses
                 visibility.pf — matches Quiz front-face semantics. */}
@@ -294,9 +293,10 @@ export default function MemorizeScreen() {
                 </ThemedText>
               </View>
             )}
+            </ScrollView>
             </View>
           </GestureDetector>
-        </ScrollView>
+        </View>
 
         {/* Footer controls — prev / next, ChevronLeft/Right buttons.
             Match Quiz mode's rail style for consistency. */}
@@ -415,11 +415,23 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     gap: Spacing.three,
   },
-  scroll: { flex: 1 },
-  scrollContent: {
+  /* Card outer wrapper — flex container that fills space between Header
+     and Footer. Card itself sits inside with flex: 1, body scrolls. */
+  cardOuter: {
+    flex: 1,
     paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
     paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+  },
+  cardBodyScroll: { flex: 1, alignSelf: 'stretch' },
+  cardBodyContent: {
+    /* All padding lives here (not on .card) so the scrollbar runs the
+       full card height and stays flush with the right border. Top
+       padding clears the GlassMeta pill + eye indicator. */
+    paddingHorizontal: Spacing.five,
+    paddingTop: Spacing.six + Spacing.three,
+    paddingBottom: Spacing.five,
+    gap: Spacing.four,
   },
   centerFill: {
     flex: 1,
@@ -430,14 +442,17 @@ const styles = StyleSheet.create({
   },
   /* ─── Card frame (matches Quiz Flashcard editorial shell) ─── */
   card: {
+    flex: 1,
+    alignSelf: 'stretch',
     borderWidth: 1,
     borderRadius: Radii.md,
-    padding: Spacing.five,
-    paddingTop: Spacing.six + Spacing.three,
+    /* No padding — ScrollView fills the full card so the scrollbar
+       runs the entire card height (top stripe → bottom). GlassMeta +
+       eye sit absolute over the top; contentContainer carries the
+       inset so content doesn't sit under them. */
+    padding: 0,
     position: 'relative',
     overflow: 'hidden',
-    gap: Spacing.four,
-    minHeight: 320,
   },
   cardStripe: {
     position: 'absolute',
@@ -455,7 +470,7 @@ const styles = StyleSheet.create({
   },
   eyeIndicator: {
     position: 'absolute',
-    top: 10, right: 10,
+    top: 10, right: 24,           // 24 (was 10) clears the scrollbar gutter
     zIndex: 3,
   },
   answerBlock: {

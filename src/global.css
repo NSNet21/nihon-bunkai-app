@@ -73,11 +73,15 @@
 *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 *::-webkit-scrollbar-corner { background: var(--scrollbar-track); }
 
-/* Card-only scrollbar — thinner than the global 10px so it doesn't
-   visually compete with the small flashcard content. Targeted via
-   `dataSet={{ scroll: 'card' }}` on the back-face ScrollView. */
-[data-scroll="card"] { scrollbar-width: thin; }
-[data-scroll="card"]::-webkit-scrollbar { width: 8px; height: 8px; }
+/* Card-only scrollbar — slightly wider so it's easier to grab inside
+   the card frame, but still narrower than the page-edge scrollbar
+   (user request 2026-05-27). Targeted via `dataSet={{ scroll: 'card' }}`
+   on the card's ScrollView (Quiz back face + Memorize body). */
+/* Don't set scrollbar-width on card — Chrome/Edge ignore
+   ::-webkit-scrollbar width when scrollbar-width is specified. */
+[data-scroll="card"] { scrollbar-width: unset; }
+[data-scroll="card"]::-webkit-scrollbar { width: 14px; height: 14px; }
+[data-scroll="card"]::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
 [data-scroll="card"]::-webkit-scrollbar-track {
   border-left: none;
 }

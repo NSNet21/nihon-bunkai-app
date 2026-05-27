@@ -32,10 +32,17 @@ import { useThemeColors } from '@/context/theme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import type { Entry } from '@/data/types';
+import { loadGroupEntriesAsync, parseGroupIds } from '@/lib/group-entries';
 import type { LastSession } from '@/lib/last-session';
 
 export default function MemorizeScreen() {
-  const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
+  const { deckId, entryId, ids } = useLocalSearchParams<{ deckId?: string; entryId?: string; ids?: string }>();
+  /* Group-mode = ?ids=foo,bar,baz appended to URL. When present, Memorize
+     merges entries from N decks instead of loading one. Continue-card
+     persist is skipped (transient session — no "resume group X at card
+     12/120" semantics for v1). */
+  const groupIds = useMemo(() => parseGroupIds(ids), [ids]);
+  const isGroupMode = groupIds.length > 0;
   const { scheme, colors } = useThemeColors();
   const { width: screenW } = useWindowDimensions();
 
@@ -82,14 +89,19 @@ export default function MemorizeScreen() {
   );
 
   useEffect(() => {
-    if (!deckId) return;
     let cancelled = false;
-    void entriesForDeckAsync(deckId).then((rows) => {
+    const loader = isGroupMode
+      ? loadGroupEntriesAsync(groupIds)
+      : deckId
+        ? entriesForDeckAsync(deckId)
+        : Promise.resolve<Entry[]>([]);
+    void loader.then((rows) => {
       if (cancelled) return;
       setEntries(rows);
       /* Jump to entryId if present (Continue card resume) — falls
-         back to 0 if the entry no longer exists. */
-      if (entryId) {
+         back to 0 if the entry no longer exists. Group mode never
+         resumes, so always start at 0 when ids change. */
+      if (entryId && !isGroupMode) {
         const jumpTo = rows.findIndex((r) => r.id === entryId);
         setIndex(jumpTo >= 0 ? jumpTo : 0);
       } else {
@@ -99,13 +111,15 @@ export default function MemorizeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [deckId, entryId]);
+  }, [deckId, entryId, isGroupMode, groupIds]);
 
   /* Persist position for Continue · Learn — fires on every card change
      so Browse can resume the user where they left off. Skips when
-     entries haven't loaded or deck is missing. */
+     entries haven't loaded, deck is missing, OR we're in group mode
+     (transient cross-deck session — no Continue card semantics). */
   const current = entries[index];
   useEffect(() => {
+    if (isGroupMode) return;
     if (!deck || !current) return;
     setLastSessionLearn({
       deckId: deck.id,
@@ -115,7 +129,7 @@ export default function MemorizeScreen() {
       total: entries.length,
       updatedAt: Date.now(),
     });
-  }, [deck, current, index, entries.length, setLastSessionLearn]);
+  }, [deck, current, index, entries.length, isGroupMode, setLastSessionLearn]);
 
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
@@ -187,15 +201,19 @@ export default function MemorizeScreen() {
     });
   const cardGesture = Gesture.Race(swipePan, tapToggle);
 
-  if (!deck || !current) {
+  /* Empty-state gate. Group mode skips the deck-existence check —
+     deck is intentionally undefined (sentinel path /deck/__group__).
+     Only fail when entries actually failed to load. */
+  if ((!deck && !isGroupMode) || !current) {
+    const isEmpty = isGroupMode ? entries.length === 0 : !!deck;
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <Header />
           <View style={styles.centerFill}>
-            <ThemedText type="title">{deck ? 'ยังไม่มีคำในชุดนี้' : 'ไม่พบ Deck'}</ThemedText>
+            <ThemedText type="title">{isEmpty ? 'ยังไม่มีคำในชุดนี้' : 'ไม่พบ Deck'}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', maxWidth: 320 }}>
-              {deck ? 'Deck ว่างเปล่า — กลับไปเลือกชุดอื่น' : 'อาจถูกลบหรือ deck ID ไม่ถูกต้อง'}
+              {isEmpty ? 'Deck ว่างเปล่า — กลับไปเลือกชุดอื่น' : 'อาจถูกลบหรือ deck ID ไม่ถูกต้อง'}
             </ThemedText>
           </View>
         </SafeAreaView>

@@ -2,7 +2,7 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLock } from 'react-icons/fi';
+import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLayers, FiLock } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -85,6 +85,7 @@ function buildRows(
 }
 
 export default function BrowseScreen() {
+  const router = useRouter();
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
@@ -243,6 +244,29 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
               </ThemedText>
+              {/* Multi-deck Study entry point — opens the Group Picker.
+                  v1 = Learn mode only (Quiz is per-deck for FSRS reasons).
+                  Pill style matches the editorial mono kicker treatment. */}
+              <Pressable
+                onPress={() => router.push('/group-picker')}
+                accessibilityRole="button"
+                accessibilityLabel="เลือกหลายชุดเรียนพร้อมกัน"
+                style={({ pressed }) => [
+                  styles.groupPickerEntry,
+                  { borderColor: colors.border, backgroundColor: colors.surface },
+                  pressed && { opacity: 0.85 },
+                ]}>
+                <FiLayers size={14} color={Accent.base} strokeWidth={2} />
+                <View style={{ flex: 1 }}>
+                  <ThemedText style={[styles.groupPickerLabel, { color: Accent.base }]}>
+                    MULTI-DECK STUDY · เรียนหลายชุดติดกัน
+                  </ThemedText>
+                  <ThemedText style={[styles.groupPickerSub, { color: colors.textMuted }]}>
+                    เลือกหลายชุด → รวมการ์ดเป็นเซ็ตเดียว · Learn mode
+                  </ThemedText>
+                </View>
+                <ThemedText style={[styles.groupPickerArrow, { color: Accent.base }]}>→</ThemedText>
+              </Pressable>
               {/* Parent kicker for the Continue cards — without it, the
                   two QUIZ/LEARN CONTINUE labels read as orphans. GPT
                   polish round 2026-05-27. Renders only when at least one
@@ -579,6 +603,33 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     marginTop: Spacing.one,
+  },
+  /* Multi-deck Study entry pill — sits between hero sub and the Continue
+     cluster so it reads as a primary CTA without competing with the
+     editorial headline. Subtle border + accent text keeps it within the
+     "calm utility" band of the Browse top area. */
+  groupPickerEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    marginTop: Spacing.three,
+  },
+  groupPickerLabel: {
+    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+  },
+  groupPickerSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  groupPickerArrow: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   /* Toolbar visual weight reduced ~15% via opacity per GPT polish round
      2026-05-27. The 3 view-mode buttons were drawing the eye as if they

@@ -16,7 +16,7 @@ import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { useAllDecks } from '@/hooks/use-decks';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -90,7 +90,7 @@ export default function BrowseScreen() {
   const [subsOnly, setSubsOnly] = useState(false);
   const listRef = useRef<FlashListRef<Row>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
 
   const { decks } = useAllDecks();
   const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
@@ -299,7 +299,7 @@ function Toolbar({
   subsOnly: boolean;
   onToggleSubsOnly: () => void;
 }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   return (
     <View style={styles.toolbar}>
       <ScaleButton
@@ -358,7 +358,7 @@ function AnimatedChevron({ isOpen, size, color }: { isOpen: boolean; size: numbe
 }
 
 function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.levelHeader, pressed && styles.headerPressed]}>
       <View style={styles.levelRule} />
@@ -376,7 +376,7 @@ function LevelHeader({ title, isOpen, childCount, onPress }: { title: string; is
 }
 
 function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string; isOpen: boolean; childCount: number; onPress: () => void }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.categoryHeader, pressed && styles.headerPressed]}>
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.categoryTitle}>
@@ -393,7 +393,7 @@ function CategoryHeader({ title, isOpen, childCount, onPress }: { title: string;
 }
 
 function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const router = useRouter();
 
   // Presence in list = ownership (free embedded OR paid imported via IndexedDB).

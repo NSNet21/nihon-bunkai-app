@@ -400,6 +400,13 @@ export default function MemorizeScreen() {
             </ThemedText>
           </View>
         )}
+        {/* Editorial brand strip — matches Quiz's bottom decoration so
+            the two study modes feel consistent (user request 2026-05-27). */}
+        <View style={[styles.brandRow, { pointerEvents: 'none' }]}>
+          <ThemedText style={[styles.brandText, { color: colors.textHint }]}>
+            NIHON BUNKAI · 鍛練精進
+          </ThemedText>
+        </View>
       </SafeAreaView>
     </ThemedView>
   );
@@ -656,5 +663,19 @@ const styles = StyleSheet.create({
   bottomCounter: {
     alignItems: 'center',
     paddingVertical: Spacing.three,
+  },
+  /* Brand decoration strip — mirrors quiz.tsx brandStyles. */
+  brandRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.three,
+  },
+  brandText: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
   },
 });

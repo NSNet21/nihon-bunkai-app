@@ -215,36 +215,40 @@ export default function DeckDetailScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.headerBar}>
-          <Link href="/" asChild>
-            <Pressable accessibilityRole="link" accessibilityLabel="กลับ Browse" style={styles.backBtn}>
-              {({ pressed, hovered }) => {
-                const active = pressed || hovered;
-                return (
-                  <>
-                    <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
-                    <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>BACK</ThemedText>
-                  </>
-                );
-              }}
-            </Pressable>
-          </Link>
-          <Pressable
-            onPress={() => router.push(`/deck/${deck.id}/config` as never)}
-            accessibilityRole="button"
-            accessibilityLabel="ตั้งค่ารอบทบทวน"
-            style={({ pressed }) => [
-              styles.configBtn,
-              { borderColor: colors.border, backgroundColor: colors.background },
-              pressed && { opacity: 0.7 },
-            ]}>
-            <FiSliders size={16} color={colors.text} strokeWidth={2} />
-          </Pressable>
-        </View>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + Spacing.six }]}
           showsVerticalScrollIndicator>
+          {/* Header (BACK + filter) moved INTO ScrollView so the scrollbar
+              extends the full viewport height (user request 2026-05-27).
+              It scrolls with content — TopNavBar already handles fixed
+              navigation; this in-page header is a one-time anchor. */}
+          <View style={styles.headerBar}>
+            <Link href="/" asChild>
+              <Pressable accessibilityRole="link" accessibilityLabel="กลับ Browse" style={styles.backBtn}>
+                {({ pressed, hovered }) => {
+                  const active = pressed || hovered;
+                  return (
+                    <>
+                      <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+                      <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>BACK</ThemedText>
+                    </>
+                  );
+                }}
+              </Pressable>
+            </Link>
+            <Pressable
+              onPress={() => router.push(`/deck/${deck.id}/config` as never)}
+              accessibilityRole="button"
+              accessibilityLabel="ตั้งค่ารอบทบทวน"
+              style={({ pressed }) => [
+                styles.configBtn,
+                { borderColor: colors.border, backgroundColor: colors.background },
+                pressed && { opacity: 0.7 },
+              ]}>
+              <FiSliders size={16} color={colors.text} strokeWidth={2} />
+            </Pressable>
+          </View>
           {/* ── Hero ── */}
           <View style={[styles.hero, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
             <View style={[styles.heroStripe, { backgroundColor: Accent.base }]} />

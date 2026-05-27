@@ -171,9 +171,16 @@ export default function MemorizeScreen() {
   const toggleAnswer = () => setShowAnswer((v) => !v);
   const speakerTapHero = useMemo(() => Gesture.Tap().maxDistance(10), []);
   const speakerTapReading = useMemo(() => Gesture.Tap().maxDistance(10), []);
+  /* Same RNGH arena pattern as speakers: rails register their own Tap
+     gestures, and the outer tapToggle requires them to fail before it
+     fires. Without this, tapping a rail on mobile would both navigate
+     AND toggle the answer (the rail's Pressable doesn't compete with
+     RNGH's tap arena on its own). */
+  const railTapPrev = useMemo(() => Gesture.Tap().maxDistance(10), []);
+  const railTapNext = useMemo(() => Gesture.Tap().maxDistance(10), []);
   const tapToggle = Gesture.Tap()
     .maxDistance(10)
-    .requireExternalGestureToFail(speakerTapHero, speakerTapReading)
+    .requireExternalGestureToFail(speakerTapHero, speakerTapReading, railTapPrev, railTapNext)
     .onEnd((_e, success) => {
       if (!success) return;
       scheduleOnRN(toggleAnswer);
@@ -337,30 +344,38 @@ export default function MemorizeScreen() {
                 so the chevron doesn't overlap content (user request
                 2026-05-27). */}
             {compact && (
-              <OverlayRailButton
-                direction="left"
-                side="left"
-                onPress={goPrev}
-                disabled={!canPrev}
-                colors={colors}
-                width={railWidth}
-                iconSize={railIcon}
-                fillWidth={railFillWidth}
-                isDark={scheme === 'dark'}
-              />
+              <GestureDetector gesture={railTapPrev}>
+                <View style={[styles.railOverlayWrap, { left: 0, width: railWidth }]}>
+                  <OverlayRailButton
+                    direction="left"
+                    side="left"
+                    onPress={goPrev}
+                    disabled={!canPrev}
+                    colors={colors}
+                    width={railWidth}
+                    iconSize={railIcon}
+                    fillWidth={railFillWidth}
+                    isDark={scheme === 'dark'}
+                  />
+                </View>
+              </GestureDetector>
             )}
             {compact && (
-              <OverlayRailButton
-                direction="right"
-                side="right"
-                onPress={goNext}
-                disabled={!canNext}
-                colors={colors}
-                width={railWidth}
-                iconSize={railIcon}
-                fillWidth={railFillWidth}
-                isDark={scheme === 'dark'}
-              />
+              <GestureDetector gesture={railTapNext}>
+                <View style={[styles.railOverlayWrap, { right: 0, width: railWidth }]}>
+                  <OverlayRailButton
+                    direction="right"
+                    side="right"
+                    onPress={goNext}
+                    disabled={!canNext}
+                    colors={colors}
+                    width={railWidth}
+                    iconSize={railIcon}
+                    fillWidth={railFillWidth}
+                    isDark={scheme === 'dark'}
+                  />
+                </View>
+              </GestureDetector>
             )}
             </View>
           </GestureDetector>
@@ -626,6 +641,17 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.two,
   },
   bodyWrap: { paddingHorizontal: Spacing.one },
+  /* Wrapper around each compact-mode OverlayRailButton so the inner
+     gesture (railTap{Prev,Next}) has a real View to attach to.
+     position: absolute + top/bottom/side: 0 mirrors what the button
+     sets internally — the wrap is invisible itself; child takes over
+     layout. zIndex matches the button to keep stacking order. */
+  railOverlayWrap: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    zIndex: 15,
+  },
   /* Bottom counter — minimal index display, no controls (rails handle nav). */
   bottomCounter: {
     alignItems: 'center',

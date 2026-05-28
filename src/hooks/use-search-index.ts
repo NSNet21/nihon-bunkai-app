@@ -30,10 +30,14 @@ interface UseSearchIndex {
    *  corpus as a long list with FlashList virtualization. */
   allEntries: SearchableEntry[];
   run: (query: string, limit?: number) => SearchResult[];
+  /** Forces a fresh paid-deck listing + index rebuild. Exposed so the
+   *  Search screen can put a manual refresh button next to the total
+   *  strip (the auto visibilitychange re-sync was removed). */
+  refresh: () => void;
 }
 
 export function useSearchIndex(): UseSearchIndex {
-  const { decks, loading: decksLoading } = useAllDecks();
+  const { decks, loading: decksLoading, refresh } = useAllDecks();
   const engineRef = useRef<SearchEngine | null>(null);
   const fuseRef = useRef<Fuse<SearchableEntry> | null>(null);
   const [ready, setReady] = useState(false);
@@ -75,5 +79,5 @@ export function useSearchIndex(): UseSearchIndex {
     return engineRef.current.search(fuseRef.current, query, limit);
   }, []);
 
-  return { ready, totalEntries, allEntries, run };
+  return { ready, totalEntries, allEntries, run, refresh };
 }

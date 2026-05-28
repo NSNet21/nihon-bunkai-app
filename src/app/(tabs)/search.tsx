@@ -2,7 +2,7 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import { FiSearch, FiX } from 'react-icons/fi';
+import { FiRefreshCw, FiSearch, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FOCUS_SEARCH_EVENT } from '@/components/search-shortcut';
@@ -54,9 +54,67 @@ export default function SearchScreen() {
   const router = useRouter();
   const c = useThemePalette();
 
-  const { ready, totalEntries, allEntries, run } = useSearchIndex();
+  const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
   const { width: viewportW } = useWindowDimensions();
   const compact = viewportW > 0 && viewportW < 480;
+
+  /* Measure the actual scrollbar width once on web mount — hardcoded
+     values (4 px on overlay, 14 px on desktop) are wrong inside
+     DevTools mobile emulation (Chrome keeps the desktop scrollbar
+     even when the viewport is sized to a phone). A 1-render synthetic
+     scroll element gives us the real px width, so the sticky section
+     header gutter matches regardless of platform / DevTools state. */
+  const [scrollbarPx, setScrollbarPx] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const outer = document.createElement('div');
+    outer.style.cssText = 'visibility:hidden;overflow:scroll;width:100px;height:100px;position:absolute;top:-9999px;';
+    const inner = document.createElement('div');
+    inner.style.width = '100%';
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+    const w = outer.offsetWidth - inner.offsetWidth;
+    document.body.removeChild(outer);
+    setScrollbarPx(w);
+  }, []);
+
+  /* Compact mode interpolates EVERY size between 320 px (small phone)
+     and 480 px (wide phone) so the whole layout — fonts, chips,
+     padding, even the section header — shrinks smoothly with the
+     viewport instead of stepping at one breakpoint. Above 480 px the
+     wide layout takes over and the unscaled defaults apply.
+     Compact base sizes are already 1-2 px below the wide defaults so
+     the mobile card stays under ~80 px tall even at the upper end of
+     the compact range. */
+  const { rowSizes, chromeSizes } = useMemo(() => {
+    if (!compact) {
+      return {
+        rowSizes: { term: 17, reading: 12, meaning: 13, chip: 11, padV: 12, padH: 8, gap: 4, chipPadH: 8 },
+        chromeSizes: { headerLabel: 12, headerCount: 11, totalText: 11, totalNumber: 12 },
+      };
+    }
+    const t = Math.max(0, Math.min(1, (viewportW - 320) / 160));
+    const scale = 0.88 + t * 0.12;
+    const round = (n: number) => Math.max(8, Math.round(n * scale));
+    return {
+      rowSizes: {
+        term: round(15),
+        reading: round(10),
+        meaning: round(11),
+        chip: round(9),
+        padV: round(5),
+        padH: round(8),
+        gap: round(2),
+        chipPadH: round(6),
+      },
+      chromeSizes: {
+        headerLabel: round(11),
+        headerCount: round(10),
+        totalText: round(10),
+        totalNumber: round(11),
+      },
+    };
+  }, [compact, viewportW]);
 
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -186,7 +244,7 @@ export default function SearchScreen() {
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
       if ('__header' in item && item.__header) {
-        return <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} />;
+        return <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} scrollbarPx={scrollbarPx} />;
       }
       const r = item.result;
       return (
@@ -195,10 +253,11 @@ export default function SearchScreen() {
           onPress={() => openEntry(r.entry.deckId, r.entry.id)}
           themeColor={c}
           compact={compact}
+          sizes={rowSizes}
         />
       );
     },
-    [c, openEntry, compact, openJumpGrid],
+    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid, scrollbarPx],
   );
 
   /* FlashList recycles cells by type — telling it that headers and rows
@@ -284,21 +343,35 @@ export default function SearchScreen() {
           )}
         </View>
 
-        {/* Total strip — left-aligned count above the result list.
-            "ทั้งหมด N รายการ" reflects the full corpus when no query
-            is active, or the matched subset when filtering. Always
-            visible once the index is ready so the count is always one
-            glance away. */}
+        {/* Total strip — left-aligned count above the result list +
+            refresh icon on the right edge. Manual refresh replaced
+            the auto visibilitychange listener so the user controls
+            when "rebuilding index…" runs (cross-tab sync after a
+            purchase elsewhere is the main use case). */}
         {ready && hasResults && (
           <View style={[styles.totalStrip, { borderBottomColor: c.border }]}>
-            <ThemedText style={[styles.totalText, { color: c.textMuted }]}>
-              ทั้งหมด <ThemedText style={[styles.totalNumber, { color: c.text }]}>{results.length.toLocaleString()}</ThemedText> รายการ
+            <ThemedText style={[styles.totalText, { color: c.textMuted, fontSize: chromeSizes.totalText }]}>
+              ทั้งหมด <ThemedText style={[styles.totalNumber, { color: c.text, fontSize: chromeSizes.totalNumber }]}>{results.length.toLocaleString()}</ThemedText> รายการ
               {hasQuery && results.length !== totalEntries ? (
-                <ThemedText style={[styles.totalText, { color: c.textHint }]}>
+                <ThemedText style={[styles.totalText, { color: c.textHint, fontSize: chromeSizes.totalText }]}>
                   {' '}· จาก {totalEntries.toLocaleString()}
                 </ThemedText>
               ) : null}
             </ThemedText>
+            <Pressable
+              onPress={refresh}
+              accessibilityRole="button"
+              accessibilityLabel="โหลด deck ใหม่"
+              // @ts-ignore web tooltip
+              title="โหลด deck ใหม่ (re-sync)"
+              hitSlop={6}
+              style={({ pressed, hovered }: any) => [
+                styles.refreshBtn,
+                hovered && { backgroundColor: c.surface2 },
+                pressed && { opacity: 0.6 },
+              ]}>
+              <FiRefreshCw size={14} color={c.textMuted} strokeWidth={2} />
+            </Pressable>
           </View>
         )}
 
@@ -313,6 +386,14 @@ export default function SearchScreen() {
              iOS contacts behaviour). Disabled in filter mode (no
              headers in listData then). */
           stickyHeaderIndices={stickyHeaderIndices}
+          /* `scrollbar-gutter: stable` reserves a fixed-width column on
+             the right edge for the browser scrollbar — sticky section
+             headers then sit INSIDE that gutter boundary instead of
+             painting over the scrollbar. Web-only since RN's native
+             scrollers don't have this concern. */
+          style={Platform.OS === 'web'
+            ? ({ scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any)
+            : undefined}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           /* drawDistance defines how far ABOVE + BELOW the viewport
@@ -349,18 +430,31 @@ interface SectionHeaderProps {
   count: number;
   themeColor: typeof Colors.light | typeof Colors.dark;
   onPress: () => void;
+  compact: boolean;
+  chrome: { headerLabel: number; headerCount: number; totalText: number; totalNumber: number };
+  scrollbarPx: number;
 }
 
-/** Inline section header — scroll-along (not sticky). Background sits
- *  one surface step above the row baseline so the eye registers it
- *  as a divider, not another entry. Tapping it opens the JumpGrid
- *  modal so the user can hop to any other section without scrubbing. */
-function SectionHeaderRow({ keyName, count, themeColor: c, onPress }: SectionHeaderProps) {
+/** Inline section header — sticky pin to top edge until the next
+ *  header pushes it off. Background sits one surface step above the
+ *  row baseline so the eye registers it as a divider, not another
+ *  entry. Tapping opens the JumpGrid modal for cross-section hops.
+ *  The right inset reserves space for the browser scrollbar so the
+ *  sticky-header background doesn't paint UNDER the scrollbar — and
+ *  it scales down on compact viewports where mobile uses overlay
+ *  scrollbars that claim near-zero gutter. */
+function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chrome, scrollbarPx }: SectionHeaderProps) {
+  /* Use measured scrollbar width when available, fall back to platform
+     defaults until the measurement effect lands. */
+  const gutter = Platform.OS === 'web'
+    ? (scrollbarPx > 0 ? scrollbarPx : compact ? 4 : 14)
+    : 0;
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed, hovered }: any) => [
         styles.sectionHeader,
+        { marginRight: gutter, paddingVertical: compact ? 4 : 8, paddingHorizontal: compact ? 8 : 12 },
         {
           backgroundColor: hovered ? c.surface3 : c.surface2,
           borderBottomColor: c.border,
@@ -368,8 +462,8 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress }: SectionHea
         },
         pressed && { opacity: 0.85 },
       ]}>
-      <ThemedText style={[styles.sectionHeaderLabel, { color: c.textMuted }]} numberOfLines={1}>
-        // {JUMP_LONG_LABEL[keyName]} <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint }]}>· {count.toLocaleString()} รายการ</ThemedText>
+      <ThemedText style={[styles.sectionHeaderLabel, { color: c.textMuted, fontSize: chrome.headerLabel }]} numberOfLines={1}>
+        {JUMP_LONG_LABEL[keyName]} <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint, fontSize: chrome.headerCount }]}>· {count.toLocaleString()} รายการ</ThemedText>
       </ThemedText>
     </Pressable>
   );
@@ -435,66 +529,114 @@ interface RowProps {
   onPress: () => void;
   themeColor: typeof Colors.light | typeof Colors.dark;
   compact: boolean;
+  sizes: {
+    term: number;
+    reading: number;
+    meaning: number;
+    chip: number;
+    padV: number;
+    padH: number;
+    gap: number;
+    chipPadH: number;
+  };
 }
 
-function ResultRow({ result, onPress, themeColor: c, compact }: RowProps) {
+function ResultRow({ result, onPress, themeColor: c, compact, sizes }: RowProps) {
   const { entry } = result;
   /* p is the expanded variants array; show the first reading (cleaned, no Kunyomi: prefix).
      Skip if it duplicates the term itself (kana entries where T == P). */
   const displayReading = entry.p[0] ?? '';
   const showP = displayReading && displayReading !== entry.t;
 
-  /* S1 | S2 | chips layout (per user annotation).
-       S1 = term + reading (the identity)
-       S2 = Thai meaning (the lookup answer)
-       chips = type + level, vertically centred at row midpoint
-     Row uses alignItems:center so chips anchor to the row's vertical
-     centre regardless of how many lines S1 / S2 render. On compact
-     viewports (<480 px) S2 wraps under S1 so the meaning gets full
-     row width — desktop keeps the side-by-side columns. */
+  /* Compact (<480px) renders as a vertical card so the row reads like
+     a single self-contained entry instead of three loosely related
+     blocks (term, meaning, chips) drifting on their own lines. Wide
+     keeps the S1 | S2 | chips three-column layout from the annotation. */
+  if (compact) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.row,
+          styles.rowCompactCard,
+          {
+            paddingVertical: sizes.padV,
+            paddingHorizontal: sizes.padH,
+            gap: sizes.gap,
+            backgroundColor: pressed ? c.surface2 : 'transparent',
+            borderBottomColor: c.border,
+          },
+        ]}
+      >
+        <View style={styles.compactTopLine}>
+          <ThemedText style={[styles.term, { color: c.text, fontSize: sizes.term }]} numberOfLines={1}>
+            {entry.t}
+          </ThemedText>
+          <View style={styles.chips}>
+            <Chip text={TYPE_LABEL[entry.type]} color={c} size={sizes.chip} padH={sizes.chipPadH} />
+            {entry.level ? <Chip text={entry.level} color={c} accent size={sizes.chip} padH={sizes.chipPadH} /> : null}
+          </View>
+        </View>
+        {showP ? (
+          <ThemedText style={[styles.reading, { color: c.textHint, fontSize: sizes.reading }]} numberOfLines={1}>
+            {displayReading}
+          </ThemedText>
+        ) : null}
+        {entry.d ? (
+          <ThemedText style={[styles.meaning, { color: c.textMuted, fontSize: sizes.meaning, lineHeight: Math.round(sizes.meaning * 1.35) }]} numberOfLines={2}>
+            {entry.d}
+          </ThemedText>
+        ) : null}
+      </Pressable>
+    );
+  }
+
+  /* Wide: S1 (term + reading) | S2 (meaning) | chips, vertically
+     centred. */
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        compact ? styles.rowCompact : styles.rowWide,
+        styles.rowWide,
         {
           backgroundColor: pressed ? c.surface2 : 'transparent',
           borderBottomColor: c.border,
         },
       ]}
     >
-      <View style={[styles.sectionS1, compact ? styles.sectionS1Compact : styles.sectionS1Wide]}>
+      <View style={[styles.sectionS1, styles.sectionS1Wide]}>
         <ThemedText style={[styles.term, { color: c.text }]} numberOfLines={1}>
           {entry.t}
         </ThemedText>
         {showP ? (
-          <ThemedText style={[styles.reading, { color: c.textHint }]} numberOfLines={1}>
+          <ThemedText style={[styles.reading, { color: c.textHint, fontSize: sizes.reading }]} numberOfLines={1}>
             {displayReading}
           </ThemedText>
         ) : null}
       </View>
       {entry.d ? (
-        <View style={[styles.sectionS2, compact ? styles.sectionS2Compact : styles.sectionS2Wide, { borderLeftColor: c.border }]}>
-          <ThemedText style={[styles.meaning, { color: c.textMuted }]} numberOfLines={compact ? 2 : 2}>
+        <View style={[styles.sectionS2, styles.sectionS2Wide, { borderLeftColor: c.border }]}>
+          <ThemedText style={[styles.meaning, { color: c.textMuted, fontSize: sizes.meaning }]} numberOfLines={2}>
             {entry.d}
           </ThemedText>
         </View>
       ) : null}
       <View style={styles.chips}>
-        <Chip text={TYPE_LABEL[entry.type]} color={c} />
-        {entry.level ? <Chip text={entry.level} color={c} accent /> : null}
+        <Chip text={TYPE_LABEL[entry.type]} color={c} size={sizes.chip} padH={sizes.chipPadH} />
+        {entry.level ? <Chip text={entry.level} color={c} accent size={sizes.chip} padH={sizes.chipPadH} /> : null}
       </View>
     </Pressable>
   );
 }
 
-function Chip({ text, color: c, accent }: { text: string; color: typeof Colors.light | typeof Colors.dark; accent?: boolean }) {
+function Chip({ text, color: c, accent, size, padH }: { text: string; color: typeof Colors.light | typeof Colors.dark; accent?: boolean; size: number; padH: number }) {
   return (
     <View
       style={[
         styles.chip,
         {
+          paddingHorizontal: padH,
           borderColor: accent ? Accent.base : c.border,
           backgroundColor: accent ? Accent.bg : c.surface2,
         },
@@ -502,7 +644,7 @@ function Chip({ text, color: c, accent }: { text: string; color: typeof Colors.l
     >
       <ThemedText
         type="small"
-        style={[styles.chipText, accent ? { color: Accent.base } : { color: c.textMuted }]}
+        style={[styles.chipText, { fontSize: size }, accent ? { color: Accent.base } : { color: c.textMuted }]}
       >
         {text}
       </ThemedText>
@@ -583,14 +725,21 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.six,
     alignItems: 'center',
   },
-  /* Total strip — sits between header cluster and result list, left-
-     aligned per user spec ("ทั้งหมด N รายการ" aligned left). Editorial
-     mono uppercase, thin bottom rule to separate from the list. */
+  /* Total strip — sits between header cluster and result list,
+     left-aligned count + right-aligned refresh icon. Editorial mono
+     uppercase, thin bottom rule to separate from the list. */
   totalStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  refreshBtn: {
+    padding: Spacing.one,
+    borderRadius: Radii.sm,
   },
   totalText: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
@@ -616,17 +765,39 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowWide: { gap: Spacing.three },
-  rowCompact: { gap: Spacing.two, flexWrap: 'wrap' },
+  /* Mobile card layout — flex column so term/reading/meaning stack as
+     a single self-contained entry. row's alignItems:'center' would
+     centre each child horizontally — override to stretch so children
+     fill the row width. Tighter padding + gap than wide rows since
+     each entry is now 3 stacked lines instead of 1. */
+  rowCompactCard: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.two,
+    gap: 2,
+  },
+  /* Top row inside the compact card — term + chips horizontally
+     opposed so the chip cluster anchors to the right edge of the
+     card without claiming a second row. */
+  compactTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  /* Compact text scales — knock 1-2 px off the wide sizes so the
+     stacked card stays under ~70 px instead of bulging to 100 px. */
+  termCompact: { fontSize: 15 },
+  readingCompact: { fontSize: 11 },
+  meaningCompact: { fontSize: 12, lineHeight: 16 },
   /* S1 — Japanese identity: term (large) + reading (mono small). */
   sectionS1: { gap: 2 },
   sectionS1Wide: { flex: 0, flexBasis: 140 },
-  sectionS1Compact: { flexBasis: '40%', minWidth: 110 },
   /* S2 — Thai meaning. Hairline left rule visually splits it from S1
-     on wide viewports. On compact viewports the rule moves to the
-     top (we use only borderLeft so on compact we skip applying it). */
+     on wide viewports. */
   sectionS2: { flex: 1 },
   sectionS2Wide: { paddingLeft: Spacing.three, borderLeftWidth: StyleSheet.hairlineWidth },
-  sectionS2Compact: { paddingLeft: 0, flexBasis: '100%' },
   term: { fontSize: 17, fontWeight: '500' },
   reading: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
@@ -637,7 +808,11 @@ const styles = StyleSheet.create({
   /* Inline section header — single-line, surface2 fill so it reads
      as a divider against the transparent rows. Pressable: opens
      JumpGridModal. Tight vertical padding keeps the header from
-     out-claiming the entry rows below. */
+     out-claiming the entry rows below. marginRight (the scrollbar
+     gutter) is set inline in the component since the value depends
+     on viewport compactness — overlay scrollbars on mobile claim
+     near-zero gutter, so the desktop-sized inset would leave a big
+     empty stripe on the right edge of compact layouts. */
   sectionHeader: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,

@@ -7,7 +7,7 @@
  *   - window regains focus (cross-tab + cross-session safety net)
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { decks as freeDecks, entriesForDeckAsync as freeEntriesForDeckAsync } from '@/data/free-tier';
@@ -15,14 +15,20 @@ import type { CsvRow, Deck, Entry } from '@/data/types';
 import { DECKS_IMPORTED_EVENT } from '@/lib/deck-import';
 import { getPaidEntries, listPaidDecks } from '@/lib/download-store';
 
-export function useAllDecks(): { decks: Deck[]; loading: boolean } {
+export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () => void } {
   const [paidDecks, setPaidDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
+  /* Bump on user-initiated refresh — separate from the mount effect so
+     we can re-trigger the load without remounting the consumer tree.
+     Cleaner than threading a setState through an event-driven side
+     channel. */
+  const [refreshTick, setRefreshTick] = useState(0);
+  const refresh = useCallback(() => setRefreshTick((t) => t + 1), []);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function refresh() {
+    async function load() {
       setLoading(true);
       const paid = await listPaidDecks();
       if (cancelled) return;
@@ -30,39 +36,32 @@ export function useAllDecks(): { decks: Deck[]; loading: boolean } {
       setLoading(false);
     }
 
-    void refresh();
+    void load();
 
+    /* Auto-refresh removed 2026-05-28 (per user feedback). The previous
+       `visibilitychange` listener re-synced paid decks every time the
+       user switched away from and back to the tab, which fired more
+       often than expected and triggered visible "rebuilding index…"
+       flickers on the Search page. The post-purchase
+       DECKS_IMPORTED_EVENT path is preserved — that's the actual moment
+       when a new pack lands and the merge view must update — and the
+       Search page now exposes a manual refresh button for the rare
+       cross-tab "I just downloaded something elsewhere" case. */
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const onImported = () => void refresh();
-      /* Switched from window 'focus' to document 'visibilitychange'
-         2026-05-28. `window.addEventListener('focus', …)` was firing
-         on element focus too (search input auto-focus, click into
-         text fields, etc.) which cascaded:
-           input.focus() → refresh() → setLoading(true) → useSearchIndex
-           re-runs effect → re-renders SearchScreen → auto-focus runs
-           again → loop, ~1 Hz.
-         `visibilitychange` only fires when the document goes from
-         visible↔hidden (tab switch, window minimise), which is the
-         actual semantic we want — "user came back to the tab, maybe
-         their decks changed in another tab; re-sync". */
-      const onVisibilityChange = () => {
-        if (document.visibilityState === 'visible') void refresh();
-      };
+      const onImported = () => void load();
       window.addEventListener(DECKS_IMPORTED_EVENT, onImported);
-      document.addEventListener('visibilitychange', onVisibilityChange);
       return () => {
         cancelled = true;
         window.removeEventListener(DECKS_IMPORTED_EVENT, onImported);
-        document.removeEventListener('visibilitychange', onVisibilityChange);
       };
     }
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshTick]);
 
-  return { decks: [...freeDecks, ...paidDecks], loading };
+  return { decks: [...freeDecks, ...paidDecks], loading, refresh };
 }
 
 /** Read entries for a deck — checks free embedded first, then IndexedDB.

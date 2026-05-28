@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider, useR
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { SearchShortcut } from '@/components/search-shortcut';
@@ -73,15 +74,20 @@ function ThemedRoot() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppThemeProvider>
-        {/* ToastProvider above AuthProvider so auth can show toasts on
-            entitlement-load failures. ToastProvider has no auth dependency. */}
-        <ToastProvider>
-          <AuthProvider>
-            <ThemedRoot />
-          </AuthProvider>
-        </ToastProvider>
-      </AppThemeProvider>
+      {/* SafeAreaProvider must wrap useSafeAreaInsets() consumers
+          (onboarding + group-picker sticky CTAs read insets.bottom
+          via the hook added in the round-3 followup polish). */}
+      <SafeAreaProvider>
+        <AppThemeProvider>
+          {/* ToastProvider above AuthProvider so auth can show toasts on
+              entitlement-load failures. ToastProvider has no auth dependency. */}
+          <ToastProvider>
+            <AuthProvider>
+              <ThemedRoot />
+            </AuthProvider>
+          </ToastProvider>
+        </AppThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

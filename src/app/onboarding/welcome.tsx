@@ -9,11 +9,12 @@
  */
 
 import { useRouter } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { FiArrowRight } from 'react-icons/fi';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingSteps } from '@/components/onboarding/steps';
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -44,6 +45,7 @@ const BULLETS = [
 export default function WelcomeScreen() {
   const router = useRouter();
   const colors = useThemePalette();
+  const insets = useSafeAreaInsets();
   const [, setOnboarded] = usePersistedState<boolean>('onboarded', false);
 
   function handleContinue() {
@@ -73,17 +75,13 @@ export default function WelcomeScreen() {
               <ThemedText style={[styles.brandRomaji, { color: colors.textMuted }]}>NIHON BUNKAI</ThemedText>
             </View>
           </View>
-          <Pressable
+          <PressableScale
             onPress={handleSkip}
             accessibilityRole="button"
             accessibilityLabel="ข้าม onboarding"
-            style={({ pressed }) => [
-              styles.skipBtn,
-              { borderColor: colors.border },
-              pressed && { opacity: 0.7 },
-            ]}>
+            style={[styles.skipBtn, { borderColor: colors.border }]}>
             <ThemedText style={[styles.skipLabel, { color: colors.textMuted }]}>SKIP</ThemedText>
-          </Pressable>
+          </PressableScale>
         </View>
 
         <ScrollView
@@ -136,28 +134,31 @@ export default function WelcomeScreen() {
         </ScrollView>
 
         {/* Footer CTA */}
-        <View style={styles.footer}>
-          <Pressable
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, Spacing.four),
+            },
+          ]}>
+          <PressableScale
             onPress={handleContinue}
             accessibilityRole="button"
             accessibilityLabel="เริ่มต้น"
-            style={({ pressed }) => [
-              styles.ctaPrimary,
-              { backgroundColor: Accent.base },
-              pressed && { opacity: 0.88 },
-            ]}>
+            style={[styles.ctaPrimary, { backgroundColor: Accent.base }]}>
             <ThemedText style={styles.ctaLabel}>เริ่มเลย · CONTINUE</ThemedText>
             <FiArrowRight size={16} color="#fff" strokeWidth={2.2} />
-          </Pressable>
+          </PressableScale>
           {/* SIGN IN link — emphasis reduced per GPT round-3 verdict.
               Previously SIGN IN was full crimson which dual-focused with
               the primary CTA on mobile. Now the prompt sits muted +
               SIGN IN as a quieter underline (still scannable). */}
-          <Pressable
+          <PressableScale
             onPress={handleSignIn}
             accessibilityRole="link"
             accessibilityLabel="เข้าสู่ระบบ"
-            style={({ pressed }) => [styles.signInLink, pressed && { opacity: 0.7 }]}>
+            style={styles.signInLink}>
             <ThemedText style={[styles.signInLabel, { color: colors.textHint }]}>
               already have account?{' '}
               <ThemedText
@@ -172,7 +173,7 @@ export default function WelcomeScreen() {
                 sign in
               </ThemedText>
             </ThemedText>
-          </Pressable>
+          </PressableScale>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -322,8 +323,9 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
-    paddingBottom: Spacing.four,
+    /* paddingBottom set inline (safe-area-aware) per round-3 verdict. */
     gap: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   ctaPrimary: {
     flexDirection: 'row',

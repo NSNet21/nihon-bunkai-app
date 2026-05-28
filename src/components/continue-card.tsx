@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { FiChevronRight } from 'react-icons/fi';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
@@ -41,14 +42,13 @@ export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
 
   return (
     <Animated.View entering={FadeIn.duration(220)}>
-      <Pressable
+      <PressableScale
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={`เรียนต่อ ${modeBadge} ${lastSession.deckTitle} · ${lastSession.index + 1} จาก ${lastSession.total}`}
-        style={({ pressed }) => [
+        style={[
           styles.outer,
           { backgroundColor: colors.backgroundElement, borderColor: colors.border },
-          pressed && styles.pressed,
         ]}>
         {/* Left crimson rail — matches DeckRow stripe pattern */}
         <View style={styles.stripe} />
@@ -74,7 +74,7 @@ export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
             <FiChevronRight size={20} color={Accent.base} strokeWidth={2} />
           </View>
         </View>
-      </Pressable>
+      </PressableScale>
     </Animated.View>
   );
 }

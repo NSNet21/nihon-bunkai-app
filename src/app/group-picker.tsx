@@ -16,10 +16,11 @@
 
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { FiCheck, FiChevronLeft, FiLayers, FiPlay } from 'react-icons/fi';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -50,6 +51,7 @@ function deckLevelKey(deck: Deck): LevelKey {
 export default function GroupPickerScreen() {
   const router = useRouter();
   const colors = useThemePalette();
+  const insets = useSafeAreaInsets();
   const { decks } = useAllDecks();
   /* Selection lives as an array (JSON.stringify-friendly) but we expose a
      Set for O(1) toggles in the row click handler. */
@@ -111,33 +113,25 @@ export default function GroupPickerScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
           <View style={styles.leftCluster}>
-            <Pressable
+            <PressableScale
               onPress={handleBack}
               accessibilityRole="button"
               accessibilityLabel="ย้อนกลับ"
-              style={({ pressed }) => [
-                styles.backBtn,
-                { borderColor: colors.border },
-                pressed && { opacity: 0.7 },
-              ]}>
+              style={[styles.backBtn, { borderColor: colors.border }]}>
               <FiChevronLeft size={16} color={colors.text} strokeWidth={2} />
-            </Pressable>
+            </PressableScale>
             <ThemedText style={[styles.navTitle, { color: colors.text }]}>
               SELECT <ThemedText style={{ color: Accent.base }}>GROUP</ThemedText>
             </ThemedText>
           </View>
           {selectedCount > 0 && (
-            <Pressable
+            <PressableScale
               onPress={clearAll}
               accessibilityRole="button"
               accessibilityLabel="ล้าง selection"
-              style={({ pressed }) => [
-                styles.clearBtn,
-                { borderColor: colors.border },
-                pressed && { opacity: 0.7 },
-              ]}>
+              style={[styles.clearBtn, { borderColor: colors.border }]}>
               <ThemedText style={[styles.clearLabel, { color: colors.textMuted }]}>CLEAR</ThemedText>
-            </Pressable>
+            </PressableScale>
           )}
         </View>
 
@@ -190,19 +184,18 @@ export default function GroupPickerScreen() {
                   {group.decks.map((deck) => {
                     const checked = selection.has(deck.id);
                     return (
-                      <Pressable
+                      <PressableScale
                         key={deck.id}
                         onPress={() => toggleDeck(deck.id)}
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked }}
                         accessibilityLabel={`เลือก ${deck.title}`}
-                        style={({ pressed }) => [
+                        style={[
                           styles.deckRow,
                           {
                             borderColor: checked ? Accent.base : colors.border,
                             backgroundColor: checked ? Accent.bg : colors.surface,
                           },
-                          pressed && { opacity: 0.85 },
                         ]}>
                         <View style={styles.deckBody}>
                           <ThemedText style={[styles.deckTitle, { color: colors.text }]} numberOfLines={1}>
@@ -230,7 +223,7 @@ export default function GroupPickerScreen() {
                           ]}>
                           {checked && <FiCheck size={14} color="#fff" strokeWidth={2.5} />}
                         </View>
-                      </Pressable>
+                      </PressableScale>
                     );
                   })}
                 </View>
@@ -240,7 +233,14 @@ export default function GroupPickerScreen() {
         </ScrollView>
 
         {/* Sticky CTA — disabled when nothing selected. */}
-        <View style={[styles.footer, { borderTopColor: colors.border }]}>
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, Spacing.three),
+            },
+          ]}>
           <View style={styles.footerSummary}>
             <ThemedText style={[styles.footerLabel, { color: colors.textHint }]}>
               SELECTION · เลือก
@@ -249,24 +249,23 @@ export default function GroupPickerScreen() {
               {selectedCount} <ThemedText style={[styles.footerSub, { color: colors.textMuted }]}>{selectedCount === 0 ? 'decks' : selectedCount === 1 ? 'deck'  : 'decks'} · {totalCards} cards</ThemedText>
             </ThemedText>
           </View>
-          <Pressable
+          <PressableScale
             onPress={handleStudy}
             disabled={selectedCount === 0}
             accessibilityRole="button"
             accessibilityLabel={`เริ่มเรียน ${selectedCount} ชุด`}
-            style={({ pressed }) => [
+            style={[
               styles.ctaPrimary,
               {
                 backgroundColor: selectedCount === 0 ? colors.border : Accent.base,
               },
-              pressed && selectedCount > 0 && { opacity: 0.88 },
               selectedCount === 0 && { opacity: 0.5 },
             ]}>
             <FiPlay size={14} color="#fff" strokeWidth={2.2} />
             <ThemedText style={styles.ctaLabel}>
               {selectedCount === 0 ? 'STUDY · เริ่ม' : `เริ่มเรียน · ${selectedCount} ชุด`}
             </ThemedText>
-          </Pressable>
+          </PressableScale>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -433,8 +432,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    borderTopWidth: 1,
+    paddingTop: Spacing.three,
+    /* paddingBottom set inline (safe-area-aware) per round-3 verdict. */
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   footerSummary: { flex: 1 },
   footerLabel: {

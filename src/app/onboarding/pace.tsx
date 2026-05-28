@@ -17,9 +17,10 @@
 import { useRouter } from 'expo-router';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { FiChevronLeft, FiPlay } from 'react-icons/fi';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingSteps } from '@/components/onboarding/steps';
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -40,6 +41,7 @@ const REMINDER_TIMES = ['08:00', '12:00', '18:00', '20:00', '22:00'] as const;
 export default function PaceScreen() {
   const router = useRouter();
   const colors = useThemePalette();
+  const insets = useSafeAreaInsets();
   const [goal, setGoal] = usePersistedState<Goal>('daily-goal', 20);
   const [reminderTime, setReminderTime] = usePersistedState<string>('reminder-time', '20:00');
   const [reminderEnabled, setReminderEnabled] = usePersistedState<boolean>('reminder-enabled', true);
@@ -65,32 +67,24 @@ export default function PaceScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
           <View style={styles.leftCluster}>
-            <Pressable
+            <PressableScale
               onPress={handleBack}
               accessibilityRole="button"
               accessibilityLabel="ย้อนกลับ"
-              style={({ pressed }) => [
-                styles.backBtn,
-                { borderColor: colors.border },
-                pressed && { opacity: 0.7 },
-              ]}>
+              style={[styles.backBtn, { borderColor: colors.border }]}>
               <FiChevronLeft size={16} color={colors.text} strokeWidth={2} />
-            </Pressable>
+            </PressableScale>
             <ThemedText style={[styles.navTitle, { color: colors.text }]}>
               START<ThemedText style={{ color: Accent.base }}>UP</ThemedText>
             </ThemedText>
           </View>
-          <Pressable
+          <PressableScale
             onPress={handleSkip}
             accessibilityRole="button"
             accessibilityLabel="ข้าม onboarding"
-            style={({ pressed }) => [
-              styles.skipBtn,
-              { borderColor: colors.border },
-              pressed && { opacity: 0.7 },
-            ]}>
+            style={[styles.skipBtn, { borderColor: colors.border }]}>
             <ThemedText style={[styles.skipLabel, { color: colors.textMuted }]}>SKIP</ThemedText>
-          </Pressable>
+          </PressableScale>
         </View>
 
         <ScrollView
@@ -128,19 +122,18 @@ export default function PaceScreen() {
             {GOALS.map((g) => {
               const active = g.value === goal;
               return (
-                <Pressable
+                <PressableScale
                   key={g.value}
                   onPress={() => setGoal(g.value)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={`เลือกเป้า ${g.value} ใบต่อวัน`}
-                  style={({ pressed }) => [
+                  style={[
                     styles.tile,
                     {
                       borderColor: active ? Accent.base : colors.border,
                       backgroundColor: active ? Accent.bg : colors.surface,
                     },
-                    pressed && { opacity: 0.85 },
                   ]}>
                   {g.recommended && (
                     <View style={[styles.recBadge, { backgroundColor: Accent.base }]}>
@@ -154,7 +147,7 @@ export default function PaceScreen() {
                   <ThemedText style={[styles.tileDesc, { color: colors.textMuted }]}>
                     {g.mins} · {g.desc}
                   </ThemedText>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>
@@ -198,26 +191,31 @@ export default function PaceScreen() {
               </Pressable>
             </View>
 
-            {/* Time pills */}
-            <View style={styles.timeRow}>
+            {/* Time pills — horizontal scroll instead of wrap per
+                round-3 verdict P2: avoids 320px overflow into 2 lines
+                that looked broken; "premium" feel = snap-style pills. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.timeRow}
+              style={styles.timeScroll}>
               {REMINDER_TIMES.map((t) => {
                 const active = t === reminderTime;
                 return (
-                  <Pressable
+                  <PressableScale
                     key={t}
                     onPress={() => setReminderTime(t)}
                     disabled={!reminderEnabled}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
                     accessibilityLabel={`เลือกเวลา ${t}`}
-                    style={({ pressed }) => [
+                    style={[
                       styles.timePill,
                       {
                         borderColor: active ? Accent.base : colors.border,
                         backgroundColor: active ? Accent.bg : 'transparent',
                       },
                       !reminderEnabled && { opacity: 0.4 },
-                      pressed && reminderEnabled && { opacity: 0.85 },
                     ]}>
                     <ThemedText
                       style={[
@@ -226,26 +224,29 @@ export default function PaceScreen() {
                       ]}>
                       {t}
                     </ThemedText>
-                  </Pressable>
+                  </PressableScale>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
-          <Pressable
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, Spacing.four),
+            },
+          ]}>
+          <PressableScale
             onPress={handleBegin}
             accessibilityRole="button"
             accessibilityLabel="เริ่มเรียน"
-            style={({ pressed }) => [
-              styles.ctaPrimary,
-              { backgroundColor: Accent.base },
-              pressed && { opacity: 0.88 },
-            ]}>
+            style={[styles.ctaPrimary, { backgroundColor: Accent.base }]}>
             <FiPlay size={14} color="#fff" strokeWidth={2.2} />
             <ThemedText style={styles.ctaLabel}>เริ่มเรียน · BEGIN</ThemedText>
-          </Pressable>
+          </PressableScale>
           <ThemedText style={[styles.footerHint, { color: colors.textHint }]}>
             เปลี่ยนค่าได้ใน SETTINGS ภายหลัง
           </ThemedText>
@@ -428,11 +429,11 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ transitionProperty: 'transform', transitionDuration: '160ms' } as object) : null),
   } as any,
 
+  timeScroll: { marginTop: Spacing.one },
   timeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.one,
-    marginTop: Spacing.one,
+    paddingRight: Spacing.four,
   },
   timePill: {
     paddingVertical: 6,
@@ -449,8 +450,9 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
-    paddingBottom: Spacing.four,
+    /* paddingBottom set inline (safe-area-aware) per round-3 verdict. */
     gap: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   ctaPrimary: {
     flexDirection: 'row',

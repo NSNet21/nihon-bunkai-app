@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ContinueCard } from '@/components/continue-card';
+import { PressableScale } from '@/components/pressable-scale';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -249,14 +250,13 @@ export default function BrowseScreen() {
                   content card"). Thin border on top only + tighter
                   padding + stronger arrow distinguishes it from the
                   Continue cards below. */}
-              <Pressable
+              <PressableScale
                 onPress={() => router.push('/group-picker')}
                 accessibilityRole="button"
                 accessibilityLabel="รวมหลาย pack เป็น session เดียว"
-                style={({ pressed }) => [
+                style={[
                   styles.groupPickerEntry,
                   { borderTopColor: colors.border, borderBottomColor: colors.border },
-                  pressed && { opacity: 0.7 },
                 ]}>
                 <FiLayers size={13} color={Accent.base} strokeWidth={2} />
                 <View style={{ flex: 1 }}>
@@ -268,7 +268,7 @@ export default function BrowseScreen() {
                   </ThemedText>
                 </View>
                 <ThemedText style={[styles.groupPickerArrow, { color: Accent.base }]}>→</ThemedText>
-              </Pressable>
+              </PressableScale>
               {/* Parent kicker for the Continue cards — without it, the
                   two QUIZ/LEARN CONTINUE labels read as orphans. GPT
                   polish round 2026-05-27. Renders only when at least one
@@ -499,7 +499,7 @@ const DeckRow = memo(function DeckRow({ deck, isLast }: { deck: Deck; isLast: bo
   }
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.deckCard, pressed && styles.pressed]}>
+    <PressableScale onPress={onPress} style={styles.deckCard} scaleTo={0.99} opacityTo={0.92}>
       <ThemedView
         type="backgroundElement"
         style={[
@@ -537,7 +537,7 @@ const DeckRow = memo(function DeckRow({ deck, isLast }: { deck: Deck; isLast: bo
           </View>
         </View>
       </ThemedView>
-    </Pressable>
+    </PressableScale>
   );
 });
 

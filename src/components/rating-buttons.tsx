@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Rating } from 'ts-fsrs';
 
 import { useThemeColors } from '@/context/theme';
 
+import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
 
 import { Radii, RateColors, Spacing } from '@/constants/theme';
@@ -35,14 +36,17 @@ export function RatingButtons({ onRate, disabled = false }: Props) {
         const fg = palette[`${btn.colorKey}Fg`];
         const bg = palette[`${btn.colorKey}Bg`];
         return (
-          <Pressable
+          <PressableScale
             key={btn.label}
             onPress={() => !disabled && onRate(btn.rating)}
             disabled={disabled}
-            style={({ pressed }) => [
+            /* Lighter scale on FSRS rating buttons — these are pressed
+               rapid-fire and full 0.985 reads as "jumpy" at high cadence. */
+            scaleTo={0.99}
+            opacityTo={0.9}
+            style={[
               styles.button,
               { backgroundColor: bg },
-              pressed && !disabled && styles.pressed,
               disabled && styles.disabled,
             ]}
             accessibilityRole="button"
@@ -50,7 +54,7 @@ export function RatingButtons({ onRate, disabled = false }: Props) {
             <ThemedText type="defaultSemiBold" style={{ color: fg }}>
               {btn.label}
             </ThemedText>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>
@@ -72,6 +76,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
   },
-  pressed: { opacity: 0.85 },
   disabled: { opacity: 0.35 },
 });

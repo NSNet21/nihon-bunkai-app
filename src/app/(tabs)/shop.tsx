@@ -5,6 +5,7 @@ import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, Fi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -193,12 +194,11 @@ export default function ShopScreen() {
           <TierFilter tier={shopTier} onChange={setShopTier} colors={colors} />
 
           {status === 'signed-out' && (
-            <Pressable
+            <PressableScale
               onPress={() => router.push('/login')}
-              style={({ pressed }) => [
+              style={[
                 styles.nudgeBanner,
                 { borderColor: Accent.base, backgroundColor: Accent.bg },
-                pressed && { opacity: 0.85 },
               ]}>
               <FiZap size={16} color={Accent.base} />
               <View style={{ flex: 1 }}>
@@ -210,7 +210,7 @@ export default function ShopScreen() {
                 </ThemedText>
               </View>
               <ThemedText type="small" style={{ color: Accent.base, fontSize: 18 }}>→</ThemedText>
-            </Pressable>
+            </PressableScale>
           )}
 
           {shopTier === 'level' && perLevel.map((group) => (

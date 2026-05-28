@@ -11,11 +11,12 @@
  */
 
 import { useRouter } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { FiArrowRight, FiChevronLeft, FiInfo, FiLock } from 'react-icons/fi';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingSteps } from '@/components/onboarding/steps';
+import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -43,6 +44,7 @@ const LEVELS: {
 export default function LevelScreen() {
   const router = useRouter();
   const colors = useThemePalette();
+  const insets = useSafeAreaInsets();
   const [level, setLevel] = usePersistedState<Level>('preferred-level', 'N5');
   const [, setOnboarded] = usePersistedState<boolean>('onboarded', false);
 
@@ -65,32 +67,24 @@ export default function LevelScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.topBar}>
           <View style={styles.leftCluster}>
-            <Pressable
+            <PressableScale
               onPress={handleBack}
               accessibilityRole="button"
               accessibilityLabel="ย้อนกลับ"
-              style={({ pressed }) => [
-                styles.backBtn,
-                { borderColor: colors.border },
-                pressed && { opacity: 0.7 },
-              ]}>
+              style={[styles.backBtn, { borderColor: colors.border }]}>
               <FiChevronLeft size={16} color={colors.text} strokeWidth={2} />
-            </Pressable>
+            </PressableScale>
             <ThemedText style={[styles.navTitle, { color: colors.text }]}>
               START<ThemedText style={{ color: Accent.base }}>UP</ThemedText>
             </ThemedText>
           </View>
-          <Pressable
+          <PressableScale
             onPress={handleSkip}
             accessibilityRole="button"
             accessibilityLabel="ข้าม onboarding"
-            style={({ pressed }) => [
-              styles.skipBtn,
-              { borderColor: colors.border },
-              pressed && { opacity: 0.7 },
-            ]}>
+            style={[styles.skipBtn, { borderColor: colors.border }]}>
             <ThemedText style={[styles.skipLabel, { color: colors.textMuted }]}>SKIP</ThemedText>
-          </Pressable>
+          </PressableScale>
         </View>
 
         <ScrollView
@@ -132,21 +126,20 @@ export default function LevelScreen() {
               const active = lv.value === level;
               const disabled = !!lv.locked;
               return (
-                <Pressable
+                <PressableScale
                   key={lv.value}
                   onPress={() => { if (!disabled) setLevel(lv.value); }}
                   disabled={disabled}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active, disabled }}
                   accessibilityLabel={`เลือกระดับ ${lv.label}${disabled ? ' (ปลดล็อกหลังซื้อ)' : ''}`}
-                  style={({ pressed }) => [
+                  style={[
                     styles.tile,
                     {
                       borderColor: active ? Accent.base : colors.border,
                       backgroundColor: active ? Accent.bg : colors.surface,
                     },
                     disabled && { opacity: 0.55 },
-                    pressed && !disabled && { opacity: 0.85 },
                   ]}>
                   <ThemedText style={[styles.tileKanji, { color: active ? Accent.base : colors.text }]}>
                     {lv.kanji}
@@ -167,7 +160,7 @@ export default function LevelScreen() {
                       <ThemedText style={[styles.tileTh, { color: colors.textMuted }]}>{lv.th}</ThemedText>
                     )}
                   </View>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>
@@ -192,19 +185,22 @@ export default function LevelScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
-          <Pressable
+        <View
+          style={[
+            styles.footer,
+            {
+              borderTopColor: colors.border,
+              paddingBottom: Math.max(insets.bottom, Spacing.four),
+            },
+          ]}>
+          <PressableScale
             onPress={handleContinue}
             accessibilityRole="button"
             accessibilityLabel="ถัดไป"
-            style={({ pressed }) => [
-              styles.ctaPrimary,
-              { backgroundColor: Accent.base },
-              pressed && { opacity: 0.88 },
-            ]}>
+            style={[styles.ctaPrimary, { backgroundColor: Accent.base }]}>
             <ThemedText style={styles.ctaLabel}>ถัดไป · CONTINUE</ThemedText>
             <FiArrowRight size={16} color="#fff" strokeWidth={2.2} />
-          </Pressable>
+          </PressableScale>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -375,7 +371,8 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
-    paddingBottom: Spacing.four,
+    /* paddingBottom set inline (safe-area-aware) per round-3 verdict. */
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   ctaPrimary: {
     flexDirection: 'row',

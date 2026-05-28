@@ -3,6 +3,8 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { FiRefreshCw, FiSearch, FiX } from 'react-icons/fi';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FOCUS_SEARCH_EVENT } from '@/components/search-shortcut';
@@ -41,6 +43,22 @@ const JUMP_LONG_LABEL: Record<JumpKey, string> = {
   N5: 'N5 · พื้นฐาน', N4: 'N4 · ต้น', N3: 'N3 · กลาง',
   N2: 'N2 · สูง', N1: 'N1 · สูงสุด', GLOSSARY: 'GLOSSARY · ศัพท์รวม',
 };
+const JUMP_SHORT_LABEL: Record<JumpKey, string> = {
+  N5: 'N5', N4: 'N4', N3: 'N3', N2: 'N2', N1: 'N1', GLOSSARY: 'GL',
+};
+
+/* FastScroller — editorial index marker on touch viewports. Slim
+   graphite block rides on a hidden rail; both activate to crimson
+   on drag (GPT-reviewed iteration: crimson on idle conflicted with
+   the native scrollbar's accent colour, so the thumb now defaults
+   to muted graphite and only "lights up" while the user is
+   scrubbing). Aiming for the feeling of a paper index tab in a
+   Japanese dictionary, not an Android utility scrollbar. */
+const FAST_TRACK_WIDTH = 24;     /* tap hitbox + side breathing room */
+const FAST_LINE_WIDTH = 1;       /* the hairline rail (drag-only) */
+const FAST_THUMB_WIDTH = 12;     /* slim, vertical-authority block */
+const FAST_THUMB_HEIGHT = 30;    /* terse height — editorial */
+const FAST_LABEL_OFFSET = 12;    /* gap between block and label */
 
 /* Union of items the FlashList renders. Headers carry their JLPT key
    + the row count for the section caption; rows wrap the existing
@@ -57,6 +75,12 @@ export default function SearchScreen() {
   const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
   const { width: viewportW } = useWindowDimensions();
   const compact = viewportW > 0 && viewportW < 480;
+  /* Touch-class breakpoint — phone portrait through tablet landscape.
+     Used to gate the FastScroller + native-scrollbar-hide pair, so
+     iPad / Android tablet users get the same draggable-thumb
+     affordance the phone gets. Above 1024 px we assume mouse + wheel
+     and keep the native scrollbar. */
+  const touchSeek = viewportW > 0 && viewportW < 1024;
 
   /* Two fixed size tiers — compact (mobile) vs wide (desktop). Earlier
      iteration interpolated everything across 320→480 px which sounded
@@ -82,6 +106,59 @@ export default function SearchScreen() {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlashListRef<ListItem>>(null);
+
+  /* FastScroller wiring — mobile (compact) only. Latest scroll
+     metrics live in a ref so the high-frequency onScroll callback
+     doesn't trigger React re-renders; the thumb position is a
+     Reanimated SharedValue so updates stay on the UI thread and
+     don't block the JS one. */
+  const fastScrollMetrics = useRef({ offset: 0, contentHeight: 1, viewportHeight: 1, trackHeight: 0 });
+  const fastThumbY = useSharedValue(0);
+  const fastIsDragging = useSharedValue(false);
+  /* Hidden-by-default scrollbar pattern: thumb fades in when the
+     list scrolls, fades out ~1500 ms after the last scroll event
+     (or never fades while the user is actively dragging the
+     thumb). Mirrors the native iOS / Android scroll-indicator
+     show/hide cadence. */
+  const fastVisible = useSharedValue(0);
+  const fastHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncFastThumbFromScroll = useCallback(() => {
+    /* JS-thread function — called from onListScroll (JS callback).
+       Reads scroll metrics from the ref, writes the resulting
+       position into the thumb SharedValue. No 'worklet' directive:
+       Reanimated's worklet bundler doesn't capture module-level
+       constants like FAST_THUMB_HEIGHT through the React Compiler
+       transform, so marking this worklet caused a runtime
+       ReferenceError + the React "Exceeded max renders" cascade
+       from the failed gesture handler init. Writing to a
+       SharedValue from JS is fine — Reanimated handles the
+       JS→UI bridge automatically. */
+    const { offset, contentHeight, viewportHeight, trackHeight } = fastScrollMetrics.current;
+    if (fastIsDragging.value || trackHeight <= 0) return;
+    const scrollable = Math.max(1, contentHeight - viewportHeight);
+    const ratio = Math.max(0, Math.min(1, offset / scrollable));
+    const maxThumb = Math.max(0, trackHeight - FAST_THUMB_HEIGHT);
+    fastThumbY.value = ratio * maxThumb;
+  }, [fastIsDragging, fastThumbY]);
+
+  const onListScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    fastScrollMetrics.current.offset = contentOffset.y;
+    fastScrollMetrics.current.contentHeight = contentSize.height;
+    fastScrollMetrics.current.viewportHeight = layoutMeasurement.height;
+    syncFastThumbFromScroll();
+    /* Show thumb the moment scroll fires + schedule a fade-out after
+       1500 ms of no further scroll events. While the user is
+       dragging the thumb, scrollToOffset keeps re-triggering the
+       scroll callback so the timer keeps resetting — the fade-out
+       only happens after the drag ends and motion settles. */
+    fastVisible.value = withTiming(1, { duration: 120 });
+    if (fastHideTimerRef.current) clearTimeout(fastHideTimerRef.current);
+    fastHideTimerRef.current = setTimeout(() => {
+      if (!fastIsDragging.value) fastVisible.value = withTiming(0, { duration: 280 });
+    }, 1500);
+  }, [syncFastThumbFromScroll, fastVisible, fastIsDragging]);
 
   /* Debounce: avoid running Fuse on every keystroke. */
   useEffect(() => {
@@ -371,6 +448,8 @@ export default function SearchScreen() {
           stickyHeaderIndices={stickyHeaderIndices}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
+          onScroll={onListScroll}
+          scrollEventThrottle={16}
           /* drawDistance defines how far ABOVE + BELOW the viewport
              FlashList renders out cells, in CSS px. Tighter window =
              fewer mounted rows when scanning a long corpus. flash-list
@@ -387,6 +466,24 @@ export default function SearchScreen() {
             ) : null
           }
         />
+        {touchSeek && ready && hasResults && (
+          /* Renders in BOTH browse-all and search-results modes.
+             The section label only appears during drag when
+             listJumpIndices is populated (browse-all view) — in
+             filter mode the thumb still tracks scroll and is
+             draggable, just without a category label since search
+             results don't carry contiguous section blocks. */
+          <FastScroller
+            listRef={listRef}
+            listData={listData}
+            listJumpIndices={listJumpIndices}
+            metricsRef={fastScrollMetrics}
+            thumbY={fastThumbY}
+            isDragging={fastIsDragging}
+            visible={fastVisible}
+            themeColor={c}
+          />
+        )}
       </View>
       <JumpGridModal
         visible={jumpGridOpen}
@@ -432,11 +529,13 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chr
         styles.sectionHeader,
         { paddingVertical: compact ? 4 : 8, paddingHorizontal: compact ? 8 : 12 },
         {
-          /* Match the page background so the header reads as part of
-             the list rather than a tinted divider — opaque (not
-             transparent) so the sticky header still occludes rows
-             scrolling under it. Hover lifts to surface2 for subtle
-             affordance feedback. */
+          /* Solid page-background so the header reads as part of the
+             list rather than a tinted divider — opaque so the sticky
+             pin still occludes rows scrolling underneath. Hover
+             lifts to surface2 for a subtle "tappable" hint. The
+             earlier frosted-blur iteration was reverted: too pretty
+             for the editorial/Wabi register the rest of the app
+             holds. */
           backgroundColor: hovered ? c.surface2 : c.background,
           borderBottomColor: c.border,
           borderTopColor: c.border,
@@ -629,6 +728,166 @@ function Chip({ text, color: c, accent, size, padH }: { text: string; color: typ
       >
         {text}
       </ThemedText>
+    </View>
+  );
+}
+
+interface FastScrollerProps {
+  listRef: React.RefObject<FlashListRef<ListItem> | null>;
+  listData: ListItem[];
+  listJumpIndices: Map<JumpKey, number> | null;
+  metricsRef: React.MutableRefObject<{ offset: number; contentHeight: number; viewportHeight: number; trackHeight: number }>;
+  thumbY: SharedValue<number>;
+  isDragging: SharedValue<boolean>;
+  /* 0 → hidden, 1 → fully visible. Driven by the parent's
+     onListScroll callback so the thumb only appears while the list
+     is actually moving (mirrors native scroll-indicator behaviour). */
+  visible: SharedValue<number>;
+  themeColor: typeof Colors.light | typeof Colors.dark;
+}
+
+/** Mobile FastScroller — overlay-layer thumb pinned to the listWrap
+ *  right edge. Drag = proportional scroll across the corpus (~2k
+ *  entries on free tier) without the long-flick fatigue of a native
+ *  scroll. A pill label appears to the left of the thumb during the
+ *  drag showing which JLPT section the user is hovering over. The
+ *  thumb position is a Reanimated SharedValue so onScroll updates
+ *  (every 16 ms) and gesture updates both stay on the UI thread —
+ *  React never re-renders for the position itself, only for the
+ *  drag-state mode switch (label visibility + thumb tint). */
+function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, isDragging, visible, themeColor: c }: FastScrollerProps) {
+  const [trackHeight, setTrackHeight] = useState(0);
+  const [dragLabel, setDragLabel] = useState<string>('');
+  const [labelVisible, setLabelVisible] = useState(false);
+  /* Cached track top in window coordinates — captured on layout AND
+     re-measured on every drag-begin so we stay accurate after the
+     viewport scrolls/resizes between drags. The gesture handler's
+     absoluteY is window-relative; pointerY-in-container = absoluteY
+     minus this offset. */
+  const trackRef = useRef<View>(null);
+  const containerTopRef = useRef(0);
+
+  const measureTrack = useCallback(() => {
+    if (Platform.OS === 'web' && trackRef.current) {
+      const node = trackRef.current as any;
+      const r = node.getBoundingClientRect?.();
+      if (r) containerTopRef.current = r.top;
+      return;
+    }
+    trackRef.current?.measureInWindow?.((_x: number, y: number) => {
+      containerTopRef.current = y;
+    });
+  }, []);
+
+  const onTrackLayout = useCallback((e: any) => {
+    const h = e.nativeEvent.layout.height;
+    setTrackHeight(h);
+    metricsRef.current.trackHeight = h;
+    measureTrack();
+  }, [metricsRef, measureTrack]);
+
+  /* Map thumb Y → JLPT section the user is currently scrubbing
+     through. Uses listData.length as the ratio basis since each cell
+     has variable height in FlashList; an exact offset-to-index map
+     would need a measured-heights table that isn't worth the
+     complexity for a label hint. */
+  const labelForY = useCallback((y: number): string => {
+    if (!listJumpIndices || listData.length === 0) return '';
+    const maxThumb = Math.max(1, trackHeight - FAST_THUMB_HEIGHT);
+    const ratio = Math.max(0, Math.min(1, y / maxThumb));
+    const approxIdx = Math.floor(ratio * listData.length);
+    let currentKey: JumpKey | null = null;
+    let bestIdx = -1;
+    for (const [key, idx] of listJumpIndices) {
+      if (idx <= approxIdx && idx > bestIdx) {
+        currentKey = key;
+        bestIdx = idx;
+      }
+    }
+    return currentKey ? JUMP_LONG_LABEL[currentKey] : '';
+  }, [listJumpIndices, listData.length, trackHeight]);
+
+  /* JS-side drag tick — pointer position (window-absolute Y from the
+     gesture) → container-relative pointerY → thumb top (pointer at
+     thumb center) → clamp [0, trackHeight - thumbHeight] → scroll to
+     matching offset. This is the canonical "drag-to-scroll" math —
+     using translationY/delta from gesture-start was wrong because it
+     decoupled the thumb visual from the actual pointer location
+     (any sub-pixel drift between renders accumulated). */
+  const onPanTo = useCallback((absoluteY: number) => {
+    const pointerY = absoluteY - containerTopRef.current;
+    const targetTop = pointerY - FAST_THUMB_HEIGHT / 2;
+    const maxThumb = Math.max(0, trackHeight - FAST_THUMB_HEIGHT);
+    const clamped = Math.max(0, Math.min(maxThumb, targetTop));
+    thumbY.value = clamped;
+    const ratio = maxThumb > 0 ? clamped / maxThumb : 0;
+    const { contentHeight, viewportHeight } = metricsRef.current;
+    const targetOffset = ratio * Math.max(0, contentHeight - viewportHeight);
+    listRef.current?.scrollToOffset({ offset: targetOffset, animated: false });
+    setDragLabel(labelForY(clamped));
+  }, [thumbY, trackHeight, metricsRef, listRef, labelForY]);
+
+  const pan = useMemo(() => Gesture.Pan()
+    .onBegin((e) => {
+      isDragging.value = true;
+      runOnJS(setLabelVisible)(true);
+      runOnJS(measureTrack)();
+      runOnJS(onPanTo)(e.absoluteY);
+    })
+    .onUpdate((e) => {
+      runOnJS(onPanTo)(e.absoluteY);
+    })
+    .onEnd(() => {
+      isDragging.value = false;
+      runOnJS(setLabelVisible)(false);
+    })
+    .onFinalize(() => {
+      isDragging.value = false;
+      runOnJS(setLabelVisible)(false);
+    }),
+  [isDragging, onPanTo, measureTrack]);
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: thumbY.value }],
+    /* Hidden by default; the parent fades `visible` to 1 on scroll
+       and back to 0 after the scroll settles. While the user is
+       actively dragging the thumb, force opacity to 1 so a
+       mid-scrub release doesn't make the thumb blink as the
+       scroll-settle timer races. */
+    opacity: isDragging.value ? 1 : visible.value,
+  }));
+  const labelStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: thumbY.value }],
+    opacity: withTiming(isDragging.value ? 1 : 0, { duration: 140 }),
+  }));
+  return (
+    <View ref={trackRef} style={styles.fastScrollerTrack} onLayout={onTrackLayout}>
+      <GestureDetector gesture={pan}>
+        <Animated.View
+          style={[
+            styles.fastScrollerThumb,
+            /* Idle = muted graphite so the thumb reads as a passive
+               index marker, not a CTA. Crimson is reserved for the
+               drag-active state (mirrors how the accent is used
+               elsewhere in the app — semantic emphasis only). */
+            { backgroundColor: labelVisible ? Accent.base : c.textHint },
+            thumbStyle,
+          ]}
+        />
+      </GestureDetector>
+      {labelVisible && dragLabel ? (
+        <Animated.View
+          style={[
+            styles.fastScrollerLabel,
+            { borderColor: c.borderStrong },
+            labelStyle,
+          ]}
+        >
+          <ThemedText style={[styles.fastScrollerLabelText, { color: c.text }]} numberOfLines={1}>
+            {dragLabel}
+          </ThemedText>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -886,4 +1145,76 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
   },
   chipText: { fontSize: 10, letterSpacing: 0.8 },
+  /* FastScroller — absolute floating overlay anchored a few pixels
+     inside listWrap's right edge so the thumb visually aligns with
+     the row content rather than hugging the container edge (felt
+     visually cramped at right: 2). box-none on the track so only
+     the visible thumb block captures taps; the hairline rail
+     underneath is decorative and never intercepts events. zIndex
+     above the row content so the block reads on top of cells
+     regardless of scroll position. */
+  fastScrollerTrack: {
+    position: 'absolute',
+    top: Spacing.two,
+    bottom: Spacing.two,
+    /* 8 px from the listWrap right edge — tighter than GPT's
+       suggested 14-18 px lane separation, but the user prefers the
+       thumb sit closer to the native scrollbar. With the thumb
+       hidden at rest the visual-redundancy concern that motivated
+       the larger gap is mostly resolved on its own. */
+    right: 8,
+    width: FAST_TRACK_WIDTH,
+    zIndex: 10,
+    pointerEvents: 'box-none',
+  },
+  /* (Hairline rail removed 2026-05-29 — user feedback: the vertical
+     line competed with the row dividers and the native scrollbar,
+     reading as visual redundancy. The thumb alone now carries the
+     editorial-index-marker shape.) */
+  /* Sharp-edged crimson block — editorial typographic block, not a
+     pill. No border-radius keeps it consistent with the rest of the
+     UI's sharp-only radii scale. */
+  fastScrollerThumb: {
+    position: 'absolute',
+    top: 0,
+    right: (FAST_TRACK_WIDTH - FAST_THUMB_WIDTH) / 2,
+    width: FAST_THUMB_WIDTH,
+    height: FAST_THUMB_HEIGHT,
+    borderRadius: 0,
+  },
+  /* Section label — translucent + backdrop-filter:blur for a frosted
+     glass effect (user request). Sized to content (no minWidth)
+     with a hairline border so it reads as an editorial tag, not a
+     UI tooltip. The blur takes the row content underneath and
+     softens it just enough to make the mono caps readable without
+     requiring an opaque card. Falls back to a semi-translucent
+     surface tint on platforms without backdrop-filter (older
+     browsers / native iOS-Android before BlurView). */
+  fastScrollerLabel: {
+    position: 'absolute',
+    top: 0,
+    right: FAST_TRACK_WIDTH + FAST_LABEL_OFFSET,
+    height: FAST_THUMB_HEIGHT,
+    paddingHorizontal: Spacing.three,
+    borderWidth: 1,
+    borderRadius: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+    ...Platform.select({
+      web: ({
+        backgroundColor: 'rgba(0,0,0,0)',
+        backdropFilter: 'blur(14px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(14px) saturate(160%)',
+      } as unknown as object),
+      default: { backgroundColor: 'rgba(127,127,127,0.18)' },
+    }),
+  },
+  fastScrollerLabelText: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
 });

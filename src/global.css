@@ -135,19 +135,11 @@ div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] [d
   pointer-events: auto;
 }
 
-/* Sticky-wrapper right inset — matches the native scrollbar width
-   so the cellWrap centered inside aligns with the inline-state
-   cellWrap (which centers in the scrollable's content box,
-   excluding the scrollbar gutter). FlashList sets the sticky
-   wrapper's width to the scrollable's PADDING box (including the
-   gutter), so without this padding the sticky cellWrap centers
-   half-a-gutter (~8 px) right of its inline twin and reads as a
-   horizontal jump on every pin transition. scrollbar-gutter:stable
-   on the scrollable itself doesn't help here because FlashList's
-   sticky-width measurement runs against offsetWidth, which ignores
-   the reserved gutter. 15 px = Chrome/Edge/Firefox native scrollbar
-   on desktop; the small drift on platforms with thinner scrollbars
-   is invisible. */
-div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] {
-  padding-right: 15px;
-}
+/* (Earlier iteration hid the native scrollbar on touch-class
+   viewports so the FastScroller thumb could be the sole seek
+   mechanism. Removed 2026-05-29 per user feedback: they want BOTH
+   the native scrollbar AND the custom thumb to coexist — the
+   FastScroller is an additional overlay layer, not a replacement.
+   The two land at slightly different x positions (FastScroller at
+   right:8, native scrollbar in its own gutter), so the visual
+   overlap is minimal.) */

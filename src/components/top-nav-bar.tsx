@@ -1,4 +1,5 @@
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
+import { useRef } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { FiArrowLeft } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -120,6 +121,18 @@ export function TopNavBar() {
 
   const isFocusMode = FOCUS_PATTERNS.some((re) => re.test(pathname));
 
+  /* Track which routes we've already kicked a prefetch on so hovering
+     the same tab twice doesn't fire repeat fetches. Cleared only on
+     full reload — the warmed module cache stays valid for the session. */
+  const prefetched = useRef<Set<string>>(new Set());
+  const handleHover = (href: string) => {
+    if (Platform.OS !== 'web') return;
+    if (href === pathname) return;
+    if (prefetched.current.has(href)) return;
+    prefetched.current.add(href);
+    imperativeRouter.prefetch(href as any);
+  };
+
   return (
     <SafeAreaView
       edges={['top']}
@@ -137,6 +150,7 @@ export function TopNavBar() {
                   <Pressable
                     key={tab.href}
                     onPress={() => router.push(tab.href as any)}
+                    onHoverIn={() => handleHover(tab.href)}
                     style={({ pressed, hovered }: any) => [
                       styles.tab,
                       {

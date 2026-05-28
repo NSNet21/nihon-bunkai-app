@@ -22,7 +22,12 @@ const TYPE_LABEL: Record<ContentType, string> = {
 };
 
 const SEARCH_DEBOUNCE_MS = 120;
-const RESULT_LIMIT = 80;
+/* No more visible cap — user requested the full match set surface so
+   they can sweep through everything. FlashList still virtualizes
+   render to ~20 visible rows at a time so the DOM stays light even
+   with 1k+ matches. Cap kept at 10k as a hard safety so a degenerate
+   wildcard query can't lock up Fuse on the largest corpora. */
+const RESULT_HARD_CAP = 10_000;
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -42,9 +47,11 @@ export default function SearchScreen() {
   }, [query]);
 
   const results = useMemo(
-    () => (ready && debounced.trim() ? run(debounced, RESULT_LIMIT) : []),
+    () => (ready && debounced.trim() ? run(debounced, RESULT_HARD_CAP) : []),
     [ready, debounced, run],
   );
+  const hasQuery = debounced.trim().length > 0;
+  const hasResults = hasQuery && results.length > 0;
 
   /* Auto-focus on mount + on Ctrl/⌘+K from anywhere (web only). */
   useEffect(() => {
@@ -118,24 +125,39 @@ export default function SearchScreen() {
             ) : null}
           </View>
 
-          <ThemedText type="small" themeColor="textHint">
-            {!ready
-              ? 'กำลังสร้าง index…'
-              : debounced.trim()
-                ? `พบ ${results.length} จาก ${totalEntries.toLocaleString()} entries`
-                : `พร้อม · ${totalEntries.toLocaleString()} entries`}
-          </ThemedText>
+          {/* Status line — corpus-ready / loading hint only. The match-
+              count moved to the dedicated TotalStrip below so the
+              count anchors right above the result list rather than
+              floating in the header cluster. */}
+          {!ready ? (
+            <ThemedText type="small" themeColor="textHint">กำลังสร้าง index…</ThemedText>
+          ) : !hasQuery ? (
+            <ThemedText type="small" themeColor="textHint">
+              พร้อม · {totalEntries.toLocaleString()} entries
+            </ThemedText>
+          ) : null}
           {/* Round-5 P1 — GPT round-4: "Keep minimal · ห้ามใส่ popular
               searches · เพิ่ม subtle hint แทน · muted mono tiny · ไม่ใช่
               onboarding/tutorial". One-line marginal annotation showing
               the kana/kanji/grammar shapes the index supports. Hidden
               once the user starts typing. */}
-          {ready && !debounced.trim() && (
+          {ready && !hasQuery && (
             <ThemedText style={[styles.queryHint, { color: c.textHint }]}>
               ลอง: 食べる · 一緒 · 〜ように
             </ThemedText>
           )}
         </View>
+
+        {/* Total strip — left-aligned count above the result list.
+            Format: 'ทั้งหมด 234 รายการ' (per user spec). Hidden when
+            there's no active query so the empty state isn't crowded. */}
+        {hasResults && (
+          <View style={[styles.totalStrip, { borderBottomColor: c.border }]}>
+            <ThemedText style={[styles.totalText, { color: c.textMuted }]}>
+              ทั้งหมด <ThemedText style={[styles.totalNumber, { color: c.text }]}>{results.length.toLocaleString()}</ThemedText> รายการ
+            </ThemedText>
+          </View>
+        )}
 
         <FlashList<SearchResult>
           data={results}
@@ -145,7 +167,7 @@ export default function SearchScreen() {
             <ResultRow result={item} onPress={() => openEntry(item.entry.deckId, item.entry.id)} themeColor={c} />
           )}
           ListEmptyComponent={
-            ready && debounced.trim() ? (
+            ready && hasQuery ? (
               <View style={styles.empty}>
                 <ThemedText type="default" themeColor="textSecondary">
                   ไม่เจอ — ลองพิมพ์ใหม่
@@ -172,31 +194,34 @@ function ResultRow({ result, onPress, themeColor: c }: RowProps) {
   const displayReading = entry.p[0] ?? '';
   const showP = displayReading && displayReading !== entry.t;
 
+  /* Compact 1-line scan format — term · reading · meaning · type/level.
+     Each cell takes its natural width up to the row's middle gutter,
+     then truncates on ellipsis. Designed so the eye sweeps left→right
+     in one fixation per row, no vertical re-scanning. */
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
         {
-          backgroundColor: pressed ? c.surface2 : c.surface,
-          borderColor: c.border,
+          backgroundColor: pressed ? c.surface2 : 'transparent',
+          borderBottomColor: c.border,
         },
       ]}
     >
-      <View style={styles.rowMain}>
-        <ThemedText type="default" style={styles.term}>{entry.t}</ThemedText>
-        {showP ? (
-          <ThemedText type="small" themeColor="textHint" style={styles.reading}>
-            {displayReading}
-          </ThemedText>
-        ) : null}
-        {entry.d ? (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.meaning}>
-            {entry.d}
-          </ThemedText>
-        ) : null}
-      </View>
-
+      <ThemedText style={[styles.termCompact, { color: c.text }]} numberOfLines={1}>
+        {entry.t}
+      </ThemedText>
+      {showP ? (
+        <ThemedText style={[styles.readingCompact, { color: c.textHint }]} numberOfLines={1}>
+          {displayReading}
+        </ThemedText>
+      ) : null}
+      {entry.d ? (
+        <ThemedText style={[styles.meaningCompact, { color: c.textMuted }]} numberOfLines={1}>
+          {entry.d}
+        </ThemedText>
+      ) : null}
       <View style={styles.chips}>
         <Chip text={TYPE_LABEL[entry.type]} color={c} />
         {entry.level ? <Chip text={entry.level} color={c} accent /> : null}
@@ -299,21 +324,45 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.six,
     alignItems: 'center',
   },
+  /* Total strip — sits between header cluster and result list, left-
+     aligned per user spec ("ทั้งหมด N รายการ" aligned left). Editorial
+     mono uppercase, thin bottom rule to separate from the list. */
+  totalStrip: {
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  totalText: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  totalNumber: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  /* Single-line scan row — denser than the previous boxed card layout.
+     hairline bottom border separates rows without claiming the visual
+     weight of a full surface fill. */
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: Spacing.three,
     paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    marginBottom: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Radii.md,
+    paddingHorizontal: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  rowMain: { flex: 1, gap: 2 },
-  term: { fontSize: 18, fontWeight: '500' },
-  reading: { fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }) },
-  meaning: {},
+  termCompact: { fontSize: 16, fontWeight: '500', maxWidth: '40%' },
+  readingCompact: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 13,
+    maxWidth: '25%',
+  },
+  meaningCompact: { fontSize: 13, flex: 1 },
   chips: { flexDirection: 'row', gap: Spacing.one, alignItems: 'center' },
   chip: {
     borderWidth: 1,
@@ -321,5 +370,5 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Radii.sm,
   },
-  chipText: { fontSize: 11, letterSpacing: 0.6 },
+  chipText: { fontSize: 10, letterSpacing: 0.8 },
 });

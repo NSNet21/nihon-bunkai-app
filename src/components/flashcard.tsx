@@ -582,20 +582,18 @@ function GlassMeta({
   colors: typeof Colors.light;
   variant?: 'overlay' | 'inline';
 }) {
-  /* Solid theme-bg plate — matches the badge pattern on memorize.tsx
-     (top-left meta cluster). Reading from colors.background (which is a
-     CSS-var string on web) means theme switch is a pure CSS swap, no
-     React reconcile. Earlier frosted-glass attempt depended on
-     `colors.background === Colors.dark.background` to pick alpha
-     palettes — that string-equality check broke with var() strings,
-     leaving the dark badge stuck on the light cream tint. */
+  /* Editorial stripe — crimson 2px vertical bar + mono uppercase caption,
+     no plate, no border. Lets the card surface read through. Plate
+     pattern was reverted from this slot after dark/light parity testing;
+     the stripe carries the brand without claiming visual space against
+     the kanji hero. */
   return (
     <View
       style={[
         glassStyles.pill,
         variant === 'overlay' ? glassStyles.overlay : glassStyles.inline,
-        { backgroundColor: colors.background, borderColor: colors.border },
       ]}>
+      <View style={glassStyles.stripe} />
       <ThemedText style={[glassStyles.text, { color: colors.textSecondary }]}>{text}</ThemedText>
     </View>
   );
@@ -603,19 +601,28 @@ function GlassMeta({
 
 const glassStyles = StyleSheet.create({
   pill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 0,           // sharp — editorial
-    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     alignSelf: 'flex-start',
     maxWidth: '100%',
     pointerEvents: 'none',
   },
-  /* Compact pill in the top-left corner of each face, sits below red stripe. */
+  /* 2-px crimson vertical bar — the only chrome left after dropping the
+     plate. Height tuned to match the mono-caption cap height + slight
+     extension, so it reads as a deliberate editorial element rather
+     than a stray accent. */
+  stripe: {
+    width: 2,
+    height: 11,
+    backgroundColor: Accent.base,
+  },
+  /* Compact badge in the top-left corner of each face, sits below the
+     existing top-edge red stripe of the card. */
   overlay: {
     position: 'absolute',
-    top: 8,
-    left: 10,
+    top: 10,
+    left: 12,
     zIndex: 7,
   },
   inline: {
@@ -761,6 +768,10 @@ export function VisibilityPopup({
   const dLocked   = visibility.d  && backOnly;
   const eLocked   = visibility.e  && backOnly;
 
+  /* Shares the same persisted key as Settings → Badge บนการ์ด.
+     Toggling here updates Settings and vice-versa. */
+  const [showMeta, setShowMeta] = usePersistedState<boolean>('show-card-meta', true);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={popupStyles.overlay} onPress={onClose}>
@@ -769,9 +780,9 @@ export function VisibilityPopup({
           onPress={(e) => e.stopPropagation?.()}>
           <View style={popupStyles.header}>
             <View>
-              <ThemedText type="defaultSemiBold">การแสดงผลคอลัมน์</ThemedText>
+              <ThemedText type="defaultSemiBold">การแสดงผลการ์ด</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                เลือกคอลัมน์ที่จะแสดงในแต่ละด้านของการ์ด
+                badge มุมการ์ด · คอลัมน์ที่จะแสดง
               </ThemedText>
             </View>
             <Pressable onPress={onClose} style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
@@ -779,68 +790,125 @@ export function VisibilityPopup({
             </Pressable>
           </View>
 
-          <View style={popupStyles.sectionBlock}>
-            <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
-              // FRONT · ด้านหน้า
-            </ThemedText>
-            <View style={popupStyles.rows}>
-              <CheckRow
-                checked={visibility.t}
-                locked={tLocked}
-                onPress={() => onToggle('t')}
+          {/* Scroll body — guarantees the modal stays inside the viewport
+              on short mobile screens. maxHeight is anchored to the layout
+              flow so the header + close button stay tappable, the
+              section list scrolls inside. */}
+          <ScrollView
+            style={popupStyles.scrollBody}
+            contentContainerStyle={popupStyles.scrollBodyContent}
+            showsVerticalScrollIndicator>
+            <View style={popupStyles.sectionBlock}>
+              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+                // BADGE · ป้ายมุมการ์ด
+              </ThemedText>
+              <CompactToggleRow
+                checked={showMeta}
+                onPress={() => setShowMeta(!showMeta)}
                 colors={colors}
-                label="T · คำศัพท์ (Term)"
-                hint="คันจิ / คะนะ"
-              />
-              <CheckRow
-                checked={visibility.pf}
-                locked={pfLocked}
-                onPress={() => onToggle('pf')}
-                colors={colors}
-                label="P · คำอ่าน (Pronunciation)"
-                hint="ตั้งแยกจากด้านหลัง"
+                label="แสดง badge มุมบนซ้าย"
+                hint={showMeta ? 'กำลังแสดง · แตะเพื่อซ่อน' : 'กำลังซ่อน · แตะเพื่อแสดง'}
               />
             </View>
-          </View>
 
-          <View style={popupStyles.sectionBlock}>
-            <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
-              // BACK · ด้านหลัง
-            </ThemedText>
-            <View style={popupStyles.rows}>
-              <CheckRow
-                checked={visibility.d}
-                locked={dLocked}
-                onPress={() => onToggle('d')}
-                colors={colors}
-                label="D · ความหมาย (Thai)"
-                hint="แสดงเป็น title หลังพลิกการ์ด"
-              />
-              <CheckRow
-                checked={visibility.pb}
-                locked={pbLocked}
-                onPress={() => onToggle('pb')}
-                colors={colors}
-                label="P · คำอ่าน (Pronunciation)"
-                hint="ตั้งแยกจากด้านหน้า"
-              />
-              <CheckRow
-                checked={visibility.e}
-                locked={eLocked}
-                onPress={() => onToggle('e')}
-                colors={colors}
-                label="E · คำอธิบาย (Explanation)"
-                hint="markdown sections — Breakdown / Examples"
-              />
+            <View style={popupStyles.sectionBlock}>
+              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+                // FRONT · ด้านหน้า
+              </ThemedText>
+              <View style={popupStyles.rows}>
+                <CheckRow
+                  checked={visibility.t}
+                  locked={tLocked}
+                  onPress={() => onToggle('t')}
+                  colors={colors}
+                  label="T · คำศัพท์ (Term)"
+                  hint="คันจิ / คะนะ"
+                />
+                <CheckRow
+                  checked={visibility.pf}
+                  locked={pfLocked}
+                  onPress={() => onToggle('pf')}
+                  colors={colors}
+                  label="P · คำอ่าน (Pronunciation)"
+                  hint="ตั้งแยกจากด้านหลัง"
+                />
+              </View>
             </View>
-          </View>
 
-          <ThemedText type="small" themeColor="textSecondary" style={popupStyles.footnote}>
-            ค่าเลือกใช้ทั้ง session · global default + Quiz Config มาใน polish round
-          </ThemedText>
+            <View style={popupStyles.sectionBlock}>
+              <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
+                // BACK · ด้านหลัง
+              </ThemedText>
+              <View style={popupStyles.rows}>
+                <CheckRow
+                  checked={visibility.d}
+                  locked={dLocked}
+                  onPress={() => onToggle('d')}
+                  colors={colors}
+                  label="D · ความหมาย (Thai)"
+                  hint="แสดงเป็น title หลังพลิกการ์ด"
+                />
+                <CheckRow
+                  checked={visibility.pb}
+                  locked={pbLocked}
+                  onPress={() => onToggle('pb')}
+                  colors={colors}
+                  label="P · คำอ่าน (Pronunciation)"
+                  hint="ตั้งแยกจากด้านหน้า"
+                />
+                <CheckRow
+                  checked={visibility.e}
+                  locked={eLocked}
+                  onPress={() => onToggle('e')}
+                  colors={colors}
+                  label="E · คำอธิบาย (Explanation)"
+                  hint="markdown sections — Breakdown / Examples"
+                />
+              </View>
+            </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/** Single-line toggle — smaller footprint than CheckRow (no locked state,
+ *  no inline locked-hint text). Used in VisibilityPopup for sub-options
+ *  like the badge visibility switch where there's no risk of "last one
+ *  locked" semantics. */
+function CompactToggleRow({
+  checked,
+  onPress,
+  colors,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onPress: () => void;
+  colors: typeof Colors.light;
+  label: string;
+  hint: string;
+}) {
+  const Icon = checked ? FiCheckSquare : FiSquare;
+  const iconColor = checked ? Accent.base : colors.text;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        popupStyles.compactRow,
+        {
+          borderColor: colors.border,
+          backgroundColor: checked ? Accent.bg : 'transparent',
+        },
+        pressed && { opacity: 0.85 },
+      ]}>
+      <Icon size={18} color={iconColor} strokeWidth={2} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <ThemedText type="defaultSemiBold" style={popupStyles.compactLabel}>{label}</ThemedText>
+        <ThemedText type="small" themeColor="textHint" style={popupStyles.compactHint}>{hint}</ThemedText>
+      </View>
+    </Pressable>
   );
 }
 
@@ -861,12 +929,15 @@ function CheckRow({
 }) {
   const Icon = checked ? FiCheckSquare : FiSquare;
   const iconColor = locked ? colors.textHint : checked ? Accent.base : colors.text;
+  /* Compact density — matches CompactToggleRow padding/icon/font sizes so
+     all popup rows read as one family. Locked state stays semantically
+     distinct via the backgroundSelected fill + lock hint text. */
   return (
     <Pressable
       onPress={onPress}
       disabled={locked}
       style={({ pressed }) => [
-        popupStyles.row,
+        popupStyles.compactRow,
         {
           borderColor: colors.border,
           backgroundColor: locked ? colors.backgroundSelected : checked ? Accent.bg : 'transparent',
@@ -874,10 +945,10 @@ function CheckRow({
         pressed && !locked && { opacity: 0.85 },
         locked && { opacity: 0.85 },
       ]}>
-      <Icon size={22} color={iconColor} strokeWidth={2} />
-      <View style={{ flex: 1, gap: 2 }}>
-        <ThemedText type="defaultSemiBold">{label}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
+      <Icon size={18} color={iconColor} strokeWidth={2} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <ThemedText type="defaultSemiBold" style={popupStyles.compactLabel}>{label}</ThemedText>
+        <ThemedText type="small" themeColor="textHint" style={popupStyles.compactHint}>
           {locked ? 'ล็อกไว้ — ต้องมีอย่างน้อย 1 คอลัมน์เปิด' : hint}
         </ThemedText>
       </View>
@@ -997,10 +1068,15 @@ const popupStyles = StyleSheet.create({
   panel: {
     width: '100%',
     maxWidth: 420,
+    /* maxHeight caps panel growth so the ScrollView inside actually
+       scrolls instead of pushing the modal off-screen on short mobile
+       viewports. 92% of viewport keeps a sliver of overlay visible so
+       the tap-outside-to-close affordance reads. */
+    maxHeight: '92%',
     borderRadius: Radii.md,
     borderWidth: 1,
     padding: Spacing.four,
-    gap: Spacing.four,
+    gap: Spacing.three,
   },
   header: {
     flexDirection: 'row',
@@ -1044,6 +1120,36 @@ const popupStyles = StyleSheet.create({
     borderRadius: Radii.sm,
     borderWidth: 1,
   },
+  /* Used by CompactToggleRow — same visual language as `.row` but
+     tighter vertical padding + smaller icon column, so single-toggle
+     sub-options don't claim the full row height that 5-column checks do. */
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+  compactLabel: { fontSize: 13 },
+  compactHint: { fontSize: 11 },
+  /* Scroll body inside the popup panel — flex:1 lets it consume the
+     panel's remaining height after header, then maxHeight clamps
+     content to that area on overflow. Negative right margin pulls the
+     scroll gutter out to the panel's right edge so the scrollbar
+     visually aligns with the modal border rather than sitting inset
+     under the panel padding; contentContainerStyle re-adds the same
+     inset for the children so text/rows still respect the panel gutter. */
+  scrollBody: {
+    flexGrow: 0,
+    flexShrink: 1,
+    marginRight: -Spacing.four,
+    ...(Platform.OS === 'web'
+      ? ({ overflowY: 'auto', scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any)
+      : null),
+  },
+  scrollBodyContent: { gap: Spacing.three, paddingBottom: Spacing.two, paddingRight: Spacing.four },
   footnote: { fontStyle: 'italic' },
 });
 

@@ -86,6 +86,10 @@ export default function MemorizeScreen() {
      Memorize use case). Per Vocat UX: the entire card is the tap
      target, no separate eye button. */
   const [showAnswer, setShowAnswer] = useState(true);
+  /* Shared with Quiz card + Settings → Badge บนการ์ด. Gates the top-
+     left meta badge in this Learn surface so the in-card popup toggle
+     reaches here too. */
+  const [showMeta] = usePersistedState<boolean>('show-card-meta', true);
   /* Column visibility — Memorize has its own key separate from Quiz.
      Settings exposes the same key under "// LEARN CARD". Header
      sliders icon opens an in-card popup (parity with Quiz). */
@@ -307,22 +311,20 @@ export default function MemorizeScreen() {
                 indicators — purely decorative, no info content, no
                 interaction. Crimson at 40% opacity disappears below the
                 Quiz card's visual hierarchy but rewards close looking. */}
-            <View pointerEvents="none" style={[styles.regMark, styles.regMarkTL, { borderColor: Accent.base }]} />
-            <View pointerEvents="none" style={[styles.regMark, styles.regMarkTR, { borderColor: Accent.base }]} />
-            <View pointerEvents="none" style={[styles.regMark, styles.regMarkBL, { borderColor: Accent.base }]} />
-            <View pointerEvents="none" style={[styles.regMark, styles.regMarkBR, { borderColor: Accent.base }]} />
-
-            {/* Top-left meta cluster — GlassMeta pill + eye-state
-                indicator side by side. Eye used to live in the top-
-                right corner but the right-edge overlay rail covers
-                that whole column on mobile, swallowing eye taps.
-                Moved here 2026-05-27 so it sits clear of the rail. */}
+            {/* Top-left meta cluster — editorial crimson stripe + mono
+                caption + eye-state indicator. Badge text gates on
+                show-card-meta (in-card popup + Settings); the eye
+                indicator stays visible regardless because it's a
+                functional state cue, not chrome. */}
             <View style={styles.topMetaCluster}>
-              <View style={[styles.glassMeta, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
-                  {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'RECALL'}`}
-                </ThemedText>
-              </View>
+              {showMeta && (
+                <View style={styles.glassMeta}>
+                  <View style={styles.metaStripe} />
+                  <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
+                    {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'RECALL'}`}
+                  </ThemedText>
+                </View>
+              )}
               {showAnswer ? (
                 <FiEye size={14} color={colors.textHint} strokeWidth={2} />
               ) : (
@@ -734,22 +736,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 20,
   },
-  /* Round-5 P2 corner registration marks — 10×10 L-shapes at each
-     card corner. Anchored just INSIDE the card border so the radius
-     curve doesn't clip them. zIndex 2 sits over the card bg but
-     under the top meta cluster (zIndex 3) so they never compete
-     with the functional UI. */
-  regMark: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    opacity: 0.4,
-    zIndex: 2,
-  },
-  regMarkTL: { top: 4, left: 4,    borderTopWidth: 1.5, borderLeftWidth: 1.5 },
-  regMarkTR: { top: 4, right: 4,   borderTopWidth: 1.5, borderRightWidth: 1.5 },
-  regMarkBL: { bottom: 4, left: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5 },
-  regMarkBR: { bottom: 4, right: 4, borderBottomWidth: 1.5, borderRightWidth: 1.5 },
   /* First-time tooltip below the sliders icon. Top 44 = configBtnFloat
      top (8) + height (32) + 4px gap. Right matches the icon's adaptive
      inset so the label sits right-aligned underneath. zIndex below the
@@ -767,10 +753,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   glassMeta: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderRadius: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  /* 2-px crimson vertical bar — paired with the mono caption. Mirrors
+     the GlassMeta editorial stripe used in flashcard.tsx (Quiz card)
+     so Quiz + Learn read as the same publication. */
+  metaStripe: {
+    width: 2,
+    height: 11,
+    backgroundColor: Accent.base,
   },
   answerBlock: {
     gap: Spacing.three,

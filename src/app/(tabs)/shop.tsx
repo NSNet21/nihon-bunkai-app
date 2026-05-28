@@ -239,22 +239,39 @@ export default function ShopScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.bundleBlurb}>
                 ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
               </ThemedText>
-              {/* Bundles always use a 2+1 grid: PDF + Full Bundle share
-                  the top row, First Edition spans the bottom row at full
-                  width. Per user request 2026-05-28. On narrow viewports
-                  the top row's flexBasis 48% + minWidth 240 naturally
-                  degrades to 1-per-row stack, so the same markup serves
-                  mobile + tablet + desktop. Bundles ignore the page's
-                  viewMode toggle — the toggle still controls per-level
-                  product display only. */}
-              <View style={styles.bundleGrid}>
-                {bundles.map((p, idx) => {
-                  const isFullWidth = p.slug === 'first-edition';
-                  return (
-                    <Animated.View
-                      key={p.slug}
-                      entering={staggerEnter(idx)}
-                      style={isFullWidth ? styles.bundleSlotFull : styles.bundleSlotHalf}>
+              {/* Bundle display ADAPTS to the page viewMode toggle:
+                  - LIST mode → vertical stack (1 per row)
+                  - GRID mode → 2+1 layout (PDF + Full on top row, First
+                    Edition full-width on bottom row). Per user spec
+                    2026-05-28: "ก็ version ก่อนๆ มันก็เรียงงี้นะ".
+                  Top-row cards get `fillHeight` so the slot's stretched
+                  height propagates into the card — keeps PDF + Full at
+                  matching heights even when PDF's spec-chips wrap to
+                  multiple lines. */}
+              {effectiveViewMode === 'grid' ? (
+                <View style={styles.bundleGrid}>
+                  {bundles.map((p, idx) => {
+                    const isFullWidth = p.slug === 'first-edition';
+                    return (
+                      <Animated.View
+                        key={p.slug}
+                        entering={staggerEnter(idx)}
+                        style={isFullWidth ? styles.bundleSlotFull : styles.bundleSlotHalf}>
+                        <ProductCard
+                          product={p}
+                          colors={colors}
+                          featured={p.slug === 'full-bundle'}
+                          viewMode="list"
+                          fillHeight={!isFullWidth}
+                        />
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.productList}>
+                  {bundles.map((p, idx) => (
+                    <Animated.View key={p.slug} entering={staggerEnter(idx)}>
                       <ProductCard
                         product={p}
                         colors={colors}
@@ -262,9 +279,9 @@ export default function ShopScreen() {
                         viewMode="list"
                       />
                     </Animated.View>
-                  );
-                })}
-              </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -500,11 +517,17 @@ function ProductCard({
   colors,
   featured,
   viewMode,
+  fillHeight,
 }: {
   product: Product;
   colors: typeof Colors.light;
   featured?: boolean;
   viewMode: ViewMode;
+  /** When true, the card root takes `flex: 1` so it fills its parent
+   *  flex slot's stretched height. Used by the bundle 2+1 grid to
+   *  keep PDF + Full Bundle at matching heights regardless of the
+   *  spec-chips wrap count. */
+  fillHeight?: boolean;
 }) {
   const isFree = product.price === 0;
   const isStarter = product.slug === 'n5-starter';
@@ -528,6 +551,7 @@ function ProductCard({
       style={[
         styles.card,
         viewMode === 'grid' && styles.cardGrid,
+        fillHeight && styles.cardFill,
         { borderColor: featured ? Accent.base : colors.border, borderWidth: featured ? 1.5 : 1 },
       ]}>
       <View style={styles.cardHeader}>
@@ -1117,15 +1141,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.three,
+    /* Explicit so RN-Web's flex-wrap doesn't drop the stretch
+       behavior the inner cards rely on for equal-height. */
+    alignItems: 'stretch',
   },
   bundleSlotHalf: {
     flexBasis: '48%' as any,
     flexGrow: 1,
     minWidth: 240,
+    alignSelf: 'stretch',
   },
   bundleSlotFull: {
     flexBasis: '100%' as any,
     width: '100%',
+    alignSelf: 'stretch',
   },
   /* PDF Bundle level-spec chips — re-added 2026-05-28 (per user
      "icon pdf n5-n1 ที่ใส่มาใหม่ เท่ดี"). Row of tiny mono pills
@@ -1157,6 +1186,13 @@ const styles = StyleSheet.create({
     flexBasis: '48%' as any,
     flexGrow: 1,
     minWidth: 240,
+  },
+  /* Stretch the card's root to fill its parent slot's height — used
+     in the bundle 2+1 grid so PDF + Full Bundle stay matched even
+     when one has more vertical content (e.g. spec chips wrap). */
+  cardFill: {
+    flex: 1,
+    alignSelf: 'stretch',
   },
   cardHeader: {
     flexDirection: 'row',

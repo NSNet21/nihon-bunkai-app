@@ -141,6 +141,11 @@ export default function LevelScreen() {
                     },
                     disabled && { opacity: 0.55 },
                   ]}>
+                  {active && (
+                    <ThemedText style={[styles.stateLabel, { color: Accent.base }]}>
+                      SELECTED
+                    </ThemedText>
+                  )}
                   <ThemedText style={[styles.tileKanji, { color: active ? Accent.base : colors.text }]}>
                     {lv.kanji}
                   </ThemedText>
@@ -153,7 +158,7 @@ export default function LevelScreen() {
                       <View style={[styles.lockChip, { borderColor: colors.border }]}>
                         <FiLock size={9} color={colors.textHint} strokeWidth={2} />
                         <ThemedText style={[styles.lockLabel, { color: colors.textHint }]}>
-                          ปลดล็อกทีหลัง
+                          LOCKED · ปลดล็อกทีหลัง
                         </ThemedText>
                       </View>
                     ) : (
@@ -332,6 +337,17 @@ const styles = StyleSheet.create({
   },
   tileFooter: { marginTop: 2 },
   tileTh: { fontSize: 11, lineHeight: 16 },
+  /* Mono micro-state label per GPT round-3 verdict P1 — same treatment
+     across SELECTED · RECOMMENDED · FREE · OWNED · LOCKED. */
+  stateLabel: {
+    position: 'absolute',
+    top: Spacing.two,
+    right: Spacing.two,
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.2,
+    fontWeight: '600',
+  },
   lockChip: {
     flexDirection: 'row',
     alignItems: 'center',

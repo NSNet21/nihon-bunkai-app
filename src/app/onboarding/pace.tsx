@@ -135,11 +135,18 @@ export default function PaceScreen() {
                       backgroundColor: active ? Accent.bg : colors.surface,
                     },
                   ]}>
-                  {g.recommended && (
+                  {/* SELECTED state takes precedence over RECOMMENDED hint —
+                      same corner slot, active selection is more important to
+                      surface than "this is suggested". */}
+                  {active ? (
+                    <ThemedText style={[styles.stateLabel, { color: Accent.base }]}>
+                      SELECTED
+                    </ThemedText>
+                  ) : g.recommended ? (
                     <View style={[styles.recBadge, { backgroundColor: Accent.base }]}>
                       <ThemedText style={styles.recBadgeText}>RECOMMENDED</ThemedText>
                     </View>
-                  )}
+                  ) : null}
                   <ThemedText style={[styles.tileNum, { color: active ? Accent.base : colors.text }]}>
                     {g.value}
                   </ThemedText>
@@ -375,6 +382,17 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '700',
     letterSpacing: 1.2,
+  },
+  /* Mono micro-state label per GPT round-3 verdict P1 — matches the
+     SELECTED chip style used on the Level tile. */
+  stateLabel: {
+    position: 'absolute',
+    top: Spacing.two,
+    right: Spacing.two,
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.2,
+    fontWeight: '600',
   },
   tileNum: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),

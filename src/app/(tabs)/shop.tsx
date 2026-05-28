@@ -515,6 +515,17 @@ function ProductCard({
                 </ThemedText>
               </View>
             )}
+            {/* FREE chip mirrors OWNED treatment per round-3 verdict P1
+                "Add micro-state labels". Price col still shows "FREE"
+                but the title-row chip aligns N5 starter visually with
+                paid SKUs that carry OWNED. */}
+            {isFree && !isOwned && (
+              <View style={[styles.tag, { borderColor: colors.border }]}>
+                <ThemedText type="small" style={[styles.tagText, { color: colors.textSecondary }]}>
+                  FREE
+                </ThemedText>
+              </View>
+            )}
           </View>
           {product.desc && (
             <ThemedText type="small" themeColor="textSecondary">

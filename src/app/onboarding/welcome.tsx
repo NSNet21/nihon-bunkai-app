@@ -89,9 +89,7 @@ export default function WelcomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           {/* Ghost kanji — huge faded backdrop */}
-          <ThemedText
-            style={[styles.ghostKanji, { color: colors.textHint }]}
-            pointerEvents="none">
+          <ThemedText style={[styles.ghostKanji, { color: colors.textHint }]}>
             始
           </ThemedText>
 
@@ -253,7 +251,8 @@ const styles = StyleSheet.create({
     lineHeight: 280,
     opacity: 0.04,
     zIndex: 0,
-  },
+    pointerEvents: 'none',
+  } as any,
 
   stepWrap: { zIndex: 1 },
 

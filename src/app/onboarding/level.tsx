@@ -91,9 +91,7 @@ export default function LevelScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-          <ThemedText
-            style={[styles.ghostKanji, { color: colors.textHint }]}
-            pointerEvents="none">
+          <ThemedText style={[styles.ghostKanji, { color: colors.textHint }]}>
             級
           </ThemedText>
 
@@ -274,7 +272,8 @@ const styles = StyleSheet.create({
     lineHeight: 240,
     opacity: 0.04,
     zIndex: 0,
-  },
+    pointerEvents: 'none',
+  } as any,
 
   stepWrap: { zIndex: 1 },
 

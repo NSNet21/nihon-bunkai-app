@@ -91,9 +91,7 @@ export default function PaceScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-          <ThemedText
-            style={[styles.ghostKanji, { color: colors.textHint }]}
-            pointerEvents="none">
+          <ThemedText style={[styles.ghostKanji, { color: colors.textHint }]}>
             日
           </ThemedText>
 
@@ -325,7 +323,8 @@ const styles = StyleSheet.create({
     lineHeight: 260,
     opacity: 0.04,
     zIndex: 0,
-  },
+    pointerEvents: 'none',
+  } as any,
 
   stepWrap: { zIndex: 1 },
 

@@ -139,9 +139,7 @@ export default function GroupPickerScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
-          <ThemedText
-            style={[styles.ghostKanji, { color: colors.textHint }]}
-            pointerEvents="none">
+          <ThemedText style={[styles.ghostKanji, { color: colors.textHint }]}>
             組
           </ThemedText>
 
@@ -334,7 +332,8 @@ const styles = StyleSheet.create({
     lineHeight: 220,
     opacity: 0.04,
     zIndex: 0,
-  },
+    pointerEvents: 'none',
+  } as any,
 
   heroBlock: { gap: Spacing.two, zIndex: 1 },
   kickerRow: {

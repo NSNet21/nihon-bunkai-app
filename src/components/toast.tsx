@@ -74,8 +74,7 @@ function ToastViewport({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: 
 
   return (
     <View
-      pointerEvents="box-none"
-      style={[styles.viewport, isDesktop ? styles.viewportDesktop : styles.viewportMobile]}>
+      style={[styles.viewport, { pointerEvents: 'box-none' } as any, isDesktop ? styles.viewportDesktop : styles.viewportMobile]}>
       {toasts.map((t) => (
         <Toast key={t.id} item={t} onDismiss={() => onDismiss(t.id)} />
       ))}

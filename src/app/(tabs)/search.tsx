@@ -67,9 +67,7 @@ export default function SearchScreen() {
           Shop's muted scale (smaller than Browse main page since secondary
           surface). Lives at ThemedView root so it stays fixed while the
           result list scrolls. */}
-      <ThemedText
-        style={[styles.ghostKanji, { color: c.textHint }]}
-        pointerEvents="none">
+      <ThemedText style={[styles.ghostKanji, { color: c.textHint }]}>
         検
       </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>

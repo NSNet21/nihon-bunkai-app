@@ -44,12 +44,17 @@ export function PressableScale({
 
   /* Merge caller-style with press transform. RN Web flattens the array
      and forwards `transition` straight to the rendered div, so the
-     browser compositor handles transform/opacity interpolation. */
+     browser compositor handles transform/opacity interpolation.
+     `opacity` is only emitted while a press is active — at rest the
+     caller's own `style.opacity` wins, so `disabled` callers that
+     set 0.35 still gray out correctly. */
   const composed = useMemo(
     () => [
       style,
       TRANSITION,
-      { transform: [{ scale: active ? scaleTo : 1 }], opacity: active ? opacityTo : 1 },
+      active
+        ? { transform: [{ scale: scaleTo }], opacity: opacityTo }
+        : { transform: [{ scale: 1 }] },
     ],
     [style, active, scaleTo, opacityTo],
   );

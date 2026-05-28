@@ -26,9 +26,7 @@ export default function SettingsScreen() {
       {/* Ghost kanji 設 (set/establish, as in 設定) — sticky background
           decoration. Mirrors Shop's muted scale; lives at ThemedView root
           so it stays fixed while the settings list scrolls. */}
-      <ThemedText
-        style={[styles.ghostKanji, { color: colors.textHint }]}
-        pointerEvents="none">
+      <ThemedText style={[styles.ghostKanji, { color: colors.textHint }]}>
         設
       </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>

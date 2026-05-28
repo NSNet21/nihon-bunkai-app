@@ -52,10 +52,16 @@ export function PressableScale({
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
+  /* Only emit `opacity` while it's dimmed by a press — at rest let the
+     caller's own `style.opacity` win. Otherwise a static `opacity: 1`
+     here would override `disabled` callers that set 0.35 to gray out. */
+  const animatedStyle = useAnimatedStyle(() => {
+    const s: { transform: { scale: number }[]; opacity?: number } = {
+      transform: [{ scale: scale.value }],
+    };
+    if (opacity.value < 1) s.opacity = opacity.value;
+    return s;
+  });
 
   return (
     <AnimatedPressable

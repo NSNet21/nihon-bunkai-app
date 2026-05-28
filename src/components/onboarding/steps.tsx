@@ -64,7 +64,7 @@ export function OnboardingSteps({ current }: { current: 1 | 2 | 3 }) {
           (which GPT round-3 said "ดีอย่าเปลี่ยน structure") while adding
           arabic-numeral scan speed for non-design users. Active position
           colored crimson; remaining muted. */}
-      <View style={styles.numericRow} pointerEvents="none">
+      <View style={styles.numericRow}>
         {STEPS.map((_, i) => {
           const idx = i + 1;
           const active = idx === current;
@@ -99,7 +99,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 4,
-  },
+    pointerEvents: 'none',
+  } as any,
   numericLabel: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
     fontSize: 9,

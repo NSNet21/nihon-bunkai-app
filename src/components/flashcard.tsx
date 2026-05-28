@@ -406,6 +406,12 @@ export function Flashcard({
                 intercepting clicks + wheel — backface-visibility:hidden on
                 preserve-3d elements doesn't always block hit-testing on web. */}
             <Animated.View
+              /* Keep pointerEvents as PROP (not style) — Reanimated's
+                 Animated.View on RN Web does NOT forward style.pointerEvents
+                 to the rendered div, so toggling via prop is the only
+                 reliable way to stop the inactive face from intercepting
+                 clicks on the TTS icon + ScrollView wheel. Accept the
+                 deprecation warning here. */
               pointerEvents={isFlipped ? 'none' : 'auto'}
               style={[
                 styles.face,

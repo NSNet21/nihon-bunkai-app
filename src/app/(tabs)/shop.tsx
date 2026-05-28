@@ -145,9 +145,7 @@ export default function ShopScreen() {
           ScrollView so it stays fixed while content scrolls. Mirrors the
           Browse / Search / Settings pattern. Muted hint color so the
           secondary surface doesn't compete with Browse's crimson 学. */}
-      <ThemedText
-        style={[styles.shopGhostKanji, { color: colors.textHint }]}
-        pointerEvents="none">
+      <ThemedText style={[styles.shopGhostKanji, { color: colors.textHint }]}>
         価
       </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>

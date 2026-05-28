@@ -204,19 +204,23 @@ export default function SearchScreen() {
      `__header` discriminator: section headers vs entry rows. */
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
-      if ('__header' in item && item.__header) {
-        return <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} />;
-      }
-      const r = item.result;
-      return (
-        <ResultRow
-          result={r}
-          onPress={() => openEntry(r.entry.deckId, r.entry.id)}
-          themeColor={c}
-          compact={compact}
-          sizes={rowSizes}
-        />
-      );
+      /* Wrap every cell in a fixed-padding View. The padding USED to
+         live on contentContainerStyle, but that only applied to the
+         in-flow cell layout — sticky headers got re-parented into
+         FlashList's absolute wrapper (no contentContainer padding)
+         and ended up wider than their inline twin, which read as a
+         horizontal jump at the sticky pin moment. Moving the inset
+         here means both states paint with identical bg geometry. */
+      const inner = ('__header' in item && item.__header)
+        ? <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} />
+        : <ResultRow
+            result={item.result}
+            onPress={() => openEntry(item.result.entry.deckId, item.result.entry.id)}
+            themeColor={c}
+            compact={compact}
+            sizes={rowSizes}
+          />;
+      return <View style={styles.cellWrap}>{inner}</View>;
     },
     [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid],
   );
@@ -238,7 +242,7 @@ export default function SearchScreen() {
       <ThemedText style={[styles.ghostKanji, { color: c.textHint }]}>
         検
       </ThemedText>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.headerSafe} edges={['top']}>
         <View style={styles.headerWrap}>
           <ThemedText type="title">Search</ThemedText>
 
@@ -308,7 +312,10 @@ export default function SearchScreen() {
             refresh icon on the right edge. Manual refresh replaced
             the auto visibilitychange listener so the user controls
             when "rebuilding index…" runs (cross-tab sync after a
-            purchase elsewhere is the main use case). */}
+            purchase elsewhere is the main use case). Lives inside
+            headerSafe so it shares the maxWidth+centered alignment
+            with the search bar above, keeping the count/refresh row
+            vertically aligned with the cell content below. */}
         {ready && hasResults && (
           <View style={[styles.totalStrip, { borderBottomColor: c.border }]}>
             <ThemedText style={[styles.totalText, { color: c.textMuted, fontSize: chromeSizes.totalText }]}>
@@ -335,14 +342,22 @@ export default function SearchScreen() {
             </Pressable>
           </View>
         )}
+      </SafeAreaView>
 
-        <View
-          style={styles.listWrap}
-          /* dataSet → data-list="search" on web. Lets global.css scope
-             the sticky-header pointer-events fix to just this FlashList
-             (see global.css "FlashList sticky-header wrappers"). RN's
-             View typing omits dataSet (RN Web extension), so cast. */
-          {...(Platform.OS === 'web' ? ({ dataSet: { list: 'search' } } as any) : {})}>
+      {/* listWrap sits OUTSIDE the maxWidth-bound headerSafe so the
+          scroll surface spans the full viewport width — that puts the
+          browser scrollbar all the way at the viewport's right edge.
+          Cells inside are re-centered to the same MaxContentWidth
+          column as the header via cellWrap (maxWidth + alignSelf
+          center), so visually the content column doesn't drift even
+          though the scrollable area got wider. */}
+      <View
+        style={styles.listWrap}
+        /* dataSet → data-list="search" on web. Lets global.css scope
+           the sticky-header pointer-events fix to just this FlashList
+           (see global.css "FlashList sticky-header wrappers"). RN's
+           View typing omits dataSet (RN Web extension), so cast. */
+        {...(Platform.OS === 'web' ? ({ dataSet: { list: 'search' } } as any) : {})}>
         <FlashList<ListItem>
           ref={listRef}
           data={listData}
@@ -372,16 +387,15 @@ export default function SearchScreen() {
             ) : null
           }
         />
-        </View>
-        <JumpGridModal
-          visible={jumpGridOpen}
-          themeColor={c}
-          availableKeys={listJumpIndices ? JUMP_KEYS.filter((k) => listJumpIndices.has(k)) : []}
-          counts={sectionCounts}
-          onPick={jumpFromGrid}
-          onClose={closeJumpGrid}
-        />
-      </SafeAreaView>
+      </View>
+      <JumpGridModal
+        visible={jumpGridOpen}
+        themeColor={c}
+        availableKeys={listJumpIndices ? JUMP_KEYS.filter((k) => listJumpIndices.has(k)) : []}
+        counts={sectionCounts}
+        onPick={jumpFromGrid}
+        onClose={closeJumpGrid}
+      />
     </ThemedView>
   );
 }
@@ -407,6 +421,13 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chr
   return (
     <Pressable
       onPress={onPress}
+      /* dataSet emits data-sticky-pressable="search-header" on web —
+         a stable hook for the global.css pointer-events scope. RN
+         Web's Pressable doesn't get a `role="button"` attribute we
+         can target, and its hashed class names rotate per build, so
+         a manual data attribute is the only reliable selector that
+         survives across versions. */
+      {...(Platform.OS === 'web' ? ({ dataSet: { stickyPressable: 'search-header' } } as any) : {})}
       style={({ pressed, hovered }: any) => [
         styles.sectionHeader,
         { paddingVertical: compact ? 4 : 8, paddingHorizontal: compact ? 8 : 12 },
@@ -614,7 +635,13 @@ function Chip({ text, color: c, accent, size, padH }: { text: string; color: typ
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
-  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  /* Header column — width:'100%' so it expands to fill the available
+     horizontal space, maxWidth + alignItems:center on the parent
+     centers the column at MaxContentWidth. No flex:1 here so the
+     header sizes to its content (Search title + input + total
+     strip); flex:1 belongs on the listWrap sibling below so it
+     claims the remaining vertical space. */
+  headerSafe: { width: '100%', maxWidth: MaxContentWidth },
   /* Ghost kanji backdrop — sticky, anchored to ThemedView root.
      Matches Shop's muted treatment (secondary surface, not the main
      Browse page which uses crimson + larger). */
@@ -677,13 +704,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.4,
   },
-  /* Outer flex wrapper around FlashList — gives the list a flex:1
-     parent and exposes `data-list="search"` for the global.css
-     scrollbar-gutter pointer-events scope. */
-  listWrap: { flex: 1 },
+  /* Outer flex wrapper around FlashList — bound to MaxContentWidth +
+     centered, so the listWrap fits the cell column tightly and the
+     scrollbar sits flush against the right edge of the content
+     instead of floating in dead space far to the right. flex:1
+     claims remaining vertical space below headerSafe. Exposes
+     `data-list="search"` for the global.css sticky-header scope. */
+  listWrap: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
   listContent: {
-    paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,
+  },
+  /* Per-cell horizontal inset + maxWidth column re-centering. The
+     cells live inside a full-viewport-wide FlashList but visually
+     stay in the same MaxContentWidth column as the header, so the
+     row content doesn't drift left when the scroll surface widens.
+     Padding replaces the contentContainerStyle paddingHorizontal so
+     sticky headers (re-parented into FlashList's absolute wrapper)
+     inherit the same inset as their inline twins — no horizontal
+     jump on the sticky-pin transition. */
+  cellWrap: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.four,
   },
   empty: {
     paddingVertical: Spacing.six,

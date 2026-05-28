@@ -121,15 +121,33 @@
    RN Web that wrapper spans the FlashList's full container width,
    including the scrollbar gutter — so when a section header is
    pinned, the wrapper's hit zone covers the scrollbar and blocks
-   the user from grabbing the thumb. We selectively disable pointer
-   events on the wrapper itself (only inside `[data-list="search"]`
-   so other FlashLists aren't affected) and re-enable them on the
-   wrapper's direct children, so the header Pressable still receives
-   clicks but the right-edge scrollbar zone falls through to the
-   browser. */
+   the user from grabbing the thumb. We disable pointer events on
+   the wrapper AND its full-width cellWrap descendant, then re-enable
+   them only on the Pressable button inside (RN Web tags Pressable
+   with role="button"). Scrollbar-zone clicks fall through to the
+   browser; header taps still register because the Pressable's box
+   stops short of the scrollbar gutter (the cellWrap padding inset
+   takes care of that). */
 div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] {
   pointer-events: none;
 }
-div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] > * {
+div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] [data-sticky-pressable="search-header"] {
   pointer-events: auto;
+}
+
+/* Sticky-wrapper right inset — matches the native scrollbar width
+   so the cellWrap centered inside aligns with the inline-state
+   cellWrap (which centers in the scrollable's content box,
+   excluding the scrollbar gutter). FlashList sets the sticky
+   wrapper's width to the scrollable's PADDING box (including the
+   gutter), so without this padding the sticky cellWrap centers
+   half-a-gutter (~8 px) right of its inline twin and reads as a
+   horizontal jump on every pin transition. scrollbar-gutter:stable
+   on the scrollable itself doesn't help here because FlashList's
+   sticky-width measurement runs against offsetWidth, which ignores
+   the reserved gutter. 15 px = Chrome/Edge/Firefox native scrollbar
+   on desktop; the small drift on platforms with thinner scrollbars
+   is invisible. */
+div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] {
+  padding-right: 15px;
 }

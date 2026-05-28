@@ -239,12 +239,31 @@ export default function ShopScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.bundleBlurb}>
                 ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
               </ThemedText>
-              <View style={effectiveViewMode === 'grid' ? styles.productGrid : styles.productList}>
-                {bundles.map((p, idx) => (
-                  <Animated.View key={p.slug} entering={staggerEnter(idx)}>
-                    <ProductCard product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={effectiveViewMode} />
-                  </Animated.View>
-                ))}
+              {/* Bundles always use a 2+1 grid: PDF + Full Bundle share
+                  the top row, First Edition spans the bottom row at full
+                  width. Per user request 2026-05-28. On narrow viewports
+                  the top row's flexBasis 48% + minWidth 240 naturally
+                  degrades to 1-per-row stack, so the same markup serves
+                  mobile + tablet + desktop. Bundles ignore the page's
+                  viewMode toggle — the toggle still controls per-level
+                  product display only. */}
+              <View style={styles.bundleGrid}>
+                {bundles.map((p, idx) => {
+                  const isFullWidth = p.slug === 'first-edition';
+                  return (
+                    <Animated.View
+                      key={p.slug}
+                      entering={staggerEnter(idx)}
+                      style={isFullWidth ? styles.bundleSlotFull : styles.bundleSlotHalf}>
+                      <ProductCard
+                        product={p}
+                        colors={colors}
+                        featured={p.slug === 'full-bundle'}
+                        viewMode="list"
+                      />
+                    </Animated.View>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -496,6 +515,12 @@ function ProductCard({
   const canDownloadInApp = isOwned && product.grantsApp;
   const showPdfHint = isOwned && hasPdfPart(product.slug);
   const isBuying = !!buying[product.slug];
+  /* Round-5 retake — PDF Bundle keeps the N5/N4/N3/N2/N1/OFFLINE ARCHIVE
+     spec-chip grid per user preference 2026-05-28. The full Round-5 P1
+     bundle differentiation was reverted (cd8b345) but this one piece
+     was the part the user actually liked, so it's re-added in isolation
+     (no Featured padding bump, no First Edition serial kicker). */
+  const isPdfBundle = product.type === 'pdf-bundle';
 
   return (
     <ThemedView
@@ -544,10 +569,27 @@ function ProductCard({
               </View>
             )}
           </View>
-          {product.desc && (
-            <ThemedText type="small" themeColor="textSecondary">
-              {product.desc}
-            </ThemedText>
+          {isPdfBundle ? (
+            <View style={styles.specGrid}>
+              {['N5', 'N4', 'N3', 'N2', 'N1'].map((lvl) => (
+                <View key={lvl} style={[styles.specChip, { borderColor: colors.border }]}>
+                  <ThemedText style={[styles.specChipText, { color: colors.textSecondary }]}>
+                    {lvl}
+                  </ThemedText>
+                </View>
+              ))}
+              <View style={[styles.specChip, { borderColor: colors.border }]}>
+                <ThemedText style={[styles.specChipText, { color: colors.textSecondary }]}>
+                  OFFLINE ARCHIVE
+                </ThemedText>
+              </View>
+            </View>
+          ) : (
+            product.desc && (
+              <ThemedText type="small" themeColor="textSecondary">
+                {product.desc}
+              </ThemedText>
+            )
           )}
         </View>
         <View style={styles.priceCol}>
@@ -1064,6 +1106,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.three,
+  },
+  /* Bundles 2+1 grid — PDF + Full Bundle on top row (50/50), First
+     Edition spans the bottom row at full width. Per user spec
+     2026-05-28: this is the "เรียงแบบเดิม" layout the previous shop
+     versions used. flexBasis 48% + minWidth 240 keeps the top pair
+     side-by-side on wide viewports and gracefully wraps to a 1-per-
+     row stack below ~600px. */
+  bundleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  bundleSlotHalf: {
+    flexBasis: '48%' as any,
+    flexGrow: 1,
+    minWidth: 240,
+  },
+  bundleSlotFull: {
+    flexBasis: '100%' as any,
+    width: '100%',
+  },
+  /* PDF Bundle level-spec chips — re-added 2026-05-28 (per user
+     "icon pdf n5-n1 ที่ใส่มาใหม่ เท่ดี"). Row of tiny mono pills
+     replacing the free-form desc on the PDF Bundle only. */
+  specGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 2,
+  },
+  specChip: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+  },
+  specChipText: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.2,
+    fontWeight: '600',
   },
   card: {
     padding: Spacing.three,

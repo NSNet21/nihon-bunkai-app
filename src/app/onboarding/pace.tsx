@@ -117,8 +117,15 @@ export default function PaceScreen() {
 
           {/* Goal grid */}
           <View style={styles.grid}>
+            {/* Round-5 P2 — once the user picks a non-recommended goal,
+                the RECOMMENDED hint on the suggested tile fades so the
+                user's chosen SELECTED tile owns the eye uncontested
+                (GPT round-4: "เมื่อ selected → recommended ควร fade
+                ลงอีกนิด"). */}
             {GOALS.map((g) => {
               const active = g.value === goal;
+              const recommendedGoal = GOALS.find((x) => x.recommended)?.value;
+              const userOverrode = recommendedGoal !== undefined && goal !== recommendedGoal;
               return (
                 <PressableScale
                   key={g.value}
@@ -144,7 +151,12 @@ export default function PaceScreen() {
                       SELECTED
                     </ThemedText>
                   ) : g.recommended ? (
-                    <View style={[styles.recBadge, { backgroundColor: Accent.base }]}>
+                    <View
+                      style={[
+                        styles.recBadge,
+                        { backgroundColor: Accent.base },
+                        userOverrode && { opacity: 0.5 },
+                      ]}>
                       <ThemedText style={styles.recBadgeText}>RECOMMENDED</ThemedText>
                     </View>
                   ) : null}
@@ -168,7 +180,13 @@ export default function PaceScreen() {
                 REMINDER · เตือนทุกวัน
               </ThemedText>
             </View>
-            <View style={[styles.reminderCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+            {/* Round-5 P1 — utility-surface treatment per GPT round-4:
+                "Reminder block ยัง selection-card · thinner frame ·
+                lower contrast · smaller padding · control panel feel".
+                Hairline border + no bg fill + tighter padding lands it
+                in the configuration layer instead of competing with
+                the goal tiles above. */}
+            <View style={[styles.reminderCard, { borderColor: colors.border }]}>
               <View style={{ flex: 1, gap: 4 }}>
                 <ThemedText style={[styles.reminderLabel, { color: colors.textHint }]}>REMIND ME AT</ThemedText>
                 <ThemedText style={[styles.reminderClock, { color: Accent.base }]}>{reminderTime}</ThemedText>
@@ -416,9 +434,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
+    /* Round-5 P1 utility — was Spacing.three + borderWidth 1 + surface
+       fill, which read as a selection card. Hairline + tighter padding
+       + no fill drops it into the "control panel" layer below the
+       goal grid. */
+    padding: Spacing.two,
     borderRadius: Radii.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   reminderLabel: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
@@ -428,8 +450,10 @@ const styles = StyleSheet.create({
   },
   reminderClock: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    fontSize: 32,
-    lineHeight: 36,
+    /* Was 32/36 — too hero for a utility readout. 24/28 sits closer to
+       a settings-row clock. */
+    fontSize: 24,
+    lineHeight: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
   },

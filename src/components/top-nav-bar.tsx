@@ -165,6 +165,11 @@ const styles = StyleSheet.create({
   bar: {
     width: '100%',
     alignItems: 'center',
+    /* Disable text selection across the brand mark + tabs on web —
+       click + drag was highlighting "Browse" / "Shop" etc. and the
+       wordmark "日本分解 · NIHON BUNKAI". Propagates to all children
+       via CSS inheritance; no-op on native. */
+    ...(Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null),
   },
   inner: {
     width: '100%',

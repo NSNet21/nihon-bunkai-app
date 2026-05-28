@@ -11,7 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -58,7 +58,7 @@ type ViewMode = 'list' | 'grid';
 type ShopTier = 'level' | 'bundle';
 
 export default function ShopScreen() {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
   const [shopTier, setShopTier] = usePersistedState<ShopTier>('shop-tier', 'level');
   /* Grid only renders meaningfully when ≥2 cards fit per row. Card

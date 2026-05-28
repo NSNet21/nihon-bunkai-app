@@ -7,7 +7,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { ThemedText } from './themed-text';
 
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 
 type Tab = { href: string; label: string };
 
@@ -116,7 +116,7 @@ const FOCUS_PATTERNS = [
 export function TopNavBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
 
   const isFocusMode = FOCUS_PATTERNS.some((re) => re.test(pathname));
 

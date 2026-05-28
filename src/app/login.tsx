@@ -8,7 +8,7 @@ import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from '
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { Accent, Radii, Spacing } from '@/constants/theme';
 
 type Mode = 'magic' | 'password';
@@ -179,7 +179,7 @@ function WebForm({ onSubmit, children }: { onSubmit: () => void; children: React
 }
 
 function ModeTabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   return (
     <View style={[styles.modeTabs, { borderColor: colors.border }]}>
       <ModeTab active={mode === 'password'} onPress={() => onChange('password')} label="รหัสผ่าน" />
@@ -199,7 +199,7 @@ function ModeTab({ active, onPress, label }: { active: boolean; onPress: () => v
 }
 
 function EmailField({ value, onChange, disabled }: { value: string; onChange: (s: string) => void; disabled?: boolean }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   return (
     <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
       <FiMail size={16} color={colors.textSecondary} />
@@ -220,7 +220,7 @@ function EmailField({ value, onChange, disabled }: { value: string; onChange: (s
 }
 
 function PasswordField({ value, onChange, disabled }: { value: string; onChange: (s: string) => void; disabled?: boolean }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   return (
     <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
       <FiLock size={16} color={colors.textSecondary} />
@@ -276,7 +276,7 @@ function PrimaryButton({ onPress, disabled, label }: { onPress: () => void; disa
 }
 
 function SecondaryButton({ onPress, disabled, label }: { onPress: () => void; disabled?: boolean; label: string }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (

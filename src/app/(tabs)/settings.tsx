@@ -11,14 +11,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { supabase } from '@/lib/supabase';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 export default function SettingsScreen() {
   const { status, user, entitledPacks, entitledSkus, signOut, refreshEntitlements } = useAuth();
-  const { colors } = useThemeColors();
+  const colors = useThemePalette();
   const entitlementCount = entitledPacks.size + entitledSkus.size;
 
   return (
@@ -142,7 +142,7 @@ export default function SettingsScreen() {
 }
 
 function CardMetaToggle() {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const [showMeta, setShowMeta] = usePersistedState<boolean>('show-card-meta', true);
   const Icon = showMeta ? FiCheckSquare : FiSquare;
   const iconColor = showMeta ? Accent.base : colors.text;
@@ -176,7 +176,7 @@ function CardMetaToggle() {
  *  queue still persists, drains on next ON). Same row pattern as
  *  CardMetaToggle for visual consistency. */
 function AutoSyncToggle() {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const [enabled, setEnabled] = usePersistedState<boolean>('auto-sync', true);
   const Icon = enabled ? FiCheckSquare : FiSquare;
   const iconColor = enabled ? Accent.base : colors.text;
@@ -220,7 +220,7 @@ function CardColumnsRow({
   title: string;
   storageKey: 'visibility' | 'visibility-learn';
 }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const [vis] = usePersistedState<ColumnVisibility>(
     storageKey,
     { t: true, pf: true, pb: true, d: true, e: true },
@@ -285,7 +285,7 @@ function CardColumnsRow({
  *  Learn (Memorize) uses 'visibility-learn'. Each face must keep ≥ 1
  *  column. */
 function ColumnsConfig({ storageKey }: { storageKey: 'visibility' | 'visibility-learn' }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const [vis, setVis] = usePersistedState<ColumnVisibility>(
     storageKey,
     { t: true, pf: true, pb: true, d: true, e: true },
@@ -454,7 +454,7 @@ const LANG_PILL_TRANSITION = Platform.select({
  *  Sliding-pill animation mirrors ThemeToggle so the segmented-control
  *  feel is consistent across settings. */
 function LanguageToggle() {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const [lang, setLang] = usePersistedState<Lang>('lang', 'th');
 
   /* Clamp index — corrupt persisted lang would return -1 and translate
@@ -542,7 +542,7 @@ const langStyles = StyleSheet.create({
 type ClaimResult = { claimed_sku: string; payhip_order_id: string };
 
 function RestoreSection({ onRestored }: { onRestored: () => Promise<void> }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
   const { showToast } = useToast();
   const [orderId, setOrderId] = useState('');
   const [email, setEmail] = useState('');
@@ -678,7 +678,7 @@ const SUPPORT_EMAIL = 'hi@nihon-bunkai.com';
  *  mailto request channel + transparent copy about what gets deleted and
  *  how purchase restoration works. Self-serve delete is P1 backlog. */
 function PrivacySection({ userEmail }: { userEmail?: string }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
 
   function onRequestDeletion() {
     const subject = encodeURIComponent('[Account Deletion Request]');
@@ -776,7 +776,7 @@ function AccountCard({
   onSignOut: () => Promise<unknown>;
   onRefresh: () => Promise<void>;
 }) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
 
   if (status === 'loading') {
     return (

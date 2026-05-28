@@ -1,10 +1,10 @@
 import { Tabs } from 'expo-router';
 
 import { Accent } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 
 export default function AppTabs() {
-  const { colors } = useThemeColors();
+  const colors = useThemePalette();
 
   return (
     <Tabs

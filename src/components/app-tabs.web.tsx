@@ -12,7 +12,6 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
 
 export default function AppTabs() {
   return (
@@ -50,8 +49,6 @@ export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps
 }
 
 export function CustomTabList(props: TabListProps) {
-  const { colors } = useThemeColors();
-
   return (
     <View {...props} style={styles.tabListContainer}>
       <ThemedView type="backgroundElement" style={styles.innerContainer}>

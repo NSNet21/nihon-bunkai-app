@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 
 import { SpeakButton } from './speak-button';
@@ -69,7 +69,7 @@ export function Flashcard({
   canSwipeNext = false,
   canSwipePrev = false,
 }: Props) {
-  const { scheme, colors } = useThemeColors();
+  const colors = useThemePalette();
 
   const rotation = useSharedValue(isFlipped ? 180 : 0);
   /* Swipe gesture shared values — declared early so the entry-change

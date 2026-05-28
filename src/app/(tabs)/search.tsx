@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FOCUS_SEARCH_EVENT } from '@/components/search-shortcut';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { useSearchIndex } from '@/hooks/use-search-index';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { ContentType, JlptLevel } from '@/data/types';
@@ -26,7 +26,7 @@ const RESULT_LIMIT = 80;
 
 export default function SearchScreen() {
   const router = useRouter();
-  const { scheme, colors: c } = useThemeColors();
+  const c = useThemePalette();
 
   const { ready, totalEntries, run } = useSearchIndex();
 

@@ -46,7 +46,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 
 type QuizCount = '10' | '20' | '30' | '50' | 'all';
@@ -69,7 +69,7 @@ const TRACK_HEIGHT = 6;
 
 export default function QuizConfigScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
-  const { colors } = useThemeColors();
+  const colors = useThemePalette();
   const router = useRouter();
   const [count, setCount] = usePersistedState<QuizCount>('quiz-count', 'all');
   const [trackWidth, setTrackWidth] = useState(0);

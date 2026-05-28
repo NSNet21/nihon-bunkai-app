@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, useWindowDimensions } from 'react-native';
 import { FiArrowUp } from 'react-icons/fi';
 import Animated, {
@@ -22,6 +22,17 @@ export function ScrollToTop({ visible, onPress }: Props) {
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(16);
   const scale = useSharedValue(1);
+  /* Hydration gate: SSR has no `window`, so useWindowDimensions returns
+     width = 0. Rendering ScrollToTop conditionally on width ≥ 768 used to
+     produce a server output of `null` and a client first-paint output of
+     <Animated.View>…</Animated.View> on desktop, which fired React #418
+     ("server rendered HTML didn't match the client") on every cold load
+     of `/`. Defer the desktop branch until after the first effect commit
+     so the initial render is identical on server + client. */
+  const [hasHydrated, setHasHydrated] = useState(false);
+  useEffect(() => {
+    setHasHydrated(true);
+  }, []);
 
   useEffect(() => {
     opacity.value = withTiming(visible ? 1 : 0, {
@@ -39,7 +50,7 @@ export function ScrollToTop({ visible, onPress }: Props) {
     transform: [{ translateY: translateY.value }, { scale: scale.value }],
   }));
 
-  if (Platform.OS !== 'web' || width < TABLET_BREAKPOINT) return null;
+  if (Platform.OS !== 'web' || !hasHydrated || width < TABLET_BREAKPOINT) return null;
 
   return (
     <Animated.View

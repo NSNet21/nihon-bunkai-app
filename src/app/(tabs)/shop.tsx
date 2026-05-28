@@ -886,7 +886,11 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     paddingTop: Spacing.six + Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.five,
+    /* Round-5 P0 section breathing — GPT verdict "ทุก row uniform เกิน ·
+       scan ยากเมื่อยาว · เพิ่ม section breathing". Bumped from 24 → 32
+       so each LevelSection / bundlesSection / nudge / footer sits in
+       its own rhythm slot. Intra-section spacing stays compressed. */
+    gap: Spacing.six,
   },
   header: { gap: Spacing.two, marginBottom: Spacing.two },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

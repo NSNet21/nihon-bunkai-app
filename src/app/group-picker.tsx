@@ -179,8 +179,15 @@ export default function GroupPickerScreen() {
                   </ThemedText>
                 </View>
                 <View style={styles.deckList}>
-                  {group.decks.map((deck) => {
+                  {group.decks.map((deck, idx) => {
                     const checked = selection.has(deck.id);
+                    /* Round-5 P0 — GPT verdict "28 rows uniform เกิน ·
+                       group every 4-5 rows subtly". Extra 8px below
+                       every 5th row (within a section) adds scan
+                       checkpoints without breaking the rhythm. Skip
+                       on the last row to avoid extra footer slack. */
+                    const isGroupBreak =
+                      (idx + 1) % 5 === 0 && idx !== group.decks.length - 1;
                     return (
                       <PressableScale
                         key={deck.id}
@@ -194,6 +201,7 @@ export default function GroupPickerScreen() {
                             borderColor: checked ? Accent.base : colors.border,
                             backgroundColor: checked ? Accent.bg : colors.surface,
                           },
+                          isGroupBreak && { marginBottom: Spacing.two },
                         ]}>
                         <View style={styles.deckBody}>
                           <ThemedText style={[styles.deckTitle, { color: colors.text }]} numberOfLines={1}>

@@ -958,7 +958,10 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,
-    gap: Spacing.four,
+    /* Round-5 P0 — GPT verdict "long list flatten · 32-40px section
+       gaps ช่วยเยอะมาก". Bumped from 16 → 32 so each section (บัญชี ·
+       ธีม · การ์ด · ภาษา · ซิงค์ · เกี่ยวกับ) sits in its own slot. */
+    gap: Spacing.six,
   },
   header: { gap: Spacing.one, marginBottom: Spacing.two },
   section: { gap: Spacing.two },

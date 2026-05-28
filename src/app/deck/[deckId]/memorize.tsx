@@ -294,6 +294,18 @@ export default function MemorizeScreen() {
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
 
+            {/* Round-5 P2 — corner registration marks. GPT round-4 noted
+                Memorize is the sacred card surface where "spine / book /
+                archive" language can land if kept subtle. These tiny L
+                marks at each corner read as editorial print bleed
+                indicators — purely decorative, no info content, no
+                interaction. Crimson at 40% opacity disappears below the
+                Quiz card's visual hierarchy but rewards close looking. */}
+            <View pointerEvents="none" style={[styles.regMark, styles.regMarkTL, { borderColor: Accent.base }]} />
+            <View pointerEvents="none" style={[styles.regMark, styles.regMarkTR, { borderColor: Accent.base }]} />
+            <View pointerEvents="none" style={[styles.regMark, styles.regMarkBL, { borderColor: Accent.base }]} />
+            <View pointerEvents="none" style={[styles.regMark, styles.regMarkBR, { borderColor: Accent.base }]} />
+
             {/* Top-left meta cluster — GlassMeta pill + eye-state
                 indicator side by side. Eye used to live in the top-
                 right corner but the right-edge overlay rail covers
@@ -716,6 +728,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 20,
   },
+  /* Round-5 P2 corner registration marks — 10×10 L-shapes at each
+     card corner. Anchored just INSIDE the card border so the radius
+     curve doesn't clip them. zIndex 2 sits over the card bg but
+     under the top meta cluster (zIndex 3) so they never compete
+     with the functional UI. */
+  regMark: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    opacity: 0.4,
+    zIndex: 2,
+  },
+  regMarkTL: { top: 4, left: 4,    borderTopWidth: 1.5, borderLeftWidth: 1.5 },
+  regMarkTR: { top: 4, right: 4,   borderTopWidth: 1.5, borderRightWidth: 1.5 },
+  regMarkBL: { bottom: 4, left: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5 },
+  regMarkBR: { bottom: 4, right: 4, borderBottomWidth: 1.5, borderRightWidth: 1.5 },
   /* First-time tooltip below the sliders icon. Top 44 = configBtnFloat
      top (8) + height (32) + 4px gap. Right matches the icon's adaptive
      inset so the label sits right-aligned underneath. zIndex below the

@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Rating } from 'ts-fsrs';
 
 import { useThemeColors } from '@/context/theme';
@@ -8,6 +8,12 @@ import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
 
 import { Radii, RateColors, Spacing } from '@/constants/theme';
+
+/* Compact breakpoint — below this, FSRS rating row tightens further so
+   Thai labels + interval hints don't crash into each other on narrow
+   phones. Quiz screen is a dynamic route (not statically pre-rendered),
+   so useWindowDimensions is safe here w.r.t. SSR hydration. */
+const COMPACT_BREAKPOINT = 480;
 
 /** Map FSRS Rating enum → Thai microcopy + semantic color key.
  *  All 4 buttons equal width per GPT polish round-2 verdict 2026-05-27:
@@ -35,9 +41,15 @@ type Props = {
 export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
   const { scheme } = useThemeColors();
   const palette = RateColors[scheme];
+  const { width } = useWindowDimensions();
+  /* Gate via `width > 0` so any SSR pass (where Dimensions defaults to 0)
+     resolves to the desktop sizing. Quiz isn't statically pre-rendered
+     today, but this keeps the component hydration-safe if it ever gets
+     reused on a route that is. */
+  const isCompact = width > 0 && width < COMPACT_BREAKPOINT;
 
   return (
-    <View style={styles.row} accessibilityRole="toolbar">
+    <View style={[styles.row, isCompact && styles.rowCompact]} accessibilityRole="toolbar">
       {BUTTONS.map((btn) => {
         const fg = palette[`${btn.colorKey}Fg`];
         const bg = palette[`${btn.colorKey}Bg`];
@@ -53,6 +65,7 @@ export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
             opacityTo={0.9}
             style={[
               styles.button,
+              isCompact && styles.buttonCompact,
               { backgroundColor: bg },
               disabled && styles.disabled,
             ]}
@@ -60,11 +73,11 @@ export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
             accessibilityLabel={
               days !== undefined ? `${btn.label} · ${formatInterval(days)}` : btn.label
             }>
-            <ThemedText type="defaultSemiBold" style={{ color: fg }}>
+            <ThemedText style={[styles.label, isCompact && styles.labelCompact, { color: fg }]}>
               {btn.label}
             </ThemedText>
             {days !== undefined && (
-              <ThemedText style={[styles.intervalHint, { color: fg }]}>
+              <ThemedText style={[styles.intervalHint, isCompact && styles.intervalHintCompact, { color: fg }]}>
                 {formatInterval(days)}
               </ThemedText>
             )}
@@ -96,16 +109,45 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     alignSelf: 'stretch',
   },
+  /* Tighter row gap on narrow phones (<480px) — 6px keeps the 4-button
+     rhythm visible without each button losing usable tap area. */
+  rowCompact: {
+    gap: 6,
+  },
+  /* Default (desktop / tablet) sizing — slimmer than the old 12/44 spec
+     so the row reads as a control strip rather than a 4-card block. */
   button: {
     flex: 1,
-    paddingVertical: Spacing.three,
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: 40,
     /* Slight vertical gap between label and interval hint. */
     gap: 2,
+  },
+  /* Mobile sizing — 6px vertical padding + 32px minHeight stays inside
+     iOS HIG's 32pt minimum for non-primary controls (FSRS rating is
+     repetitive, not a one-shot CTA). */
+  buttonCompact: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    minHeight: 32,
+  },
+  /* Label override — ThemedText's `defaultSemiBold` is 16/24 which made
+     each button feel like a full chunk of UI. 14/20 with weight 600
+     reads as decisive without dominating. */
+  label: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  /* Even tighter on phones to fit the 4-button row under 360px viewports
+     where ThemedText 14 + interval 10 + gap was crashing into the row gap. */
+  labelCompact: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   /* Tiny mono interval preview below the label. Inherits the button's
      fg color but at ~60% opacity so it reads as a marginal annotation
@@ -113,9 +155,15 @@ const styles = StyleSheet.create({
   intervalHint: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
     fontSize: 10,
+    lineHeight: 12,
     letterSpacing: 0.8,
     fontWeight: '600',
     opacity: 0.65,
+  },
+  intervalHintCompact: {
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.6,
   },
   disabled: { opacity: 0.35 },
 });

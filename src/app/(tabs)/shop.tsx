@@ -12,6 +12,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
 import { useThemeColors } from '@/context/theme';
+import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { bundles, buyUrl, LANDING_URL, perLevel, type Product } from '@/data/products';
@@ -64,9 +65,17 @@ export default function ShopScreen() {
      minWidth = 240, gap = 12, container padding ~32 → grid needs ~520px
      inner width = ~600px viewport. Below that, grid collapses to a single
      column and looks identical to list — confusing toggle UX. Hide the
-     toggle + force list on narrow viewports. */
+     toggle + force list on narrow viewports.
+
+     Hydration gate via `hasHydrated`: SSR has width = 0 → 'list', client
+     first paint on desktop would compute 'grid' → element-tree mismatch
+     (bundleGrid vs productList + ProductCard layout differs). React
+     #418 fires + discards the sub-tree. Stay on 'list' until mount
+     commits, then re-render to the actual viewport-derived mode. See
+     [[hydration-fix-as-perf-win]]. */
+  const hasHydrated = useHasHydrated();
   const { width: viewportW } = useWindowDimensions();
-  const showViewToggle = viewportW >= 600;
+  const showViewToggle = hasHydrated && viewportW >= 600;
   const effectiveViewMode: ViewMode = showViewToggle ? viewMode : 'list';
   const { status, entitledSkus } = useAuth();
   const router = useRouter();

@@ -18,10 +18,19 @@ import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from 
 
 export default function SettingsScreen() {
   const { status, user, entitledPacks, entitledSkus, signOut, refreshEntitlements } = useAuth();
+  const { colors } = useThemeColors();
   const entitlementCount = entitledPacks.size + entitledSkus.size;
 
   return (
     <ThemedView style={styles.container}>
+      {/* Ghost kanji 設 (set/establish, as in 設定) — sticky background
+          decoration. Mirrors Shop's muted scale; lives at ThemedView root
+          so it stays fixed while the settings list scrolls. */}
+      <ThemedText
+        style={[styles.ghostKanji, { color: colors.textHint }]}
+        pointerEvents="none">
+        設
+      </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           style={styles.scroll}
@@ -922,6 +931,20 @@ const styles = StyleSheet.create({
      centered max-width clamp lives on `content` instead. */
   container: { flex: 1 },
   safeArea: { flex: 1, width: '100%' },
+  /* Ghost kanji backdrop — sticky, anchored to ThemedView root.
+     Matches Shop's muted treatment (secondary surface, lower opacity
+     than Browse main page). */
+  ghostKanji: {
+    position: 'absolute',
+    top: 40,
+    right: -20,
+    fontFamily: Platform.select({ web: '"Noto Serif JP", serif', default: undefined }),
+    fontSize: 200,
+    lineHeight: 200,
+    opacity: 0.04,
+    zIndex: 0,
+    pointerEvents: 'none',
+  } as any,
   scroll: {
     flex: 1,
     alignSelf: 'stretch',

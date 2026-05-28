@@ -141,6 +141,15 @@ export default function ShopScreen() {
   return (
     <BuyingContext.Provider value={buyingApi}>
     <ThemedView style={styles.container}>
+      {/* Ghost kanji 価 — sticky background decoration, sits OUTSIDE the
+          ScrollView so it stays fixed while content scrolls. Mirrors the
+          Browse / Search / Settings pattern. Muted hint color so the
+          secondary surface doesn't compete with Browse's crimson 学. */}
+      <ThemedText
+        style={[styles.shopGhostKanji, { color: colors.textHint }]}
+        pointerEvents="none">
+        価
+      </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
           ref={scrollRef}
@@ -156,15 +165,11 @@ export default function ShopScreen() {
           scrollEventThrottle={100}>
          <View style={styles.scrollInner}>
           {/* Editorial brutalism header — mirrors design/handoff-app Screen 11.
-              Ghost kanji "価" sits behind the headline; kicker line + display
-              type + sub copy carry the "content-based pricing" framing.
-              View toggle moves into the meta row to keep the headline clean. */}
+              Ghost kanji "価" now sits at ThemedView root (sticky bg);
+              kicker line + display type + sub copy carry the
+              "content-based pricing" framing. View toggle moves into the
+              meta row to keep the headline clean. */}
           <View style={styles.shopHero}>
-            <ThemedText
-              style={[styles.shopGhostKanji, { color: colors.textHint }]}
-              pointerEvents="none">
-              価
-            </ThemedText>
             <View style={styles.shopKickerRow}>
               <View style={[styles.shopPip, { backgroundColor: Accent.base }]} />
               <ThemedText style={[styles.shopKicker, { color: colors.textMuted }]}>
@@ -393,7 +398,7 @@ const TIER_SEGMENTS: { value: ShopTier; label: string; sub: string }[] = [
   { value: 'bundle', label: 'BUNDLE',    sub: 'ชุดรวม' },
 ];
 
-const TIER_TRACK_WIDTH = 260;
+const TIER_TRACK_WIDTH = 248;
 const TIER_PILL_PAD = 2;
 const TIER_SEGMENT_WIDTH = (TIER_TRACK_WIDTH - TIER_PILL_PAD * 2) / TIER_SEGMENTS.length;
 
@@ -892,15 +897,19 @@ const styles = StyleSheet.create({
      headline as a faded backdrop; zIndex on foreground elements keeps
      the kicker/headline/sub above it. */
   shopHero: { gap: Spacing.two, marginBottom: Spacing.two, position: 'relative' },
+  /* Sticky bg — anchored to ThemedView root so it doesn't scroll with
+     the catalog. Original Shop scale (200) + muted textHint kept; only
+     the stickiness changed vs the previous in-scroll placement. */
   shopGhostKanji: {
     position: 'absolute',
-    top: -8,
-    right: -16,
+    top: 40,
+    right: -20,
     fontFamily: Platform.select({ web: '"Noto Serif JP", serif', default: undefined }),
     fontSize: 200,
     lineHeight: 200,
     opacity: 0.04,
     zIndex: 0,
+    pointerEvents: 'none',
   } as any,
   shopKickerRow: {
     flexDirection: 'row',
@@ -952,7 +961,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     bottom: 2,
-    left: 2,
+    /* left = track padding (2) + intra-segment inset (2) so the pill
+       sits centered inside its segment with 2px breathing room each
+       side. Previously left=2 placed the pill flush against the inner
+       area's left edge, which made the inactive segment's text look
+       like its left padding was thinner than its right. */
+    left: 4,
     borderRadius: 2,
   },
   /* Explicit height + centered flex column so main+sub label optically
@@ -967,22 +981,28 @@ const styles = StyleSheet.create({
     zIndex: 1,
     gap: 4,
   },
+  /* `marginRight: -letterSpacing` cancels the trailing letter-spacing
+     that CSS appends after the last glyph. Without this, the text
+     bounding box is wider than the visible glyphs by 1× letterSpacing,
+     and flex centering puts the BOX center at segment center — leaving
+     the visible glyphs shifted LEFT by letterSpacing / 2. Visible on
+     the active pill because the pill is a tight box around the text. */
   tierLabel: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
     fontSize: 11,
     lineHeight: 11,
     fontWeight: '700',
     letterSpacing: 1.4,
+    marginRight: -1.4,
     textAlign: 'center',
-    margin: 0,
-  },
+  } as any,
   tierSub: {
     fontSize: 10,
     lineHeight: 10,
     letterSpacing: 0.4,
+    marginRight: -0.4,
     textAlign: 'center',
-    margin: 0,
-  },
+  } as any,
   nudgeBanner: {
     flexDirection: 'row',
     alignItems: 'center',

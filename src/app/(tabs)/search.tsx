@@ -63,6 +63,15 @@ export default function SearchScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {/* Ghost kanji 検 (search) — sticky background decoration. Mirrors
+          Shop's muted scale (smaller than Browse main page since secondary
+          surface). Lives at ThemedView root so it stays fixed while the
+          result list scrolls. */}
+      <ThemedText
+        style={[styles.ghostKanji, { color: c.textHint }]}
+        pointerEvents="none">
+        検
+      </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.headerWrap}>
           <ThemedText type="title">Search</ThemedText>
@@ -212,6 +221,20 @@ function Chip({ text, color: c, accent }: { text: string; color: typeof Colors.l
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  /* Ghost kanji backdrop — sticky, anchored to ThemedView root.
+     Matches Shop's muted treatment (secondary surface, not the main
+     Browse page which uses crimson + larger). */
+  ghostKanji: {
+    position: 'absolute',
+    top: 40,
+    right: -20,
+    fontFamily: Platform.select({ web: '"Noto Serif JP", serif', default: undefined }),
+    fontSize: 200,
+    lineHeight: 200,
+    opacity: 0.04,
+    zIndex: 0,
+    pointerEvents: 'none',
+  } as any,
   headerWrap: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.six,

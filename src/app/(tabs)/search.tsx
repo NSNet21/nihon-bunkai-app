@@ -1,7 +1,7 @@
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { FiSearch, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,16 +29,31 @@ const SEARCH_DEBOUNCE_MS = 120;
    wildcard query can't lock up Fuse on the largest corpora. */
 const RESULT_HARD_CAP = 10_000;
 
+/* JLPT level → sort weight. Glossary entries (level === null) sort last
+   so the browse-all view + jump strip both read top-down N5→N1→G. */
+const LEVEL_ORDER: Record<string, number> = { N5: 0, N4: 1, N3: 2, N2: 3, N1: 4 };
+function levelWeight(level: JlptLevel | null): number {
+  return level ? LEVEL_ORDER[level] ?? 5 : 5;
+}
+type JumpKey = JlptLevel | 'GLOSSARY';
+const JUMP_KEYS: JumpKey[] = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
+const JUMP_LABEL: Record<JumpKey, string> = {
+  N5: 'N5', N4: 'N4', N3: 'N3', N2: 'N2', N1: 'N1', GLOSSARY: 'G',
+};
+
 export default function SearchScreen() {
   const router = useRouter();
   const c = useThemePalette();
 
   const { ready, totalEntries, allEntries, run } = useSearchIndex();
+  const { width: viewportW } = useWindowDimensions();
+  const compact = viewportW > 0 && viewportW < 480;
 
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlashListRef<SearchResult>>(null);
 
   /* Debounce: avoid running Fuse on every keystroke. */
   useEffect(() => {
@@ -48,7 +63,18 @@ export default function SearchScreen() {
 
   const hasQuery = debounced.trim().length > 0;
 
-  /* Active filter result-set OR fall-through to the full corpus.
+  /* Pre-sort the corpus by JLPT level for the browse-all view —
+     N5 → N4 → N3 → N2 → N1 → Glossary. Stable secondary sort by `no`
+     keeps deck-internal order intact inside each section. */
+  const sortedAllEntries = useMemo(() => {
+    if (allEntries.length === 0) return allEntries;
+    return [...allEntries].sort((a, b) => {
+      const lvl = levelWeight(a.level) - levelWeight(b.level);
+      return lvl !== 0 ? lvl : a.no - b.no;
+    });
+  }, [allEntries]);
+
+  /* Active filter result-set OR fall-through to the full sorted corpus.
      When no query is active, every indexed entry is surfaced as a
      synthesized SearchResult (score 0, no matches) so the row
      renderer + FlashList stay on the same data shape — no branching
@@ -56,9 +82,30 @@ export default function SearchScreen() {
   const results = useMemo(() => {
     if (!ready) return [];
     if (hasQuery) return run(debounced, RESULT_HARD_CAP);
-    return allEntries.map((entry) => ({ entry, score: 0 }));
-  }, [ready, hasQuery, debounced, run, allEntries]);
+    return sortedAllEntries.map((entry) => ({ entry, score: 0 }));
+  }, [ready, hasQuery, debounced, run, sortedAllEntries]);
   const hasResults = results.length > 0;
+
+  /* First-index map per JLPT level — drives the jump strip. Only
+     populated in browse-all mode: in filter mode results are ranked
+     by Fuse score so section anchors no longer correspond to
+     contiguous level blocks. */
+  const jumpIndices = useMemo(() => {
+    if (hasQuery) return null;
+    const map = new Map<JumpKey, number>();
+    for (let i = 0; i < results.length; i++) {
+      const lvl = results[i].entry.level;
+      const key: JumpKey = lvl ?? 'GLOSSARY';
+      if (!map.has(key)) map.set(key, i);
+    }
+    return map;
+  }, [hasQuery, results]);
+
+  const jumpTo = useCallback((key: JumpKey) => {
+    const idx = jumpIndices?.get(key);
+    if (idx == null) return;
+    listRef.current?.scrollToIndex({ index: idx, animated: true });
+  }, [jumpIndices]);
 
   /* Auto-focus on mount + on Ctrl/⌘+K from anywhere (web only). */
   useEffect(() => {
@@ -84,9 +131,14 @@ export default function SearchScreen() {
      reference is reused across renders. */
   const renderItem = useCallback(
     ({ item }: { item: SearchResult }) => (
-      <ResultRow result={item} onPress={() => openEntry(item.entry.deckId, item.entry.id)} themeColor={c} />
+      <ResultRow
+        result={item}
+        onPress={() => openEntry(item.entry.deckId, item.entry.id)}
+        themeColor={c}
+        compact={compact}
+      />
     ),
-    [c, openEntry],
+    [c, openEntry, compact],
   );
 
   return (
@@ -182,7 +234,31 @@ export default function SearchScreen() {
           </View>
         )}
 
+        {/* JLPT jump strip — sticky horizontal level tabs above the
+            list. Only renders in browse-all mode; in filter mode the
+            results are score-ranked so section anchors no longer
+            correspond to contiguous level blocks. */}
+        {ready && !hasQuery && jumpIndices && jumpIndices.size > 1 && (
+          <View style={[styles.jumpStrip, { borderBottomColor: c.border }]}>
+            {JUMP_KEYS.filter((k) => jumpIndices.has(k)).map((key) => (
+              <Pressable
+                key={key}
+                onPress={() => jumpTo(key)}
+                style={({ pressed, hovered }: any) => [
+                  styles.jumpBtn,
+                  hovered && { backgroundColor: c.surface2 },
+                  pressed && { opacity: 0.7 },
+                ]}>
+                <ThemedText style={[styles.jumpText, { color: c.textMuted }]}>
+                  {JUMP_LABEL[key]}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         <FlashList<SearchResult>
+          ref={listRef}
           data={results}
           keyExtractor={(r) => r.entry.id}
           contentContainerStyle={styles.listContent}
@@ -212,52 +288,56 @@ interface RowProps {
   result: SearchResult;
   onPress: () => void;
   themeColor: typeof Colors.light | typeof Colors.dark;
+  compact: boolean;
 }
 
-function ResultRow({ result, onPress, themeColor: c }: RowProps) {
+function ResultRow({ result, onPress, themeColor: c, compact }: RowProps) {
   const { entry } = result;
   /* p is the expanded variants array; show the first reading (cleaned, no Kunyomi: prefix).
      Skip if it duplicates the term itself (kana entries where T == P). */
   const displayReading = entry.p[0] ?? '';
   const showP = displayReading && displayReading !== entry.t;
 
-  /* 2-line scan layout — top line carries the Japanese term + type/
-     level chrome (the entry's identity); bottom line carries the
-     reading + Thai meaning (the lookup payload). Designed so the eye
-     fixates once for identity then once for meaning. Numerals locked
-     to 1 line each — long Thai definitions ellipsize at the right
-     edge rather than forcing a third row that would break list rhythm. */
+  /* S1 | S2 | chips layout (per user annotation).
+       S1 = term + reading (the identity)
+       S2 = Thai meaning (the lookup answer)
+       chips = type + level, vertically centred at row midpoint
+     Row uses alignItems:center so chips anchor to the row's vertical
+     centre regardless of how many lines S1 / S2 render. On compact
+     viewports (<480 px) S2 wraps under S1 so the meaning gets full
+     row width — desktop keeps the side-by-side columns. */
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
+        compact ? styles.rowCompact : styles.rowWide,
         {
           backgroundColor: pressed ? c.surface2 : 'transparent',
           borderBottomColor: c.border,
         },
       ]}
     >
-      <View style={styles.rowTopLine}>
+      <View style={[styles.sectionS1, compact ? styles.sectionS1Compact : styles.sectionS1Wide]}>
         <ThemedText style={[styles.term, { color: c.text }]} numberOfLines={1}>
           {entry.t}
         </ThemedText>
-        <View style={styles.chips}>
-          <Chip text={TYPE_LABEL[entry.type]} color={c} />
-          {entry.level ? <Chip text={entry.level} color={c} accent /> : null}
-        </View>
-      </View>
-      <View style={styles.rowBottomLine}>
         {showP ? (
           <ThemedText style={[styles.reading, { color: c.textHint }]} numberOfLines={1}>
             {displayReading}
           </ThemedText>
         ) : null}
-        {entry.d ? (
-          <ThemedText style={[styles.meaning, { color: c.textMuted }]} numberOfLines={1}>
+      </View>
+      {entry.d ? (
+        <View style={[styles.sectionS2, compact ? styles.sectionS2Compact : styles.sectionS2Wide, { borderLeftColor: c.border }]}>
+          <ThemedText style={[styles.meaning, { color: c.textMuted }]} numberOfLines={compact ? 2 : 2}>
             {entry.d}
           </ThemedText>
-        ) : null}
+        </View>
+      ) : null}
+      <View style={styles.chips}>
+        <Chip text={TYPE_LABEL[entry.type]} color={c} />
+        {entry.level ? <Chip text={entry.level} color={c} accent /> : null}
       </View>
     </Pressable>
   );
@@ -378,35 +458,59 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
   },
-  /* 2-line row — top line: term + chips, bottom line: reading + meaning.
-     hairline bottom border separates rows without claiming the visual
-     weight of a full surface fill. ~72px tall — matches FlashList's
-     estimatedItemSize so the virtualization windows stay accurate. */
+  /* S1 | S2 | chips row container. alignItems:center centres the chip
+     cluster on the row's vertical midpoint regardless of how many
+     lines S1 + S2 render. Hairline bottom border separates rows
+     without claiming a full surface-fill weight. */
   row: {
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.two,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 4,
-  },
-  rowTopLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  rowBottomLine: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.three,
-  },
-  term: { fontSize: 17, fontWeight: '500', flex: 1 },
+  rowWide: { gap: Spacing.three },
+  rowCompact: { gap: Spacing.two, flexWrap: 'wrap' },
+  /* S1 — Japanese identity: term (large) + reading (mono small). */
+  sectionS1: { gap: 2 },
+  sectionS1Wide: { flex: 0, flexBasis: 140 },
+  sectionS1Compact: { flexBasis: '40%', minWidth: 110 },
+  /* S2 — Thai meaning. Hairline left rule visually splits it from S1
+     on wide viewports. On compact viewports the rule moves to the
+     top (we use only borderLeft so on compact we skip applying it). */
+  sectionS2: { flex: 1 },
+  sectionS2Wide: { paddingLeft: Spacing.three, borderLeftWidth: StyleSheet.hairlineWidth },
+  sectionS2Compact: { paddingLeft: 0, flexBasis: '100%' },
+  term: { fontSize: 17, fontWeight: '500' },
   reading: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
     fontSize: 12,
-    minWidth: 60,
   },
-  meaning: { fontSize: 13, flex: 1 },
+  meaning: { fontSize: 13, lineHeight: 18 },
   chips: { flexDirection: 'row', gap: Spacing.one, alignItems: 'center', flexShrink: 0 },
+  /* JLPT jump strip — horizontal level tabs above the result list.
+     Tapping a tab calls scrollToIndex on the FlashList ref. Editorial
+     mono caps, thin bottom border to separate from the list. */
+  jumpStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.one,
+    gap: Spacing.one,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  jumpBtn: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+    borderRadius: Radii.sm,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  jumpText: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 11,
+    letterSpacing: 1.2,
+    fontWeight: '600',
+  },
   chip: {
     borderWidth: 1,
     paddingHorizontal: Spacing.two,

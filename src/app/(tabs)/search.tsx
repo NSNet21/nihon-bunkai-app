@@ -37,9 +37,6 @@ function levelWeight(level: JlptLevel | null): number {
 }
 type JumpKey = JlptLevel | 'GLOSSARY';
 const JUMP_KEYS: JumpKey[] = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
-const JUMP_LABEL: Record<JumpKey, string> = {
-  N5: 'N5', N4: 'N4', N3: 'N3', N2: 'N2', N1: 'N1', GLOSSARY: 'G',
-};
 const JUMP_LONG_LABEL: Record<JumpKey, string> = {
   N5: 'N5 · พื้นฐาน', N4: 'N4 · ต้น', N3: 'N3 · กลาง',
   N2: 'N2 · สูง', N1: 'N1 · สูงสุด', GLOSSARY: 'GLOSSARY · ศัพท์รวม',
@@ -125,16 +122,27 @@ export default function SearchScreen() {
   }, [hasQuery, results]);
 
   /* Header indices in the LIST view (not the bare results array) so the
-     jump-strip + grid modal scroll to the right offset including header
-     rows. */
-  const listJumpIndices = useMemo(() => {
-    if (hasQuery) return null;
-    const map = new Map<JumpKey, number>();
+     jump-grid modal scrolls to the right offset including header rows.
+     Single pass extracts the first-index map, per-section row counts
+     (modal caption), AND the sorted array of header positions that
+     FlashList's `stickyHeaderIndices` needs to pin headers to the
+     top edge until the next one pushes them off. */
+  const { listJumpIndices, sectionCounts, stickyHeaderIndices } = useMemo(() => {
+    if (hasQuery) {
+      return { listJumpIndices: null, sectionCounts: null, stickyHeaderIndices: undefined as number[] | undefined };
+    }
+    const indices = new Map<JumpKey, number>();
+    const counts = new Map<JumpKey, number>();
+    const sticky: number[] = [];
     for (let i = 0; i < listData.length; i++) {
       const it = listData[i];
-      if ('__header' in it && it.__header) map.set(it.key, i);
+      if ('__header' in it && it.__header) {
+        indices.set(it.key, i);
+        counts.set(it.key, it.count);
+        sticky.push(i);
+      }
     }
-    return map;
+    return { listJumpIndices: indices, sectionCounts: counts, stickyHeaderIndices: sticky };
   }, [hasQuery, listData]);
 
   const [jumpGridOpen, setJumpGridOpen] = useState(false);
@@ -294,34 +302,17 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* JLPT jump strip — horizontal level tabs above the list.
-            Only renders in browse-all mode; in filter mode the
-            results are score-ranked so section anchors no longer
-            correspond to contiguous level blocks. */}
-        {ready && !hasQuery && listJumpIndices && listJumpIndices.size > 1 && (
-          <View style={[styles.jumpStrip, { borderBottomColor: c.border }]}>
-            {JUMP_KEYS.filter((k) => listJumpIndices.has(k)).map((key) => (
-              <Pressable
-                key={key}
-                onPress={() => jumpTo(key)}
-                style={({ pressed, hovered }: any) => [
-                  styles.jumpBtn,
-                  hovered && { backgroundColor: c.surface2 },
-                  pressed && { opacity: 0.7 },
-                ]}>
-                <ThemedText style={[styles.jumpText, { color: c.textMuted }]}>
-                  {JUMP_LABEL[key]}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
         <FlashList<ListItem>
           ref={listRef}
           data={listData}
           keyExtractor={(it) => it.id}
           getItemType={getItemType}
+          /* Sticky header indices — each section header pins to the top
+             edge while the user scrolls through its rows, then gets
+             pushed off the top as the next header approaches (classic
+             iOS contacts behaviour). Disabled in filter mode (no
+             headers in listData then). */
+          stickyHeaderIndices={stickyHeaderIndices}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           /* drawDistance defines how far ABOVE + BELOW the viewport
@@ -344,6 +335,7 @@ export default function SearchScreen() {
           visible={jumpGridOpen}
           themeColor={c}
           availableKeys={listJumpIndices ? JUMP_KEYS.filter((k) => listJumpIndices.has(k)) : []}
+          counts={sectionCounts}
           onPick={jumpFromGrid}
           onClose={closeJumpGrid}
         />
@@ -376,11 +368,8 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress }: SectionHea
         },
         pressed && { opacity: 0.85 },
       ]}>
-      <ThemedText style={[styles.sectionHeaderLabel, { color: c.textMuted }]}>
-        // {JUMP_LONG_LABEL[keyName]}
-      </ThemedText>
-      <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint }]}>
-        {count.toLocaleString()} รายการ · แตะเพื่อข้าม
+      <ThemedText style={[styles.sectionHeaderLabel, { color: c.textMuted }]} numberOfLines={1}>
+        // {JUMP_LONG_LABEL[keyName]} <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint }]}>· {count.toLocaleString()} รายการ</ThemedText>
       </ThemedText>
     </Pressable>
   );
@@ -390,14 +379,17 @@ interface JumpGridModalProps {
   visible: boolean;
   themeColor: typeof Colors.light | typeof Colors.dark;
   availableKeys: JumpKey[];
+  counts: Map<JumpKey, number> | null;
   onPick: (key: JumpKey) => void;
   onClose: () => void;
 }
 
-/** Quick-jump grid — opens on any section-header tap. Tile grid lists
- *  every section the corpus actually contains; tap a tile to scroll
- *  there. Inspired by Windows 10 Start-menu letter-grid pattern. */
-function JumpGridModal({ visible, themeColor: c, availableKeys, onPick, onClose }: JumpGridModalProps) {
+/** Quick-jump compact list — opens on any section-header tap. Each row
+ *  shows the section label + its entry count; tap to scroll there.
+ *  Reverted from a tile grid (which felt empty with only a few
+ *  sections on the free tier) to a tighter list shape that scales
+ *  cleanly with however many sections the corpus exposes. */
+function JumpGridModal({ visible, themeColor: c, availableKeys, counts, onPick, onClose }: JumpGridModalProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
@@ -410,21 +402,24 @@ function JumpGridModal({ visible, themeColor: c, availableKeys, onPick, onClose 
               <FiX size={20} color={c.text} strokeWidth={2} />
             </Pressable>
           </View>
-          <View style={styles.modalGrid}>
+          <View style={styles.modalList}>
             {availableKeys.map((key) => (
               <Pressable
                 key={key}
                 onPress={() => onPick(key)}
                 style={({ pressed, hovered }: any) => [
-                  styles.modalTile,
+                  styles.modalRow,
                   {
-                    borderColor: c.border,
-                    backgroundColor: hovered ? Accent.bg : 'transparent',
+                    borderBottomColor: c.border,
+                    backgroundColor: hovered ? c.surface2 : 'transparent',
                   },
                   pressed && { opacity: 0.7 },
                 ]}>
-                <ThemedText style={[styles.modalTileLabel, { color: Accent.base }]}>
-                  {JUMP_LABEL[key]}
+                <ThemedText style={[styles.modalRowLabel, { color: c.text }]} numberOfLines={1}>
+                  {JUMP_LONG_LABEL[key]}
+                </ThemedText>
+                <ThemedText style={[styles.modalRowCount, { color: c.textHint }]}>
+                  {(counts?.get(key) ?? 0).toLocaleString()}
                 </ThemedText>
               </Pressable>
             ))}
@@ -639,46 +634,24 @@ const styles = StyleSheet.create({
   },
   meaning: { fontSize: 13, lineHeight: 18 },
   chips: { flexDirection: 'row', gap: Spacing.one, alignItems: 'center', flexShrink: 0 },
-  /* JLPT jump strip — horizontal level tabs above the result list.
-     Tapping a tab calls scrollToIndex on the FlashList ref. Editorial
-     mono caps, thin bottom border to separate from the list. */
-  jumpStrip: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.one,
-    gap: Spacing.one,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  jumpBtn: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-    borderRadius: Radii.sm,
-    minWidth: 40,
-    alignItems: 'center',
-  },
-  jumpText: {
-    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
-    fontSize: 11,
-    letterSpacing: 1.2,
-    fontWeight: '600',
-  },
-  /* Inline section header — surface2 fill so it reads as a divider
-     against the transparent rows. Pressable: opens JumpGridModal. */
+  /* Inline section header — single-line, surface2 fill so it reads
+     as a divider against the transparent rows. Pressable: opens
+     JumpGridModal. Tight vertical padding keeps the header from
+     out-claiming the entry rows below. */
   sectionHeader: {
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
+    paddingVertical: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 2,
   },
   sectionHeaderLabel: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 1.2,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
-  sectionHeaderCount: { fontSize: 11 },
+  sectionHeaderCount: { fontSize: 11, fontWeight: '400', letterSpacing: 0.6 },
   /* Jump grid modal — Start-menu-style letter grid. Overlay covers the
      viewport; panel is centred, fixed-width on desktop, near-full
      width on mobile. */
@@ -702,25 +675,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  modalGrid: {
+  /* Compact list inside the modal — each row is a section, with a
+     hairline bottom border separating rows. Tighter than a tile grid
+     and scales cleanly whether the corpus exposes 2 sections or 6. */
+  modalList: { borderTopWidth: StyleSheet.hairlineWidth },
+  modalRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  modalTile: {
-    flexBasis: '30%',
-    flexGrow: 1,
-    minHeight: 56,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalTileLabel: {
+  modalRowLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  modalRowCount: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
-    fontSize: 18,
-    letterSpacing: 1,
-    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   chip: {
     borderWidth: 1,

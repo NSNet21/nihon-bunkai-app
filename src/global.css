@@ -113,3 +113,23 @@
   --scrollbar-thumb-hover: rgba(224, 32, 44, 0.7);
   --scrollbar-track:       var(--surface-2);
 }
+
+/* FlashList sticky-header wrappers — search list
+   ─────────────────────────────────────────────────────────────────
+   FlashList injects an absolutely positioned div around each sticky
+   cell so it can re-pin to the top edge while the list scrolls. On
+   RN Web that wrapper spans the FlashList's full container width,
+   including the scrollbar gutter — so when a section header is
+   pinned, the wrapper's hit zone covers the scrollbar and blocks
+   the user from grabbing the thumb. We selectively disable pointer
+   events on the wrapper itself (only inside `[data-list="search"]`
+   so other FlashLists aren't affected) and re-enable them on the
+   wrapper's direct children, so the header Pressable still receives
+   clicks but the right-edge scrollbar zone falls through to the
+   browser. */
+div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] {
+  pointer-events: none;
+}
+div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] > * {
+  pointer-events: auto;
+}

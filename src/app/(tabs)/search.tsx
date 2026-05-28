@@ -375,6 +375,13 @@ export default function SearchScreen() {
           </View>
         )}
 
+        <View
+          style={styles.listWrap}
+          /* dataSet → data-list="search" on web. Lets global.css scope
+             the sticky-header pointer-events fix to just this FlashList
+             (see global.css "FlashList sticky-header wrappers"). RN's
+             View typing omits dataSet (RN Web extension), so cast. */
+          {...(Platform.OS === 'web' ? ({ dataSet: { list: 'search' } } as any) : {})}>
         <FlashList<ListItem>
           ref={listRef}
           data={listData}
@@ -386,14 +393,6 @@ export default function SearchScreen() {
              iOS contacts behaviour). Disabled in filter mode (no
              headers in listData then). */
           stickyHeaderIndices={stickyHeaderIndices}
-          /* `scrollbar-gutter: stable` reserves a fixed-width column on
-             the right edge for the browser scrollbar — sticky section
-             headers then sit INSIDE that gutter boundary instead of
-             painting over the scrollbar. Web-only since RN's native
-             scrollers don't have this concern. */
-          style={Platform.OS === 'web'
-            ? ({ scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any)
-            : undefined}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           /* drawDistance defines how far ABOVE + BELOW the viewport
@@ -412,6 +411,7 @@ export default function SearchScreen() {
             ) : null
           }
         />
+        </View>
         <JumpGridModal
           visible={jumpGridOpen}
           themeColor={c}
@@ -722,6 +722,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.4,
   },
+  /* Outer flex wrapper around FlashList — gives the list a flex:1
+     parent and exposes `data-list="search"` for the global.css
+     scrollbar-gutter pointer-events scope. */
+  listWrap: { flex: 1 },
   listContent: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,

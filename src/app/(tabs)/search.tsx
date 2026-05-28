@@ -58,63 +58,24 @@ export default function SearchScreen() {
   const { width: viewportW } = useWindowDimensions();
   const compact = viewportW > 0 && viewportW < 480;
 
-  /* Measure the actual scrollbar width once on web mount — hardcoded
-     values (4 px on overlay, 14 px on desktop) are wrong inside
-     DevTools mobile emulation (Chrome keeps the desktop scrollbar
-     even when the viewport is sized to a phone). A 1-render synthetic
-     scroll element gives us the real px width, so the sticky section
-     header gutter matches regardless of platform / DevTools state. */
-  const [scrollbarPx, setScrollbarPx] = useState(0);
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const outer = document.createElement('div');
-    outer.style.cssText = 'visibility:hidden;overflow:scroll;width:100px;height:100px;position:absolute;top:-9999px;';
-    const inner = document.createElement('div');
-    inner.style.width = '100%';
-    outer.appendChild(inner);
-    document.body.appendChild(outer);
-    const w = outer.offsetWidth - inner.offsetWidth;
-    document.body.removeChild(outer);
-    setScrollbarPx(w);
-  }, []);
-
-  /* Compact mode interpolates EVERY size between 320 px (small phone)
-     and 480 px (wide phone) so the whole layout — fonts, chips,
-     padding, even the section header — shrinks smoothly with the
-     viewport instead of stepping at one breakpoint. Above 480 px the
-     wide layout takes over and the unscaled defaults apply.
-     Compact base sizes are already 1-2 px below the wide defaults so
-     the mobile card stays under ~80 px tall even at the upper end of
-     the compact range. */
+  /* Two fixed size tiers — compact (mobile) vs wide (desktop). Earlier
+     iteration interpolated everything across 320→480 px which sounded
+     responsive on paper but left meaning text at ~10 px on a 350 px
+     viewport (unreadable). Discrete tiers are easier to tune and the
+     visual jump at the breakpoint is invisible in practice since few
+     users resize the browser across 480 px in one session. */
   const { rowSizes, chromeSizes } = useMemo(() => {
-    if (!compact) {
+    if (compact) {
       return {
-        rowSizes: { term: 17, reading: 12, meaning: 13, chip: 11, padV: 12, padH: 8, gap: 4, chipPadH: 8 },
-        chromeSizes: { headerLabel: 12, headerCount: 11, totalText: 11, totalNumber: 12 },
+        rowSizes: { term: 16, reading: 11, meaning: 14, chip: 11, padV: 8, padH: 10, gap: 3, chipPadH: 7 },
+        chromeSizes: { headerLabel: 11, headerCount: 10, totalText: 10, totalNumber: 11 },
       };
     }
-    const t = Math.max(0, Math.min(1, (viewportW - 320) / 160));
-    const scale = 0.88 + t * 0.12;
-    const round = (n: number) => Math.max(8, Math.round(n * scale));
     return {
-      rowSizes: {
-        term: round(15),
-        reading: round(10),
-        meaning: round(11),
-        chip: round(9),
-        padV: round(5),
-        padH: round(8),
-        gap: round(2),
-        chipPadH: round(6),
-      },
-      chromeSizes: {
-        headerLabel: round(11),
-        headerCount: round(10),
-        totalText: round(10),
-        totalNumber: round(11),
-      },
+      rowSizes: { term: 17, reading: 12, meaning: 13, chip: 11, padV: 12, padH: 8, gap: 4, chipPadH: 8 },
+      chromeSizes: { headerLabel: 12, headerCount: 11, totalText: 11, totalNumber: 12 },
     };
-  }, [compact, viewportW]);
+  }, [compact]);
 
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -244,7 +205,7 @@ export default function SearchScreen() {
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
       if ('__header' in item && item.__header) {
-        return <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} scrollbarPx={scrollbarPx} />;
+        return <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} />;
       }
       const r = item.result;
       return (
@@ -257,7 +218,7 @@ export default function SearchScreen() {
         />
       );
     },
-    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid, scrollbarPx],
+    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid],
   );
 
   /* FlashList recycles cells by type — telling it that headers and rows
@@ -432,29 +393,23 @@ interface SectionHeaderProps {
   onPress: () => void;
   compact: boolean;
   chrome: { headerLabel: number; headerCount: number; totalText: number; totalNumber: number };
-  scrollbarPx: number;
 }
 
 /** Inline section header — sticky pin to top edge until the next
- *  header pushes it off. Background sits one surface step above the
- *  row baseline so the eye registers it as a divider, not another
- *  entry. Tapping opens the JumpGrid modal for cross-section hops.
- *  The right inset reserves space for the browser scrollbar so the
- *  sticky-header background doesn't paint UNDER the scrollbar — and
- *  it scales down on compact viewports where mobile uses overlay
- *  scrollbars that claim near-zero gutter. */
-function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chrome, scrollbarPx }: SectionHeaderProps) {
-  /* Use measured scrollbar width when available, fall back to platform
-     defaults until the measurement effect lands. */
-  const gutter = Platform.OS === 'web'
-    ? (scrollbarPx > 0 ? scrollbarPx : compact ? 4 : 14)
-    : 0;
+ *  header pushes it off. Background matches the page surface so the
+ *  header reads as part of the list rather than a tinted divider.
+ *  Tapping opens the JumpGrid modal for cross-section hops. No right
+ *  inset — the header background spans the full FlashList content
+ *  width to match the row edges exactly (earlier scrollbar-gutter
+ *  marginRight made the header end short of the rows, which read as
+ *  an indent shift on every sticky-pin transition). */
+function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chrome }: SectionHeaderProps) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed, hovered }: any) => [
         styles.sectionHeader,
-        { marginRight: gutter, paddingVertical: compact ? 4 : 8, paddingHorizontal: compact ? 8 : 12 },
+        { paddingVertical: compact ? 4 : 8, paddingHorizontal: compact ? 8 : 12 },
         {
           /* Match the page background so the header reads as part of
              the list rather than a tinted divider — opaque (not

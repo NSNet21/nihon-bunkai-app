@@ -10,13 +10,15 @@
  * The original P string stays untouched in the displayed card — this is
  * a parallel index just for lookups.
  *
- * Index is rebuilt whenever the entry list changes (paid pack imported,
- * entitlement granted, etc.). Caller is responsible for calling buildIndex
- * with fresh data; this module stays stateless.
+ * v3 (2026-05-28): lazy bundle — `fuse.js` (~30 KB) + `wanakana` (~50 KB)
+ * are only loaded once `loadSearchEngine()` is called (Search screen mount
+ * or Ctrl/⌘+K). Module-level type-only imports keep TS happy without
+ * pulling either lib into the initial bundle. Engine API is cached on a
+ * module-level promise so repeat callers share one load.
  */
 
-import Fuse, { type FuseResultMatch, type IFuseOptions } from 'fuse.js';
-import { isHiragana, isKatakana, toHiragana, toKana, toKatakana } from 'wanakana';
+import type Fuse from 'fuse.js';
+import type { FuseResultMatch, IFuseOptions } from 'fuse.js';
 
 import type { ContentType, Entry, JlptLevel } from '@/data/types';
 
@@ -40,6 +42,14 @@ export interface SearchResult {
   matches?: readonly FuseResultMatch[];
 }
 
+/** Engine API returned by `loadSearchEngine()` — all funcs close over the
+ *  loaded Fuse ctor + wanakana helpers, so callers never import them. */
+export interface SearchEngine {
+  buildIndex(entries: SearchableEntry[]): Fuse<SearchableEntry>;
+  search(fuse: Fuse<SearchableEntry>, query: string, limit?: number): SearchResult[];
+  toSearchable(entry: Entry, deckId: string, deckTitle: string): SearchableEntry;
+}
+
 const FUSE_OPTIONS: IFuseOptions<SearchableEntry> = {
   keys: [
     { name: 't', weight: 1.0 },   // Japanese term — strongest signal
@@ -54,99 +64,85 @@ const FUSE_OPTIONS: IFuseOptions<SearchableEntry> = {
   shouldSort: true,
 };
 
-export function buildIndex(entries: SearchableEntry[]): Fuse<SearchableEntry> {
-  return new Fuse(entries, FUSE_OPTIONS);
-}
+let enginePromise: Promise<SearchEngine> | null = null;
 
-export function search(
-  fuse: Fuse<SearchableEntry>,
-  query: string,
-  limit = 50,
-): SearchResult[] {
-  const trimmed = normalizeQuery(query.trim());
-  if (!trimmed) return [];
+/** Dynamic-import Fuse + wanakana on first call, cache the engine for the
+ *  rest of the session. Both libs are pure JS — no side effects to worry
+ *  about beyond the initial parse cost. */
+export function loadSearchEngine(): Promise<SearchEngine> {
+  if (enginePromise) return enginePromise;
+  enginePromise = (async () => {
+    const [fuseMod, wanakanaMod] = await Promise.all([
+      import('fuse.js'),
+      import('wanakana'),
+    ]);
+    const FuseCtor = fuseMod.default;
+    const { isHiragana, isKatakana, toHiragana, toKana, toKatakana } = wanakanaMod;
 
-  return fuse.search(trimmed, { limit }).map((r) => ({
-    entry: r.item,
-    score: r.score ?? 1,
-    matches: r.matches,
-  }));
-}
-
-/**
- * Pure-latin queries (>=2 chars) get converted to hiragana via wanakana so
- * a romaji search like `taberu` becomes `たべる`, which matches against the
- * hiragana/katakana variants already in the index. Avoids stuffing romaji
- * into every entry (which caused false-positive fuzzy hits on short queries
- * like `some` matching `sorekara`, `tsutomeru`, etc.)
- */
-function normalizeQuery(q: string): string {
-  if (q.length < 2) return q;
-  if (!/^[a-zA-Z]+$/.test(q)) return q;
-  const kana = toKana(q.toLowerCase());
-  /* Reject queries that collapse to a single kana char (e.g. `ki` → `き`) —
-     they'd otherwise fuzzy-match anything containing that one syllable. */
-  return kana.length >= 2 ? kana : '';
-}
-
-/* ─── Reading normalization ─────────────────────────────────────────── */
-
-/**
- * Strip decorations from a raw P column value and split into clean reading
- * tokens. Handles:
- *   - "Kunyomi: た.べる、く.う" → ["たべる", "くう"]
- *   - "Onyomi: ショク" → ["ショク"]
- *   - multiple lines (newline-separated)
- *   - dots "た.べる" (morpheme break in textbooks) → stripped
- *   - 、, comma, slash → split tokens
- *   - brackets, parens → stripped
- */
-function normalizeReadings(raw: string): string[] {
-  if (!raw) return [];
-  return raw
-    .split(/\r?\n/)
-    .flatMap((line) =>
-      line
-        .replace(/^(Kunyomi|Onyomi|くんよみ|おんよみ|訓読み|音読み)\s*[:：]\s*/i, '')
-        .split(/[、,/／・]/),
-    )
-    .map((tok) => tok.replace(/[.．\s()（）\[\]【】「」『』]/g, '').trim())
-    .filter((tok) => tok.length > 0);
-}
-
-/**
- * Expand each clean reading into searchable variants for hiragana ↔ katakana
- * bridging only. Romaji is handled at QUERY time via normalizeQuery, not
- * indexed — pre-indexing romaji caused short queries to fuzzy-match unrelated
- * entries (e.g. `some` matching `sorekara` because both share `s_re`/`some`
- * substrings in their romaji forms).
- */
-function expandReadings(raw: string): string[] {
-  const tokens = normalizeReadings(raw);
-  const out = new Set<string>();
-  for (const tok of tokens) {
-    out.add(tok);
-    try {
-      if (isHiragana(tok)) out.add(toKatakana(tok));
-      else if (isKatakana(tok)) out.add(toHiragana(tok));
-    } catch {
-      /* wanakana shouldn't throw on these inputs, but guard anyway */
+    function normalizeQuery(q: string): string {
+      if (q.length < 2) return q;
+      if (!/^[a-zA-Z]+$/.test(q)) return q;
+      const kana = toKana(q.toLowerCase());
+      /* Reject queries that collapse to a single kana char (e.g. `ki` → `き`) —
+         they'd otherwise fuzzy-match anything containing that one syllable. */
+      return kana.length >= 2 ? kana : '';
     }
-  }
-  return [...out];
-}
 
-/** Flatten Entry[] from all decks into the searchable projection. */
-export function toSearchable(entry: Entry, deckId: string, deckTitle: string): SearchableEntry {
-  return {
-    id: entry.id,
-    deckId,
-    deckTitle,
-    type: entry.type,
-    level: entry.level,
-    t: entry.t,
-    d: entry.d,
-    p: expandReadings(entry.p),
-    no: entry.no,
-  };
+    function normalizeReadings(raw: string): string[] {
+      if (!raw) return [];
+      return raw
+        .split(/\r?\n/)
+        .flatMap((line) =>
+          line
+            .replace(/^(Kunyomi|Onyomi|くんよみ|おんよみ|訓読み|音読み)\s*[:：]\s*/i, '')
+            .split(/[、,/／・]/),
+        )
+        .map((tok) => tok.replace(/[.．\s()（）\[\]【】「」『』]/g, '').trim())
+        .filter((tok) => tok.length > 0);
+    }
+
+    function expandReadings(raw: string): string[] {
+      const tokens = normalizeReadings(raw);
+      const out = new Set<string>();
+      for (const tok of tokens) {
+        out.add(tok);
+        try {
+          if (isHiragana(tok)) out.add(toKatakana(tok));
+          else if (isKatakana(tok)) out.add(toHiragana(tok));
+        } catch {
+          /* wanakana shouldn't throw on these inputs, but guard anyway */
+        }
+      }
+      return [...out];
+    }
+
+    return {
+      buildIndex(entries) {
+        return new FuseCtor(entries, FUSE_OPTIONS);
+      },
+      search(fuse, query, limit = 50) {
+        const trimmed = normalizeQuery(query.trim());
+        if (!trimmed) return [];
+        return fuse.search(trimmed, { limit }).map((r) => ({
+          entry: r.item,
+          score: r.score ?? 1,
+          matches: r.matches,
+        }));
+      },
+      toSearchable(entry, deckId, deckTitle) {
+        return {
+          id: entry.id,
+          deckId,
+          deckTitle,
+          type: entry.type,
+          level: entry.level,
+          t: entry.t,
+          d: entry.d,
+          p: expandReadings(entry.p),
+          no: entry.no,
+        };
+      },
+    };
+  })();
+  return enginePromise;
 }

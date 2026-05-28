@@ -125,6 +125,16 @@ export default function SearchScreen() {
                 ? `พบ ${results.length} จาก ${totalEntries.toLocaleString()} entries`
                 : `พร้อม · ${totalEntries.toLocaleString()} entries`}
           </ThemedText>
+          {/* Round-5 P1 — GPT round-4: "Keep minimal · ห้ามใส่ popular
+              searches · เพิ่ม subtle hint แทน · muted mono tiny · ไม่ใช่
+              onboarding/tutorial". One-line marginal annotation showing
+              the kana/kanji/grammar shapes the index supports. Hidden
+              once the user starts typing. */}
+          {ready && !debounced.trim() && (
+            <ThemedText style={[styles.queryHint, { color: c.textHint }]}>
+              ลอง: 食べる · 一緒 · 〜ように
+            </ThemedText>
+          )}
         </View>
 
         <FlashList<SearchResult>
@@ -273,6 +283,14 @@ const styles = StyleSheet.create({
       : null),
   },
   clearBtn: { padding: 4 },
+  /* Tiny marginal hint shown only on initial empty state — sits below
+     the status line. Mixed Thai+JP so we stay on the default app
+     font (mono Latin can't render JP), but smaller letter-spacing +
+     fontSize keeps the "marginal annotation" feel GPT asked for. */
+  queryHint: {
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
   listContent: {
     paddingHorizontal: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.four,

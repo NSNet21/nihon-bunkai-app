@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { FiSearch, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,6 +40,18 @@ const JUMP_KEYS: JumpKey[] = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
 const JUMP_LABEL: Record<JumpKey, string> = {
   N5: 'N5', N4: 'N4', N3: 'N3', N2: 'N2', N1: 'N1', GLOSSARY: 'G',
 };
+const JUMP_LONG_LABEL: Record<JumpKey, string> = {
+  N5: 'N5 · พื้นฐาน', N4: 'N4 · ต้น', N3: 'N3 · กลาง',
+  N2: 'N2 · สูง', N1: 'N1 · สูงสุด', GLOSSARY: 'GLOSSARY · ศัพท์รวม',
+};
+
+/* Union of items the FlashList renders. Headers carry their JLPT key
+   + the row count for the section caption; rows wrap the existing
+   SearchResult shape. Discriminator field `__header` distinguishes
+   the two in renderItem + getItemType. */
+type SectionHeaderItem = { __header: true; id: string; key: JumpKey; count: number };
+type RowItem = { __header?: false; id: string; result: SearchResult };
+type ListItem = SectionHeaderItem | RowItem;
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -53,7 +65,7 @@ export default function SearchScreen() {
   const [debounced, setDebounced] = useState('');
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const listRef = useRef<FlashListRef<SearchResult>>(null);
+  const listRef = useRef<FlashListRef<ListItem>>(null);
 
   /* Debounce: avoid running Fuse on every keystroke. */
   useEffect(() => {
@@ -86,26 +98,59 @@ export default function SearchScreen() {
   }, [ready, hasQuery, debounced, run, sortedAllEntries]);
   const hasResults = results.length > 0;
 
-  /* First-index map per JLPT level — drives the jump strip. Only
-     populated in browse-all mode: in filter mode results are ranked
-     by Fuse score so section anchors no longer correspond to
-     contiguous level blocks. */
-  const jumpIndices = useMemo(() => {
-    if (hasQuery) return null;
-    const map = new Map<JumpKey, number>();
-    for (let i = 0; i < results.length; i++) {
-      const lvl = results[i].entry.level;
-      const key: JumpKey = lvl ?? 'GLOSSARY';
-      if (!map.has(key)) map.set(key, i);
+  /* Interleave section headers into the data stream when browsing all.
+     Each header carries the row count for its section so the caption
+     reads "// N5 · 1,200 รายการ". In filter mode we skip headers —
+     ranked Fuse output doesn't have contiguous level blocks to label. */
+  const listData = useMemo<ListItem[]>(() => {
+    if (results.length === 0) return [];
+    if (hasQuery) {
+      return results.map((r) => ({ id: r.entry.id, result: r }));
     }
-    return map;
+    const items: ListItem[] = [];
+    let currentKey: JumpKey | null = null;
+    let lastHeaderIdx = -1;
+    for (const r of results) {
+      const k: JumpKey = r.entry.level ?? 'GLOSSARY';
+      if (k !== currentKey) {
+        currentKey = k;
+        lastHeaderIdx = items.length;
+        items.push({ __header: true, id: `__hdr_${k}`, key: k, count: 0 });
+      }
+      items.push({ id: r.entry.id, result: r });
+      const hdr = items[lastHeaderIdx] as SectionHeaderItem;
+      hdr.count += 1;
+    }
+    return items;
   }, [hasQuery, results]);
 
+  /* Header indices in the LIST view (not the bare results array) so the
+     jump-strip + grid modal scroll to the right offset including header
+     rows. */
+  const listJumpIndices = useMemo(() => {
+    if (hasQuery) return null;
+    const map = new Map<JumpKey, number>();
+    for (let i = 0; i < listData.length; i++) {
+      const it = listData[i];
+      if ('__header' in it && it.__header) map.set(it.key, i);
+    }
+    return map;
+  }, [hasQuery, listData]);
+
+  const [jumpGridOpen, setJumpGridOpen] = useState(false);
+
   const jumpTo = useCallback((key: JumpKey) => {
-    const idx = jumpIndices?.get(key);
+    const idx = listJumpIndices?.get(key);
     if (idx == null) return;
     listRef.current?.scrollToIndex({ index: idx, animated: true });
-  }, [jumpIndices]);
+  }, [listJumpIndices]);
+
+  const openJumpGrid = useCallback(() => setJumpGridOpen(true), []);
+  const closeJumpGrid = useCallback(() => setJumpGridOpen(false), []);
+  const jumpFromGrid = useCallback((key: JumpKey) => {
+    jumpTo(key);
+    setJumpGridOpen(false);
+  }, [jumpTo]);
 
   /* Auto-focus on mount + on Ctrl/⌘+K from anywhere (web only). */
   useEffect(() => {
@@ -128,17 +173,32 @@ export default function SearchScreen() {
   /* Stable renderItem closure — FlashList recycles row instances, so a
      fresh inline arrow on every parent re-render would re-attach
      handlers per cell each frame. With useCallback the same closure
-     reference is reused across renders. */
+     reference is reused across renders. Dispatches on the
+     `__header` discriminator: section headers vs entry rows. */
   const renderItem = useCallback(
-    ({ item }: { item: SearchResult }) => (
-      <ResultRow
-        result={item}
-        onPress={() => openEntry(item.entry.deckId, item.entry.id)}
-        themeColor={c}
-        compact={compact}
-      />
-    ),
-    [c, openEntry, compact],
+    ({ item }: { item: ListItem }) => {
+      if ('__header' in item && item.__header) {
+        return <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} />;
+      }
+      const r = item.result;
+      return (
+        <ResultRow
+          result={r}
+          onPress={() => openEntry(r.entry.deckId, r.entry.id)}
+          themeColor={c}
+          compact={compact}
+        />
+      );
+    },
+    [c, openEntry, compact, openJumpGrid],
+  );
+
+  /* FlashList recycles cells by type — telling it that headers and rows
+     are different types prevents a header DOM node being reused for an
+     entry row, avoiding visual flicker + bg/style spillover on scroll. */
+  const getItemType = useCallback(
+    (item: ListItem) => ('__header' in item && item.__header ? 'header' : 'row'),
+    [],
   );
 
   return (
@@ -234,13 +294,13 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* JLPT jump strip — sticky horizontal level tabs above the
-            list. Only renders in browse-all mode; in filter mode the
+        {/* JLPT jump strip — horizontal level tabs above the list.
+            Only renders in browse-all mode; in filter mode the
             results are score-ranked so section anchors no longer
             correspond to contiguous level blocks. */}
-        {ready && !hasQuery && jumpIndices && jumpIndices.size > 1 && (
+        {ready && !hasQuery && listJumpIndices && listJumpIndices.size > 1 && (
           <View style={[styles.jumpStrip, { borderBottomColor: c.border }]}>
-            {JUMP_KEYS.filter((k) => jumpIndices.has(k)).map((key) => (
+            {JUMP_KEYS.filter((k) => listJumpIndices.has(k)).map((key) => (
               <Pressable
                 key={key}
                 onPress={() => jumpTo(key)}
@@ -257,10 +317,11 @@ export default function SearchScreen() {
           </View>
         )}
 
-        <FlashList<SearchResult>
+        <FlashList<ListItem>
           ref={listRef}
-          data={results}
-          keyExtractor={(r) => r.entry.id}
+          data={listData}
+          keyExtractor={(it) => it.id}
+          getItemType={getItemType}
           contentContainerStyle={styles.listContent}
           renderItem={renderItem}
           /* drawDistance defines how far ABOVE + BELOW the viewport
@@ -279,8 +340,98 @@ export default function SearchScreen() {
             ) : null
           }
         />
+        <JumpGridModal
+          visible={jumpGridOpen}
+          themeColor={c}
+          availableKeys={listJumpIndices ? JUMP_KEYS.filter((k) => listJumpIndices.has(k)) : []}
+          onPick={jumpFromGrid}
+          onClose={closeJumpGrid}
+        />
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+interface SectionHeaderProps {
+  keyName: JumpKey;
+  count: number;
+  themeColor: typeof Colors.light | typeof Colors.dark;
+  onPress: () => void;
+}
+
+/** Inline section header — scroll-along (not sticky). Background sits
+ *  one surface step above the row baseline so the eye registers it
+ *  as a divider, not another entry. Tapping it opens the JumpGrid
+ *  modal so the user can hop to any other section without scrubbing. */
+function SectionHeaderRow({ keyName, count, themeColor: c, onPress }: SectionHeaderProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed, hovered }: any) => [
+        styles.sectionHeader,
+        {
+          backgroundColor: hovered ? c.surface3 : c.surface2,
+          borderBottomColor: c.border,
+          borderTopColor: c.border,
+        },
+        pressed && { opacity: 0.85 },
+      ]}>
+      <ThemedText style={[styles.sectionHeaderLabel, { color: c.textMuted }]}>
+        // {JUMP_LONG_LABEL[keyName]}
+      </ThemedText>
+      <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint }]}>
+        {count.toLocaleString()} รายการ · แตะเพื่อข้าม
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+interface JumpGridModalProps {
+  visible: boolean;
+  themeColor: typeof Colors.light | typeof Colors.dark;
+  availableKeys: JumpKey[];
+  onPick: (key: JumpKey) => void;
+  onClose: () => void;
+}
+
+/** Quick-jump grid — opens on any section-header tap. Tile grid lists
+ *  every section the corpus actually contains; tap a tile to scroll
+ *  there. Inspired by Windows 10 Start-menu letter-grid pattern. */
+function JumpGridModal({ visible, themeColor: c, availableKeys, onPick, onClose }: JumpGridModalProps) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable
+          style={[styles.modalPanel, { backgroundColor: c.background, borderColor: c.border }]}
+          onPress={(e) => e.stopPropagation?.()}>
+          <View style={styles.modalHeader}>
+            <ThemedText type="defaultSemiBold">ข้ามไป section</ThemedText>
+            <Pressable onPress={onClose} hitSlop={8} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+              <FiX size={20} color={c.text} strokeWidth={2} />
+            </Pressable>
+          </View>
+          <View style={styles.modalGrid}>
+            {availableKeys.map((key) => (
+              <Pressable
+                key={key}
+                onPress={() => onPick(key)}
+                style={({ pressed, hovered }: any) => [
+                  styles.modalTile,
+                  {
+                    borderColor: c.border,
+                    backgroundColor: hovered ? Accent.bg : 'transparent',
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}>
+                <ThemedText style={[styles.modalTileLabel, { color: Accent.base }]}>
+                  {JUMP_LABEL[key]}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -510,6 +661,66 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.2,
     fontWeight: '600',
+  },
+  /* Inline section header — surface2 fill so it reads as a divider
+     against the transparent rows. Pressable: opens JumpGridModal. */
+  sectionHeader: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 2,
+  },
+  sectionHeaderLabel: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 13,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  sectionHeaderCount: { fontSize: 11 },
+  /* Jump grid modal — Start-menu-style letter grid. Overlay covers the
+     viewport; panel is centred, fixed-width on desktop, near-full
+     width on mobile. */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.four,
+  },
+  modalPanel: {
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  modalTile: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    minHeight: 56,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTileLabel: {
+    fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
+    fontSize: 18,
+    letterSpacing: 1,
+    fontWeight: '700',
   },
   chip: {
     borderWidth: 1,

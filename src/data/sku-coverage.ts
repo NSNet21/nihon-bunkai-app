@@ -61,5 +61,7 @@ export function hasPdfPart(slug: string): boolean {
   return HAS_PDF_PART.has(slug);
 }
 
-/** Payhip customer account — for accessing PDF downloads after purchase. */
-export const PAYHIP_ACCOUNT_URL = 'https://payhip.com/account';
+/** Payhip customer login — `/account` was a 404. Payhip's canonical
+ *  auth entry is `/auth/login` (works for both buyers and sellers).
+ *  Buyers who never created an account land on a sign-up form there. */
+export const PAYHIP_ACCOUNT_URL = 'https://payhip.com/auth/login';

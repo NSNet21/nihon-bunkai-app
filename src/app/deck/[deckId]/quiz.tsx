@@ -21,7 +21,7 @@ import {
   putStreakMeta,
   todayLocalDate,
 } from '@/lib/srs-store';
-import { scheduleCard } from '@/lib/srs-scheduler';
+import { type IntervalPreviews, previewIntervals, scheduleCard } from '@/lib/srs-scheduler';
 import { schedulePush } from '@/lib/srs-sync';
 import { useAuth } from '@/context/auth';
 
@@ -184,6 +184,26 @@ export default function StudyScreen() {
       updatedAt: Date.now(),
     });
   }, [deck, current, index, entries.length, isComplete, setLastSession]);
+
+  /* Round-5 P0 — fetch FSRS scheduling preview for the current card so
+     the rating buttons can show "+3D / 6D" hints (GPT round-4 "FSRS
+     feels alive"). Recomputes on card change. Effectively-free: pure
+     local IndexedDB read + sync FSRS math. */
+  const [intervalPreviews, setIntervalPreviews] = useState<IntervalPreviews | null>(null);
+  useEffect(() => {
+    if (!deck || !current) {
+      setIntervalPreviews(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const entryId = makeEntryId(deck.id, current.no);
+      const existing = await getCardState(entryId);
+      if (cancelled) return;
+      setIntervalPreviews(previewIntervals(existing));
+    })();
+    return () => { cancelled = true; };
+  }, [deck, current]);
 
   async function handleRate(rating: Rating) {
     /* Lazy-init session identity on FIRST rating. */
@@ -412,7 +432,11 @@ export default function StudyScreen() {
                   />
                 )}
               </View>
-              <RatingButtons onRate={handleRate} disabled={!isFlipped} />
+              <RatingButtons
+                onRate={handleRate}
+                disabled={!isFlipped}
+                intervals={intervalPreviews ?? undefined}
+              />
               <BrandStrip colors={colors} />
               <VisibilityPopup
                 visible={configOpen}

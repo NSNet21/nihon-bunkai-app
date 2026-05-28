@@ -19,6 +19,7 @@ import {
   fsrs,
   generatorParameters,
   type Grade,
+  Rating,
 } from 'ts-fsrs';
 
 import type { CardStateRow } from './srs-store';
@@ -83,4 +84,29 @@ export function scheduleCard(
   const card = existing ? rowToCard(existing) : createEmptyCard(now);
   const result = scheduler.next(card, now, rating);
   return cardToRow(result.card, entryId, deckId);
+}
+
+/** Day-count interval that each rating would schedule (without persisting).
+ *  Powers Quiz's interval-preview chips per GPT round-4 verdict
+ *  "interval previews · FSRS feels alive". `scheduler.repeat` returns
+ *  the full IPreview map in one call so we avoid four `next` invocations. */
+export interface IntervalPreviews {
+  again: number;
+  hard: number;
+  good: number;
+  easy: number;
+}
+
+export function previewIntervals(
+  existing: CardStateRow | undefined,
+  now: Date = new Date(),
+): IntervalPreviews {
+  const card = existing ? rowToCard(existing) : createEmptyCard(now);
+  const log = scheduler.repeat(card, now);
+  return {
+    again: log[Rating.Again].card.scheduled_days,
+    hard:  log[Rating.Hard].card.scheduled_days,
+    good:  log[Rating.Good].card.scheduled_days,
+    easy:  log[Rating.Easy].card.scheduled_days,
+  };
 }

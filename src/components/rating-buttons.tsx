@@ -1,7 +1,8 @@
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Rating } from 'ts-fsrs';
 
 import { useThemeColors } from '@/context/theme';
+import type { IntervalPreviews } from '@/lib/srs-scheduler';
 
 import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
@@ -24,9 +25,14 @@ const BUTTONS = [
 type Props = {
   onRate: (rating: Rating) => void;
   disabled?: boolean;
+  /** Round-5 P0 — optional FSRS scheduling preview (days each rating
+   *  would schedule). When provided, each button shows a tiny "+3D"
+   *  hint below the label so the user sees the consequence of the
+   *  choice (GPT round-4 "FSRS feels alive"). */
+  intervals?: IntervalPreviews;
 };
 
-export function RatingButtons({ onRate, disabled = false }: Props) {
+export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
   const { scheme } = useThemeColors();
   const palette = RateColors[scheme];
 
@@ -35,6 +41,7 @@ export function RatingButtons({ onRate, disabled = false }: Props) {
       {BUTTONS.map((btn) => {
         const fg = palette[`${btn.colorKey}Fg`];
         const bg = palette[`${btn.colorKey}Bg`];
+        const days = intervals?.[btn.colorKey];
         return (
           <PressableScale
             key={btn.label}
@@ -50,15 +57,37 @@ export function RatingButtons({ onRate, disabled = false }: Props) {
               disabled && styles.disabled,
             ]}
             accessibilityRole="button"
-            accessibilityLabel={btn.label}>
+            accessibilityLabel={
+              days !== undefined ? `${btn.label} · ${formatInterval(days)}` : btn.label
+            }>
             <ThemedText type="defaultSemiBold" style={{ color: fg }}>
               {btn.label}
             </ThemedText>
+            {days !== undefined && (
+              <ThemedText style={[styles.intervalHint, { color: fg }]}>
+                {formatInterval(days)}
+              </ThemedText>
+            )}
           </PressableScale>
         );
       })}
     </View>
   );
+}
+
+/** Format FSRS `scheduled_days` as a compact preview string. New cards in
+ *  Learning state come back as fractional days (minutes/hours); review
+ *  cards as integer days. We surface days/months/years with a `+` prefix
+ *  matching GPT's "GOOD · +3D" example, and degrade short intervals to
+ *  minutes/hours so the user sees "<10m" rather than "0D". */
+function formatInterval(days: number): string {
+  if (!Number.isFinite(days) || days <= 0) return '<1m';
+  if (days < 1 / 1440) return '<1m';                                // < 1 minute
+  if (days < 1 / 24) return `+${Math.round(days * 1440)}m`;         // minutes
+  if (days < 1) return `+${Math.round(days * 24)}h`;                // hours
+  if (days < 30) return `+${Math.round(days)}D`;
+  if (days < 365) return `+${Math.round(days / 30)}M`;
+  return `+${Math.round(days / 365)}Y`;
 }
 
 const styles = StyleSheet.create({
@@ -75,6 +104,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 44,
+    /* Slight vertical gap between label and interval hint. */
+    gap: 2,
+  },
+  /* Tiny mono interval preview below the label. Inherits the button's
+     fg color but at ~60% opacity so it reads as a marginal annotation
+     rather than competing with the label itself. */
+  intervalHint: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    letterSpacing: 0.8,
+    fontWeight: '600',
+    opacity: 0.65,
   },
   disabled: { opacity: 0.35 },
 });

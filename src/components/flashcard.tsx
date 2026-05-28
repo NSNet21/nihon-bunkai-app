@@ -772,32 +772,41 @@ export function VisibilityPopup({
      Toggling here updates Settings and vice-versa. */
   const [showMeta, setShowMeta] = usePersistedState<boolean>('show-card-meta', true);
 
+  /* Header lives INSIDE the ScrollView with position:sticky on web so
+     the scrollbar gutter spans the full panel height (top edge to
+     bottom edge), not just the section-list region. Sticky keeps the
+     close button + title anchored to the top while sections scroll. */
+  const stickyHeader = Platform.OS === 'web'
+    ? ({ position: 'sticky', top: 0, zIndex: 1 } as object)
+    : null;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={popupStyles.overlay} onPress={onClose}>
         <Pressable
           style={[popupStyles.panel, { backgroundColor: colors.background, borderColor: colors.border }]}
           onPress={(e) => e.stopPropagation?.()}>
-          <View style={popupStyles.header}>
-            <View>
-              <ThemedText type="defaultSemiBold">การแสดงผลการ์ด</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                badge มุมการ์ด · คอลัมน์ที่จะแสดง
-              </ThemedText>
-            </View>
-            <Pressable onPress={onClose} style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
-              <FiX size={20} color={colors.text} strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          {/* Scroll body — guarantees the modal stays inside the viewport
-              on short mobile screens. maxHeight is anchored to the layout
-              flow so the header + close button stay tappable, the
-              section list scrolls inside. */}
+          {/* Single scroll body wraps both header + sections so the
+              scrollbar gutter aligns with the full modal height
+              (per user request). Header is position:sticky on web so
+              it stays anchored at the top while the section list
+              scrolls beneath. */}
           <ScrollView
             style={popupStyles.scrollBody}
             contentContainerStyle={popupStyles.scrollBodyContent}
             showsVerticalScrollIndicator>
+            <View style={[popupStyles.header, { backgroundColor: colors.background }, stickyHeader]}>
+              <View>
+                <ThemedText type="defaultSemiBold">การแสดงผลการ์ด</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  badge มุมการ์ด · คอลัมน์ที่จะแสดง
+                </ThemedText>
+              </View>
+              <Pressable onPress={onClose} style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
+                <FiX size={20} color={colors.text} strokeWidth={2} />
+              </Pressable>
+            </View>
+
             <View style={popupStyles.sectionBlock}>
               <ThemedText type="small" style={[popupStyles.sectionLabel, { color: colors.textHint }]}>
                 // BADGE · ป้ายมุมการ์ด
@@ -1075,8 +1084,11 @@ const popupStyles = StyleSheet.create({
     maxHeight: '92%',
     borderRadius: Radii.md,
     borderWidth: 1,
-    padding: Spacing.four,
-    gap: Spacing.three,
+    /* Panel itself owns no padding — the ScrollView fills it edge-to-
+       edge so the scrollbar gutter anchors to the modal's right
+       border. Children (header + sections) supply their own inset via
+       contentContainerStyle.paddingHorizontal. */
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -1134,22 +1146,22 @@ const popupStyles = StyleSheet.create({
   },
   compactLabel: { fontSize: 13 },
   compactHint: { fontSize: 11 },
-  /* Scroll body inside the popup panel — flex:1 lets it consume the
-     panel's remaining height after header, then maxHeight clamps
-     content to that area on overflow. Negative right margin pulls the
-     scroll gutter out to the panel's right edge so the scrollbar
-     visually aligns with the modal border rather than sitting inset
-     under the panel padding; contentContainerStyle re-adds the same
-     inset for the children so text/rows still respect the panel gutter. */
+  /* Scroll body owns the entire panel interior — header is now nested
+     inside so the scrollbar gutter sits flush with both the modal top
+     and bottom borders (full-height scrollbar per user request).
+     Children supply their own horizontal inset via contentContainer. */
   scrollBody: {
-    flexGrow: 0,
-    flexShrink: 1,
-    marginRight: -Spacing.four,
+    flex: 1,
     ...(Platform.OS === 'web'
       ? ({ overflowY: 'auto', scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any)
       : null),
   },
-  scrollBodyContent: { gap: Spacing.three, paddingBottom: Spacing.two, paddingRight: Spacing.four },
+  scrollBodyContent: {
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.four,
+  },
   footnote: { fontStyle: 'italic' },
 });
 

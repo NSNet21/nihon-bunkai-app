@@ -456,7 +456,12 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chr
         styles.sectionHeader,
         { marginRight: gutter, paddingVertical: compact ? 4 : 8, paddingHorizontal: compact ? 8 : 12 },
         {
-          backgroundColor: hovered ? c.surface3 : c.surface2,
+          /* Match the page background so the header reads as part of
+             the list rather than a tinted divider — opaque (not
+             transparent) so the sticky header still occludes rows
+             scrolling under it. Hover lifts to surface2 for subtle
+             affordance feedback. */
+          backgroundColor: hovered ? c.surface2 : c.background,
           borderBottomColor: c.border,
           borderTopColor: c.border,
         },

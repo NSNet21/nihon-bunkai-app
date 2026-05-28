@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { decks as freeDecks, entriesForDeck as freeEntriesForDeck } from '@/data/free-tier';
+import { decks as freeDecks, entriesForDeckAsync as freeEntriesForDeckAsync } from '@/data/free-tier';
 import type { CsvRow, Deck, Entry } from '@/data/types';
 import { DECKS_IMPORTED_EVENT } from '@/lib/deck-import';
 import { getPaidEntries, listPaidDecks } from '@/lib/download-store';
@@ -52,9 +52,10 @@ export function useAllDecks(): { decks: Deck[]; loading: boolean } {
   return { decks: [...freeDecks, ...paidDecks], loading };
 }
 
-/** Read entries for a deck — checks free embedded first, then IndexedDB. */
+/** Read entries for a deck — checks free embedded first, then IndexedDB.
+ *  Free path is now async (per-level lazy bundle import) so we await it. */
 export async function entriesForDeckAsync(deckId: string): Promise<Entry[]> {
-  const fromFree = freeEntriesForDeck(deckId);
+  const fromFree = await freeEntriesForDeckAsync(deckId);
   if (fromFree.length > 0) return fromFree;
 
   const paid = await getPaidEntries(deckId);

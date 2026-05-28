@@ -582,23 +582,19 @@ function GlassMeta({
   colors: typeof Colors.light;
   variant?: 'overlay' | 'inline';
 }) {
-  /* Compare as plain string — `colors` is typed as Colors.light shape so
-     literal-type overlap check rejects direct `===` against Colors.dark. */
-  const isDark = (colors.background as string) === Colors.dark.background;
-  /* Solid-bg editorial pill — was using backdrop-filter for a frosted-glass
-     look, but that (a) blurred buttons that overlapped the pill rect, (b)
-     misaligned on mobile chrome, and (c) created a stacking context that
-     interfered with the cardWrapper's preserve-3d / backface culling.
-     Sharp corners + crimson stripe + mono caps carry the editorial feel
-     fine without blur. Higher alpha (0.92) so text reads cleanly. */
-  const bg = isDark ? 'rgba(28, 24, 22, 0.92)' : 'rgba(252, 248, 238, 0.92)';
-  const border = isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.08)';
+  /* Solid theme-bg plate — matches the badge pattern on memorize.tsx
+     (top-left meta cluster). Reading from colors.background (which is a
+     CSS-var string on web) means theme switch is a pure CSS swap, no
+     React reconcile. Earlier frosted-glass attempt depended on
+     `colors.background === Colors.dark.background` to pick alpha
+     palettes — that string-equality check broke with var() strings,
+     leaving the dark badge stuck on the light cream tint. */
   return (
     <View
       style={[
         glassStyles.pill,
         variant === 'overlay' ? glassStyles.overlay : glassStyles.inline,
-        { backgroundColor: bg, borderColor: border },
+        { backgroundColor: colors.background, borderColor: colors.border },
       ]}>
       <ThemedText style={[glassStyles.text, { color: colors.textSecondary }]}>{text}</ThemedText>
     </View>

@@ -1,0 +1,407 @@
+{
+  "decks": [
+    {
+      "id": "kanji-n5-pack01",
+      "type": "kanji",
+      "level": "N5",
+      "title": "Kanji N5 · Pack 01",
+      "entryCount": 20,
+      "pack": "kanji-n5-pack01",
+      "tags": [
+        "kanji",
+        "n5",
+        "kanji-n5-pack01"
+      ]
+    },
+    {
+      "id": "kanji-n5-pack02",
+      "type": "kanji",
+      "level": "N5",
+      "title": "Kanji N5 · Pack 02",
+      "entryCount": 20,
+      "pack": "kanji-n5-pack02",
+      "tags": [
+        "kanji",
+        "n5",
+        "kanji-n5-pack02"
+      ]
+    },
+    {
+      "id": "kanji-n5-pack03",
+      "type": "kanji",
+      "level": "N5",
+      "title": "Kanji N5 · Pack 03",
+      "entryCount": 20,
+      "pack": "kanji-n5-pack03",
+      "tags": [
+        "kanji",
+        "n5",
+        "kanji-n5-pack03"
+      ]
+    },
+    {
+      "id": "kanji-n5-pack04",
+      "type": "kanji",
+      "level": "N5",
+      "title": "Kanji N5 · Pack 04",
+      "entryCount": 19,
+      "pack": "kanji-n5-pack04",
+      "tags": [
+        "kanji",
+        "n5",
+        "kanji-n5-pack04"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack01",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 01",
+      "entryCount": 20,
+      "pack": "grammar-n5-pack01",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack01"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack02",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 02",
+      "entryCount": 20,
+      "pack": "grammar-n5-pack02",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack02"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack03",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 03",
+      "entryCount": 20,
+      "pack": "grammar-n5-pack03",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack03"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack04",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 04",
+      "entryCount": 20,
+      "pack": "grammar-n5-pack04",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack04"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack05",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 05",
+      "entryCount": 20,
+      "pack": "grammar-n5-pack05",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack05"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack06",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 06",
+      "entryCount": 20,
+      "pack": "grammar-n5-pack06",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack06"
+      ]
+    },
+    {
+      "id": "grammar-n5-pack07",
+      "type": "grammar",
+      "level": "N5",
+      "title": "Grammar N5 · Pack 07",
+      "entryCount": 16,
+      "pack": "grammar-n5-pack07",
+      "tags": [
+        "grammar",
+        "n5",
+        "grammar-n5-pack07"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack01",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 01",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack01",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack01"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack02",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 02",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack02",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack02"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack03",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 03",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack03",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack03"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack04",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 04",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack04",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack04"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack05",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 05",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack05",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack05"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack06",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 06",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack06",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack06"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack07",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 07",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack07",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack07"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack08",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 08",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack08",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack08"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack09",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 09",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack09",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack09"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack10",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 10",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack10",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack10"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack11",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 11",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack11",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack11"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack12",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 12",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack12",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack12"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack13",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 13",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack13",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack13"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack14",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 14",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack14",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack14"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack15",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 15",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack15",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack15"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack16",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 16",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack16",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack16"
+      ]
+    },
+    {
+      "id": "vocab-n5-pack17",
+      "type": "vocab",
+      "level": "N5",
+      "title": "Vocab N5 · Pack 17",
+      "entryCount": 20,
+      "pack": "vocab-n5-pack17",
+      "tags": [
+        "vocab",
+        "n5",
+        "vocab-n5-pack17"
+      ]
+    },
+    {
+      "id": "glossary-pack01",
+      "type": "glossary",
+      "level": null,
+      "title": "Glossary · Pack 01",
+      "entryCount": 50,
+      "pack": "glossary-pack01",
+      "tags": [
+        "glossary",
+        "glossary",
+        "glossary-pack01"
+      ]
+    },
+    {
+      "id": "glossary-pack02",
+      "type": "glossary",
+      "level": null,
+      "title": "Glossary · Pack 02",
+      "entryCount": 50,
+      "pack": "glossary-pack02",
+      "tags": [
+        "glossary",
+        "glossary",
+        "glossary-pack02"
+      ]
+    },
+    {
+      "id": "glossary-pack03",
+      "type": "glossary",
+      "level": null,
+      "title": "Glossary · Pack 03",
+      "entryCount": 6,
+      "pack": "glossary-pack03",
+      "tags": [
+        "glossary",
+        "glossary",
+        "glossary-pack03"
+      ]
+    }
+  ]
+}

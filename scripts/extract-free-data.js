@@ -7,7 +7,13 @@
  *   • Grammar N5 packs 01..07
  *   • Kanji N5 packs 01..04
  *
- * Output: src/data/free-tier.json  (single file: { decks, entries })
+ * Output (split for lazy bundle loading — Browse only needs meta;
+ * Memorize/Quiz/Search load entries per-level on demand):
+ *   • src/data/free-tier-meta.json         — small, sync-imported by Browse
+ *   • src/data/free-tier-entries-N5.json   — N5 entries, lazy
+ *   • src/data/free-tier-entries-GLOSSARY.json — Glossary entries, lazy
+ *   (Backward-compat `src/data/free-tier.json` kept until consumers
+ *   are migrated.)
  *
  * Run: node scripts/extract-free-data.js
  */
@@ -17,7 +23,14 @@ const path = require('path');
 const { parse } = require('csv-parse/sync');
 
 const CONTENT = path.resolve(__dirname, '../../content/_csv-output');
-const OUT = path.resolve(__dirname, '../src/data/free-tier.json');
+const DATA = path.resolve(__dirname, '../src/data');
+const OUT = path.resolve(DATA, 'free-tier.json');
+const META_OUT = path.resolve(DATA, 'free-tier-meta.json');
+/** Per-level entries output — keyed by `bundleKey` (lowercase level
+ *  or 'glossary'). Sync free-tier.json still written for transition. */
+function entriesOutPath(bundleKey) {
+  return path.resolve(DATA, `free-tier-entries-${bundleKey}.json`);
+}
 
 function loadPacks(dir, prefix) {
   return fs
@@ -82,17 +95,44 @@ const kanjiN5  = processCategory(loadPacks(path.join(CONTENT, 'kanji/n5'),  'kan
 
 const allDecks = [...kanjiN5, ...grammarN5, ...vocabN5, ...glossary];
 
+/* Combined file — kept temporarily for any legacy import path; new code
+ * reads the split files below. Delete once everything migrates. */
 const out = {
   decks: allDecks.map((d) => d.meta),
   entries: Object.fromEntries(allDecks.map((d) => [d.meta.id, d.rows])),
 };
-
 fs.writeFileSync(OUT, JSON.stringify(out, null, 2), 'utf8');
 
+/* Meta-only file — small (~30 KB), sync-imported by Browse so the deck
+ * list renders without waiting on entry payload. */
+fs.writeFileSync(META_OUT, JSON.stringify({ decks: out.decks }, null, 2), 'utf8');
+
+/* Per-level entries — grouped by deck.level (lowercase) or 'glossary'.
+ * Memorize / Quiz / Search dynamic-import the level file they need
+ * instead of bundling all entries upfront. */
+function bundleKey(deck) {
+  return deck.level ? String(deck.level).toLowerCase() : 'glossary';
+}
+
+const byBundle = new Map();
+for (const d of allDecks) {
+  const key = bundleKey(d.meta);
+  if (!byBundle.has(key)) byBundle.set(key, {});
+  byBundle.get(key)[d.meta.id] = d.rows;
+}
+
+for (const [key, entries] of byBundle.entries()) {
+  fs.writeFileSync(entriesOutPath(key), JSON.stringify(entries, null, 2), 'utf8');
+}
+
 const totalEntries = allDecks.reduce((s, d) => s + d.rows.length, 0);
-console.log(`  ${allDecks.length} decks · ${totalEntries} entries`);
+console.log(`  ${allDecks.length} decks · ${totalEntries} entries\n`);
 console.log(`  Glossary: ${glossary.length} packs · ${glossary.reduce((s, d) => s + d.rows.length, 0)} entries`);
 console.log(`  Vocab N5: ${vocabN5.length} packs · ${vocabN5.reduce((s, d) => s + d.rows.length, 0)} entries`);
 console.log(`  Grammar N5: ${grammarN5.length} packs · ${grammarN5.reduce((s, d) => s + d.rows.length, 0)} entries`);
 console.log(`  Kanji N5: ${kanjiN5.length} packs · ${kanjiN5.reduce((s, d) => s + d.rows.length, 0)} entries\n`);
-console.log(`Wrote: ${OUT}`);
+console.log(`Wrote: ${OUT} (legacy combined)`);
+console.log(`Wrote: ${META_OUT} (sync — Browse)`);
+for (const key of byBundle.keys()) {
+  console.log(`Wrote: ${entriesOutPath(key)} (lazy — Memorize/Quiz/Search)`);
+}

@@ -318,10 +318,12 @@ export default function MemorizeScreen() {
                 style={({ pressed }) => [
                   styles.configBtnFloat,
                   /* Adaptive right inset — when scrollbar visible (overflow),
-                     step LEFT by 12px so the button doesn't crash into the
-                     scroll handle; when no overflow, snap back closer to
-                     the card edge. */
-                  { right: hasScrollbar ? 22 : 10 },
+                     step LEFT so the button doesn't crash into the scroll
+                     handle; when no overflow, snap closer to the edge.
+                     Mobile uses `scrollbarWidth: 'thin'` on the inner
+                     ScrollView, so its gap can be ~half the desktop
+                     value (12 vs 22) and still clear the thinner bar. */
+                  { right: hasScrollbar ? (compact ? 12 : 22) : 10 },
                   { borderColor: colors.border, backgroundColor: colors.background },
                   pressed && { opacity: 0.7 },
                 ]}>
@@ -334,10 +336,17 @@ export default function MemorizeScreen() {
                 styles.cardBodyScroll,
                 /* touch-action: pan-y so vertical touch-scroll bubbles
                    through RNGH's tap arena (tap maxDistance 10 fails
-                   immediately on scroll motion). Matches Quiz back-face
-                   ScrollView styling — uses RN-Web's default scrollbar
-                   (no explicit overflow override, no persistentScrollbar). */
-                Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as any) : null,
+                   immediately on scroll motion).
+                   `scrollbarWidth: 'thin'` only on compact (mobile) so
+                   the bar doesn't crash into the floating sliders
+                   button — desktop keeps the default scrollbar
+                   (wider, more comfortable to grab with a mouse). */
+                Platform.OS === 'web'
+                  ? ({
+                      touchAction: 'pan-y',
+                      ...(compact ? { scrollbarWidth: 'thin' } : null),
+                    } as any)
+                  : null,
               ]}
               contentContainerStyle={styles.cardBodyContent}
               {...({ dataSet: { scroll: 'card-memorize' } } as object)}

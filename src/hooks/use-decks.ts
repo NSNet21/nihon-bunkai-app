@@ -34,13 +34,26 @@ export function useAllDecks(): { decks: Deck[]; loading: boolean } {
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const onImported = () => void refresh();
-      const onFocus = () => void refresh();
+      /* Switched from window 'focus' to document 'visibilitychange'
+         2026-05-28. `window.addEventListener('focus', …)` was firing
+         on element focus too (search input auto-focus, click into
+         text fields, etc.) which cascaded:
+           input.focus() → refresh() → setLoading(true) → useSearchIndex
+           re-runs effect → re-renders SearchScreen → auto-focus runs
+           again → loop, ~1 Hz.
+         `visibilitychange` only fires when the document goes from
+         visible↔hidden (tab switch, window minimise), which is the
+         actual semantic we want — "user came back to the tab, maybe
+         their decks changed in another tab; re-sync". */
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') void refresh();
+      };
       window.addEventListener(DECKS_IMPORTED_EVENT, onImported);
-      window.addEventListener('focus', onFocus);
+      document.addEventListener('visibilitychange', onVisibilityChange);
       return () => {
         cancelled = true;
         window.removeEventListener(DECKS_IMPORTED_EVENT, onImported);
-        window.removeEventListener('focus', onFocus);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
       };
     }
 

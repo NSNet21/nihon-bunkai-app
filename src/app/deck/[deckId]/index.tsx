@@ -24,6 +24,15 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { freeDeckParams } from '@/data/static-params';
+
+/* Pre-render this route for every free deck so direct URL access
+   (cold load, bookmark, share-link) gets the correct static HTML
+   instead of CF Pages' SPA index.html fallback. See
+   [[next-session-resume]] § Quiz cold-URL #418. */
+export function generateStaticParams() {
+  return freeDeckParams();
+}
 import { FiBarChart2, FiBookOpen, FiChevronLeft, FiChevronRight, FiClock, FiEdit3, FiFlag, FiGrid, FiLayers, FiLock, FiShuffle, FiSliders } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 

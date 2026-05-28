@@ -32,6 +32,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { freeDeckParams } from '@/data/static-params';
+
+/* Pre-render for every free deck — see [deckId]/index.tsx note. */
+export function generateStaticParams() {
+  return freeDeckParams();
+}
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';

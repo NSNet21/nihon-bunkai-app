@@ -15,6 +15,12 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { freeDeckParams } from '@/data/static-params';
+
+/* Pre-render for every free deck — see [deckId]/index.tsx note. */
+export function generateStaticParams() {
+  return freeDeckParams();
+}
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiSliders } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';

@@ -1,6 +1,12 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { freeDeckParams } from '@/data/static-params';
+
+/* Pre-render for every free deck — see [deckId]/index.tsx note. */
+export function generateStaticParams() {
+  return freeDeckParams();
+}
 import { FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,

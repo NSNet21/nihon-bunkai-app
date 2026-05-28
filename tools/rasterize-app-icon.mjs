@@ -32,6 +32,13 @@ const TARGETS = [
   { svg: 'derive-android-background.svg',  size:  432, out: 'android-icon-background.png' },
   { svg: 'derive-android-foreground.svg',  size:  432, out: 'android-icon-foreground.png' },
   { svg: 'derive-android-monochrome.svg',  size:  432, out: 'android-icon-monochrome.png' },
+  /* PWA install card + iOS "Add to Home Screen". Files exist as
+     ready-to-wire assets; manifest plumbing can land in a follow-up
+     commit (Expo's static export does not auto-emit `apple-touch-icon`
+     or `manifest.json` references today, so these PNGs are unused
+     until a `+html.tsx` injects the link tags). */
+  { svg: 'derive-maskable.svg',            size:  512, out: 'maskable-icon.png' },
+  { svg: 'derive-apple-touch.svg',         size:  180, out: 'apple-touch-icon.png' },
 ];
 
 /**

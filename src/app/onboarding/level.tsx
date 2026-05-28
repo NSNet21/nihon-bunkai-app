@@ -135,7 +135,12 @@ export default function LevelScreen() {
                     styles.tile,
                     {
                       borderColor: active ? Accent.base : colors.border,
-                      backgroundColor: active ? Accent.bg : colors.surface,
+                      /* Round-5 P0 — GPT verdict "SELECTED chip ดูดตา
+                         แรงมาก · less crimson fill · more outline feel".
+                         Dropped the Accent.bg tint on active tile; the
+                         crimson border + crimson kanji/label still signal
+                         selection without the stacked fill weight. */
+                      backgroundColor: colors.surface,
                     },
                     disabled && { opacity: 0.55 },
                   ]}>

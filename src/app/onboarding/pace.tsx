@@ -130,7 +130,10 @@ export default function PaceScreen() {
                     styles.tile,
                     {
                       borderColor: active ? Accent.base : colors.border,
-                      backgroundColor: active ? Accent.bg : colors.surface,
+                      /* Round-5 P0 — match Level tile: drop crimson fill
+                         on active, keep border + kanji/label crimson.
+                         Single visual treatment across SELECTED states. */
+                      backgroundColor: colors.surface,
                     },
                   ]}>
                   {/* SELECTED state takes precedence over RECOMMENDED hint —

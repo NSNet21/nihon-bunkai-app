@@ -466,9 +466,12 @@ export function Flashcard({
                   {secondaryValue}
                 </ThemedText>
               ) : null}
-              {/* Reveal cue — mono editorial label + pulsing crimson square */}
+              {/* Reveal cue — mono editorial label + crimson square. Per
+                  GPT round-4: pulse runs only on the first 3 cards so
+                  the gesture-teach happens early and the rhythm settles
+                  static afterwards. After that the dot stays still. */}
               <View style={styles.revealCue}>
-                <PulseDot />
+                <PulseDot active={(index ?? 0) < 3} />
                 <ThemedText style={[styles.revealMono, { color: colors.textHint, fontSize: revealMonoSize }]}>
                   แตะ <ThemedText style={[styles.revealMono, { color: Accent.base, fontSize: revealMonoSize }]}>·</ThemedText> TAP TO REVEAL
                 </ThemedText>
@@ -687,10 +690,17 @@ const footDotsStyles = StyleSheet.create({
 
 /* ─── pulse dot ──────────────────────────────────────────────────────── */
 
-function PulseDot() {
+function PulseDot({ active = true }: { active?: boolean }) {
   const op = useSharedValue(1);
   const scale = useSharedValue(1);
   useEffect(() => {
+    if (!active) {
+      /* Settle to rest values when the pulse turns off — keeps the dot
+         visible but stationary, no jump frame. */
+      op.value = withTiming(1, { duration: 220 });
+      scale.value = withTiming(1, { duration: 220 });
+      return;
+    }
     op.value = withRepeat(
       withSequence(
         withTiming(0.3, { duration: 900, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
@@ -707,7 +717,7 @@ function PulseDot() {
       -1,
       false,
     );
-  }, [op, scale]);
+  }, [active, op, scale]);
   const aStyle = useAnimatedStyle(() => ({ opacity: op.value, transform: [{ scale: scale.value }] }));
   return <Animated.View style={[styles.pulseDot, aStyle]} />;
 }

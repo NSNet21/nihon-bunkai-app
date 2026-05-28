@@ -13,16 +13,16 @@
  */
 
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiSliders } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import { useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { type ColumnVisibility } from '@/components/flashcard';
+import { type ColumnVisibility, VisibilityPopup } from '@/components/flashcard';
 import { OverlayRailButton } from '@/components/overlay-rail-button';
 import { SpeakButton } from '@/components/speak-button';
 import { ThemedText } from '@/components/themed-text';
@@ -81,12 +81,34 @@ export default function MemorizeScreen() {
      target, no separate eye button. */
   const [showAnswer, setShowAnswer] = useState(true);
   /* Column visibility — Memorize has its own key separate from Quiz.
-     Per-mode config edited only via Settings (accordion). Default all
-     visible so first-time users see the full card. */
-  const [visibility] = usePersistedState<ColumnVisibility>(
+     Settings exposes the same key under "// LEARN CARD". Header
+     sliders icon opens an in-card popup (parity with Quiz). */
+  const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
     'visibility-learn',
     { t: true, pf: true, pb: true, d: true, e: true },
   );
+  const [configOpen, setConfigOpen] = useState(false);
+  /* Adaptive `right` inset for the sliders button based on whether the
+     card-body ScrollView is currently showing a vertical scrollbar
+     (per user request — when scrollbar visible, leave gap so the
+     button doesn't crash into the bar; when no overflow, snap closer
+     to the edge). Tracked via onLayout + onContentSizeChange. */
+  const [hasScrollbar, setHasScrollbar] = useState(false);
+  const scrollLayoutHRef = useRef(0);
+  const scrollContentHRef = useRef(0);
+  const evaluateOverflow = () => {
+    const overflow = scrollContentHRef.current > scrollLayoutHRef.current + 2;
+    setHasScrollbar((prev) => (prev === overflow ? prev : overflow));
+  };
+  const visibleFrontCount = (visibility.t ? 1 : 0) + (visibility.pf ? 1 : 0);
+  const visibleBackCount = (visibility.d ? 1 : 0) + (visibility.pb ? 1 : 0) + (visibility.e ? 1 : 0);
+  const toggleColumn = (key: keyof ColumnVisibility) => {
+    const next = { ...visibility, [key]: !visibility[key] };
+    /* Keep at least one column visible per face to avoid blank-card state. */
+    if (!next.t && !next.pf) return;
+    if (!next.d && !next.pb && !next.e) return;
+    setVisibility(next);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -192,9 +214,19 @@ export default function MemorizeScreen() {
      RNGH's tap arena on its own). */
   const railTapPrev = useMemo(() => Gesture.Tap().maxDistance(10), []);
   const railTapNext = useMemo(() => Gesture.Tap().maxDistance(10), []);
+  /* Sliders config button — own Tap gesture so its hit zone wins the
+     RNGH arena over `tapToggle` (which would otherwise also fire
+     show/hide on the same touch). Mirrors the speaker / rail pattern. */
+  const configTap = useMemo(
+    () => Gesture.Tap().maxDistance(10).onEnd((_e, success) => {
+      if (!success) return;
+      scheduleOnRN(() => setConfigOpen(true));
+    }),
+    [],
+  );
   const tapToggle = Gesture.Tap()
     .maxDistance(10)
-    .requireExternalGestureToFail(speakerTapHero, speakerTapReading, railTapPrev, railTapNext)
+    .requireExternalGestureToFail(speakerTapHero, speakerTapReading, railTapPrev, railTapNext, configTap)
     .onEnd((_e, success) => {
       if (!success) return;
       scheduleOnRN(toggleAnswer);
@@ -225,8 +257,8 @@ export default function MemorizeScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* In-page header now empty — counter moved to bottom row
-            (user request 2026-05-27). Header kept as a thin spacer
-            so the card doesn't snap up against the TopNavBar. */}
+            (user request 2026-05-27). Sliders icon sits on the card
+            top-right via absolute positioning (see configBtnFloat). */}
         <Header />
 
         {/* Card-as-scroll-container restructure 2026-05-27 (user request):
@@ -273,6 +305,30 @@ export default function MemorizeScreen() {
               )}
             </View>
 
+            {/* Floating sliders button — top-right of card, mirrors the
+                top-left meta cluster. Wrapped in a GestureDetector with
+                its own Tap gesture (registered in tapToggle's
+                requireExternalGestureToFail list) so the tap doesn't
+                also fire the card's show/hide answer toggle. */}
+            <GestureDetector gesture={configTap}>
+              <Pressable
+                onPress={() => setConfigOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์"
+                style={({ pressed }) => [
+                  styles.configBtnFloat,
+                  /* Adaptive right inset — when scrollbar visible (overflow),
+                     step LEFT by 12px so the button doesn't crash into the
+                     scroll handle; when no overflow, snap back closer to
+                     the card edge. */
+                  { right: hasScrollbar ? 22 : 10 },
+                  { borderColor: colors.border, backgroundColor: colors.background },
+                  pressed && { opacity: 0.7 },
+                ]}>
+                <FiSliders size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
+            </GestureDetector>
+
             <ScrollView
               style={[
                 styles.cardBodyScroll,
@@ -285,6 +341,16 @@ export default function MemorizeScreen() {
               ]}
               contentContainerStyle={styles.cardBodyContent}
               {...({ dataSet: { scroll: 'card-memorize' } } as object)}
+              /* Track overflow so the floating sliders button can step
+                 left to leave a gap when the scrollbar appears. */
+              onLayout={(e) => {
+                scrollLayoutHRef.current = e.nativeEvent.layout.height;
+                evaluateOverflow();
+              }}
+              onContentSizeChange={(_, h) => {
+                scrollContentHRef.current = h;
+                evaluateOverflow();
+              }}
               showsVerticalScrollIndicator>
             {/* FRONT block — T (hero) + P (reading). Always shown
                 (gated by visibility flags). T uses visibility.t, P uses
@@ -425,6 +491,19 @@ export default function MemorizeScreen() {
             NIHON BUNKAI · 鍛練精進
           </ThemedText>
         </View>
+
+        {/* Column-visibility popup — shares the same `visibility-learn`
+            key that Settings exposes; toggling here updates Settings
+            and vice-versa. */}
+        <VisibilityPopup
+          visible={configOpen}
+          onClose={() => setConfigOpen(false)}
+          visibility={visibility}
+          onToggle={toggleColumn}
+          colors={colors}
+          visibleFrontCount={visibleFrontCount}
+          visibleBackCount={visibleBackCount}
+        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -434,7 +513,9 @@ export default function MemorizeScreen() {
 
 function Header() {
   /* In-page header — thin spacer only. Counter moved to bottomCounter.
-     Kept so the card doesn't crash into the TopNavBar. */
+     Kept so the card doesn't crash into the TopNavBar. Sliders icon
+     lives ON the card via absolute positioning (configBtnFloat) so it
+     sits in-context with the content instead of stealing header space. */
   return <View style={styles.headerBar} />;
 }
 
@@ -577,6 +658,25 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 3,
     pointerEvents: 'none',
+  },
+  /* Floating sliders button — top-right of card, mirror of topMetaCluster.
+     Size 32×32 matches Quiz's headerConfigBtn so the same control reads
+     identically across study modes. zIndex 20 sits ABOVE the right
+     overlay rail (zIndex 15) on mobile so the tap reaches the sliders
+     instead of the next-card gesture. Right inset 22 keeps a visible
+     gap between the button and the vertical scrollbar that lives on the
+     right edge of the inner ScrollView on PC/tablet. */
+  configBtnFloat: {
+    position: 'absolute',
+    top: 8,
+    right: 22,
+    width: 32,
+    height: 32,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
   },
   glassMeta: {
     paddingHorizontal: 6,

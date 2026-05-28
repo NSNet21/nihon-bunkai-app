@@ -96,9 +96,12 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    paddingVertical: Spacing.three,
+    /* Round-5 P0 compact -15%: GPT verdict says Continue is a utility
+       "resume strip", not a showcase. Paddings 12 → 8 + gap 8 → 6 drops
+       the card height ~15% without losing readability. */
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
+    gap: 6,
   },
   label: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
@@ -114,7 +117,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    marginTop: Spacing.one,
+    /* marginTop removed — body.gap (6) already handles separation. */
   },
   progressTrack: {
     flex: 1,

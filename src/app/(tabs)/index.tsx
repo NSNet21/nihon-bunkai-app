@@ -552,7 +552,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.six + Spacing.three,
     paddingBottom: Spacing.three,
-    gap: Spacing.three,
+    /* Round-5 P0 compress: tighter intra-section rhythm (was Spacing.three)
+       so the hero stack reads as one block. Section transitions get
+       explicit marginTop on the boundary children below. */
+    gap: Spacing.two,
   },
   topAccentBar: {
     position: 'absolute',
@@ -604,7 +607,8 @@ const styles = StyleSheet.create({
     color: Accent.base,
   },
   heroSubtitle: {
-    marginTop: Spacing.one,
+    /* No extra marginTop — headerWrap.gap (8) handles it. Keeping the
+       4px boost made subtitle drift away from the headline. */
   },
   /* Multi-deck Study utility row — sits between hero sub and the Continue
      cluster. Top + bottom hairline borders (no left/right) keep it
@@ -614,10 +618,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    paddingVertical: Spacing.two,
+    /* Round-5 P0 thinner utility strip — GPT round-4 still flagged this
+       as "heavy enough to compete with Continue cards". Drop padding to
+       6 + remove sub marginTop = single visual band, reads as command
+       hint instead of card. */
+    paddingVertical: 6,
     paddingHorizontal: Spacing.one,
     borderTopWidth: 1,
     borderBottomWidth: 1,
+    /* Section transition from hero block. Larger than headerWrap.gap (8)
+       so this row stands apart from the headline+subtitle group. */
     marginTop: Spacing.three,
   },
   groupPickerLabel: {
@@ -628,7 +638,6 @@ const styles = StyleSheet.create({
   },
   groupPickerSub: {
     fontSize: 11,
-    marginTop: 2,
   },
   groupPickerArrow: {
     fontSize: 20,
@@ -658,6 +667,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    /* Section transition into Continue cluster — slightly larger than
+       headerWrap.gap (8) so the kicker reads as section divider. */
     marginTop: Spacing.three,
   },
   continuePip: { width: 5, height: 5 },

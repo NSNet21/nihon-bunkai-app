@@ -955,22 +955,33 @@ const styles = StyleSheet.create({
     left: 2,
     borderRadius: 2,
   },
+  /* Explicit height + centered flex column so main+sub label optically
+     center as a group. Without explicit lineHeight, ThemedText inherits
+     default 1.2-1.5x which makes inactive (longer Thai sub "ชุดรวม" vs
+     "แยกระดับ") read mis-aligned against the active tab. */
   tierSegment: {
     flex: 1,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
-    gap: 1,
+    gap: 4,
   },
   tierLabel: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
     fontSize: 11,
+    lineHeight: 11,
     fontWeight: '700',
     letterSpacing: 1.4,
+    textAlign: 'center',
+    margin: 0,
   },
   tierSub: {
     fontSize: 10,
+    lineHeight: 10,
     letterSpacing: 0.4,
+    textAlign: 'center',
+    margin: 0,
   },
   nudgeBanner: {
     flexDirection: 'row',

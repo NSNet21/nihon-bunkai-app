@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -41,6 +41,21 @@ function OnboardingGate() {
   return null;
 }
 
+/* Blur the active DOM element whenever the route segments change. RN Web's
+   stack/tab navigator sets `display:none` + `aria-hidden="true"` on the
+   previous screen's root; if a Pressable or TextInput inside it still holds
+   focus, the browser fires a "Blocked aria-hidden on an element because its
+   descendant retained focus" a11y warning on every navigation. Blurring on
+   segment change clears the focus before the hide lands. Web-only. */
+function FocusBlurOnNavigate() {
+  const pathname = usePathname();
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  }, [pathname]);
+  return null;
+}
+
 function ThemedRoot() {
   const { scheme: colorScheme } = useThemeColors();
 
@@ -61,6 +76,7 @@ function ThemedRoot() {
       <AnimatedSplashOverlay />
       <SearchShortcut />
       <OnboardingGate />
+      <FocusBlurOnNavigate />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" />

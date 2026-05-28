@@ -367,10 +367,9 @@ export default function MemorizeScreen() {
                 Dismissed permanently on first icon tap. */}
             {!slidersTipSeen && (
               <View
-                pointerEvents="none"
                 style={[
                   styles.slidersTip,
-                  { right: hasScrollbar ? (compact ? 12 : 22) : 10 },
+                  { right: hasScrollbar ? (compact ? 12 : 22) : 10, pointerEvents: 'none' },
                 ]}>
                 <ThemedText
                   style={[styles.slidersTipText, { color: colors.textHint }]}

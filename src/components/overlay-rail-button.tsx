@@ -99,10 +99,9 @@ export function OverlayRailButton({
       accessibilityLabel={ariaLabel}
       style={[overlayRailStyles.btn, { [side]: 0, width }]}>
       <Animated.View
-        pointerEvents="none"
-        style={[overlayRailStyles.bgFill, overlayBg, aStyle, { [side]: 0, width: fillWidth }]}
+        style={[overlayRailStyles.bgFill, overlayBg, aStyle, { [side]: 0, width: fillWidth, pointerEvents: 'none' }]}
       />
-      <Animated.View pointerEvents="none" style={[overlayRailStyles.iconBox, aStyle]}>
+      <Animated.View style={[overlayRailStyles.iconBox, aStyle, { pointerEvents: 'none' }]}>
         <Icon size={iconSize} color={colors.textSecondary} strokeWidth={1.5} />
       </Animated.View>
     </Pressable>

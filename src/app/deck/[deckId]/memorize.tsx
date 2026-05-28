@@ -88,6 +88,13 @@ export default function MemorizeScreen() {
     { t: true, pf: true, pb: true, d: true, e: true },
   );
   const [configOpen, setConfigOpen] = useState(false);
+  /* Round-5 P0 — GPT verdict "sliders discoverability ยังกลางๆ · ครั้งแรก
+     tooltip VISIBLE FIELDS แล้วจำ dismiss state". Persists across visits
+     until first tap; once acknowledged, never shown again. */
+  const [slidersTipSeen, setSlidersTipSeen] = usePersistedState<boolean>(
+    'tip-memorize-sliders-seen',
+    false,
+  );
   /* Adaptive `right` inset for the sliders button based on whether the
      card-body ScrollView is currently showing a vertical scrollbar
      (per user request — when scrollbar visible, leave gap so the
@@ -312,7 +319,10 @@ export default function MemorizeScreen() {
                 also fire the card's show/hide answer toggle. */}
             <GestureDetector gesture={configTap}>
               <Pressable
-                onPress={() => setConfigOpen(true)}
+                onPress={() => {
+                  setConfigOpen(true);
+                  if (!slidersTipSeen) setSlidersTipSeen(true);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="ตั้งค่าการแสดงผลคอลัมน์"
                 style={({ pressed }) => [
@@ -330,6 +340,25 @@ export default function MemorizeScreen() {
                 <FiSliders size={16} color={colors.text} strokeWidth={2} />
               </Pressable>
             </GestureDetector>
+
+            {/* First-time discoverability hint — sits just below the
+                sliders icon, right-aligned to match. Tiny mono so it
+                reads as a marginal note, not a tutorial overlay.
+                Dismissed permanently on first icon tap. */}
+            {!slidersTipSeen && (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.slidersTip,
+                  { right: hasScrollbar ? (compact ? 12 : 22) : 10 },
+                ]}>
+                <ThemedText
+                  style={[styles.slidersTipText, { color: colors.textHint }]}
+                  accessibilityElementsHidden>
+                  VISIBLE FIELDS
+                </ThemedText>
+              </View>
+            )}
 
             <ScrollView
               style={[
@@ -686,6 +715,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,
+  },
+  /* First-time tooltip below the sliders icon. Top 44 = configBtnFloat
+     top (8) + height (32) + 4px gap. Right matches the icon's adaptive
+     inset so the label sits right-aligned underneath. zIndex below the
+     icon (20) so the button always wins the press hit-area. */
+  slidersTip: {
+    position: 'absolute',
+    top: 44,
+    zIndex: 19,
+  },
+  slidersTipText: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    fontWeight: '600',
   },
   glassMeta: {
     paddingHorizontal: 6,

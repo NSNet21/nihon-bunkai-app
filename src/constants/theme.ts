@@ -80,6 +80,10 @@ export const Spacing = {
   four: 16,
   five: 24,
   six: 32,
+  /* Round-5 — completes the explicit 8/12/16/24/32/48 scale GPT
+     verdict v4 asked for. Use for section transitions or hero block
+     breathing where six (32) is too tight. */
+  seven: 48,
   /* Additional landing scale */
   sp5: 20,
   sp8: 32,

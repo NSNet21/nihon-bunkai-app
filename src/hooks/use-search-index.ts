@@ -25,6 +25,10 @@ import {
 interface UseSearchIndex {
   ready: boolean;
   totalEntries: number;
+  /** Full flat list of all indexed entries (browse-all view). Re-used
+   *  by Search when the query box is empty so users see the entire
+   *  corpus as a long list with FlashList virtualization. */
+  allEntries: SearchableEntry[];
   run: (query: string, limit?: number) => SearchResult[];
 }
 
@@ -34,6 +38,7 @@ export function useSearchIndex(): UseSearchIndex {
   const fuseRef = useRef<Fuse<SearchableEntry> | null>(null);
   const [ready, setReady] = useState(false);
   const [totalEntries, setTotalEntries] = useState(0);
+  const [allEntries, setAllEntries] = useState<SearchableEntry[]>([]);
 
   /* Stable join of deck IDs — rebuild trigger. */
   const deckKey = useMemo(() => decks.map((d) => d.id).sort().join('|'), [decks]);
@@ -56,6 +61,7 @@ export function useSearchIndex(): UseSearchIndex {
       }
       engineRef.current = engine;
       fuseRef.current = engine.buildIndex(flat);
+      setAllEntries(flat);
       setTotalEntries(flat.length);
       setReady(true);
     }
@@ -69,5 +75,5 @@ export function useSearchIndex(): UseSearchIndex {
     return engineRef.current.search(fuseRef.current, query, limit);
   }, []);
 
-  return { ready, totalEntries, run };
+  return { ready, totalEntries, allEntries, run };
 }

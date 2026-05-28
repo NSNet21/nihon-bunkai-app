@@ -1,6 +1,6 @@
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { FiSearch, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,7 +33,7 @@ export default function SearchScreen() {
   const router = useRouter();
   const c = useThemePalette();
 
-  const { ready, totalEntries, run } = useSearchIndex();
+  const { ready, totalEntries, allEntries, run } = useSearchIndex();
 
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -46,12 +46,19 @@ export default function SearchScreen() {
     return () => clearTimeout(id);
   }, [query]);
 
-  const results = useMemo(
-    () => (ready && debounced.trim() ? run(debounced, RESULT_HARD_CAP) : []),
-    [ready, debounced, run],
-  );
   const hasQuery = debounced.trim().length > 0;
-  const hasResults = hasQuery && results.length > 0;
+
+  /* Active filter result-set OR fall-through to the full corpus.
+     When no query is active, every indexed entry is surfaced as a
+     synthesized SearchResult (score 0, no matches) so the row
+     renderer + FlashList stay on the same data shape — no branching
+     in the list code path. */
+  const results = useMemo(() => {
+    if (!ready) return [];
+    if (hasQuery) return run(debounced, RESULT_HARD_CAP);
+    return allEntries.map((entry) => ({ entry, score: 0 }));
+  }, [ready, hasQuery, debounced, run, allEntries]);
+  const hasResults = results.length > 0;
 
   /* Auto-focus on mount + on Ctrl/⌘+K from anywhere (web only). */
   useEffect(() => {
@@ -62,11 +69,25 @@ export default function SearchScreen() {
     return () => window.removeEventListener(FOCUS_SEARCH_EVENT, onFocusEvent);
   }, []);
 
-  function openEntry(deckId: string, entryId: string) {
-    /* Search jump-through opens Quiz mode at the matched entry — the
-       user came looking for that specific card, they want active study. */
-    router.push(`/deck/${deckId}/quiz?entryId=${encodeURIComponent(entryId)}` as never);
-  }
+  const openEntry = useCallback(
+    (deckId: string, entryId: string) => {
+      /* Search jump-through opens Quiz mode at the matched entry — the
+         user came looking for that specific card, they want active study. */
+      router.push(`/deck/${deckId}/quiz?entryId=${encodeURIComponent(entryId)}` as never);
+    },
+    [router],
+  );
+
+  /* Stable renderItem closure — FlashList recycles row instances, so a
+     fresh inline arrow on every parent re-render would re-attach
+     handlers per cell each frame. With useCallback the same closure
+     reference is reused across renders. */
+  const renderItem = useCallback(
+    ({ item }: { item: SearchResult }) => (
+      <ResultRow result={item} onPress={() => openEntry(item.entry.deckId, item.entry.id)} themeColor={c} />
+    ),
+    [c, openEntry],
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -125,17 +146,12 @@ export default function SearchScreen() {
             ) : null}
           </View>
 
-          {/* Status line — corpus-ready / loading hint only. The match-
-              count moved to the dedicated TotalStrip below so the
-              count anchors right above the result list rather than
-              floating in the header cluster. */}
-          {!ready ? (
+          {/* Loading hint — only while the index is still building.
+              Once ready, the TotalStrip below carries the count for
+              both the idle (all entries) and active-query states. */}
+          {!ready && (
             <ThemedText type="small" themeColor="textHint">กำลังสร้าง index…</ThemedText>
-          ) : !hasQuery ? (
-            <ThemedText type="small" themeColor="textHint">
-              พร้อม · {totalEntries.toLocaleString()} entries
-            </ThemedText>
-          ) : null}
+          )}
           {/* Round-5 P1 — GPT round-4: "Keep minimal · ห้ามใส่ popular
               searches · เพิ่ม subtle hint แทน · muted mono tiny · ไม่ใช่
               onboarding/tutorial". One-line marginal annotation showing
@@ -149,12 +165,19 @@ export default function SearchScreen() {
         </View>
 
         {/* Total strip — left-aligned count above the result list.
-            Format: 'ทั้งหมด 234 รายการ' (per user spec). Hidden when
-            there's no active query so the empty state isn't crowded. */}
-        {hasResults && (
+            "ทั้งหมด N รายการ" reflects the full corpus when no query
+            is active, or the matched subset when filtering. Always
+            visible once the index is ready so the count is always one
+            glance away. */}
+        {ready && hasResults && (
           <View style={[styles.totalStrip, { borderBottomColor: c.border }]}>
             <ThemedText style={[styles.totalText, { color: c.textMuted }]}>
               ทั้งหมด <ThemedText style={[styles.totalNumber, { color: c.text }]}>{results.length.toLocaleString()}</ThemedText> รายการ
+              {hasQuery && results.length !== totalEntries ? (
+                <ThemedText style={[styles.totalText, { color: c.textHint }]}>
+                  {' '}· จาก {totalEntries.toLocaleString()}
+                </ThemedText>
+              ) : null}
             </ThemedText>
           </View>
         )}
@@ -163,9 +186,13 @@ export default function SearchScreen() {
           data={results}
           keyExtractor={(r) => r.entry.id}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <ResultRow result={item} onPress={() => openEntry(item.entry.deckId, item.entry.id)} themeColor={c} />
-          )}
+          renderItem={renderItem}
+          /* drawDistance defines how far ABOVE + BELOW the viewport
+             FlashList renders out cells, in CSS px. Tighter window =
+             fewer mounted rows when scanning a long corpus. flash-list
+             v2 auto-measures item size on its own, so no
+             estimatedItemSize override is needed. */
+          drawDistance={400}
           ListEmptyComponent={
             ready && hasQuery ? (
               <View style={styles.empty}>
@@ -194,10 +221,12 @@ function ResultRow({ result, onPress, themeColor: c }: RowProps) {
   const displayReading = entry.p[0] ?? '';
   const showP = displayReading && displayReading !== entry.t;
 
-  /* Compact 1-line scan format — term · reading · meaning · type/level.
-     Each cell takes its natural width up to the row's middle gutter,
-     then truncates on ellipsis. Designed so the eye sweeps left→right
-     in one fixation per row, no vertical re-scanning. */
+  /* 2-line scan layout — top line carries the Japanese term + type/
+     level chrome (the entry's identity); bottom line carries the
+     reading + Thai meaning (the lookup payload). Designed so the eye
+     fixates once for identity then once for meaning. Numerals locked
+     to 1 line each — long Thai definitions ellipsize at the right
+     edge rather than forcing a third row that would break list rhythm. */
   return (
     <Pressable
       onPress={onPress}
@@ -209,22 +238,26 @@ function ResultRow({ result, onPress, themeColor: c }: RowProps) {
         },
       ]}
     >
-      <ThemedText style={[styles.termCompact, { color: c.text }]} numberOfLines={1}>
-        {entry.t}
-      </ThemedText>
-      {showP ? (
-        <ThemedText style={[styles.readingCompact, { color: c.textHint }]} numberOfLines={1}>
-          {displayReading}
+      <View style={styles.rowTopLine}>
+        <ThemedText style={[styles.term, { color: c.text }]} numberOfLines={1}>
+          {entry.t}
         </ThemedText>
-      ) : null}
-      {entry.d ? (
-        <ThemedText style={[styles.meaningCompact, { color: c.textMuted }]} numberOfLines={1}>
-          {entry.d}
-        </ThemedText>
-      ) : null}
-      <View style={styles.chips}>
-        <Chip text={TYPE_LABEL[entry.type]} color={c} />
-        {entry.level ? <Chip text={entry.level} color={c} accent /> : null}
+        <View style={styles.chips}>
+          <Chip text={TYPE_LABEL[entry.type]} color={c} />
+          {entry.level ? <Chip text={entry.level} color={c} accent /> : null}
+        </View>
+      </View>
+      <View style={styles.rowBottomLine}>
+        {showP ? (
+          <ThemedText style={[styles.reading, { color: c.textHint }]} numberOfLines={1}>
+            {displayReading}
+          </ThemedText>
+        ) : null}
+        {entry.d ? (
+          <ThemedText style={[styles.meaning, { color: c.textMuted }]} numberOfLines={1}>
+            {entry.d}
+          </ThemedText>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -345,25 +378,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
   },
-  /* Single-line scan row — denser than the previous boxed card layout.
+  /* 2-line row — top line: term + chips, bottom line: reading + meaning.
      hairline bottom border separates rows without claiming the visual
-     weight of a full surface fill. */
+     weight of a full surface fill. ~72px tall — matches FlashList's
+     estimatedItemSize so the virtualization windows stay accurate. */
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 4,
   },
-  termCompact: { fontSize: 16, fontWeight: '500', maxWidth: '40%' },
-  readingCompact: {
+  rowTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  rowBottomLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.three,
+  },
+  term: { fontSize: 17, fontWeight: '500', flex: 1 },
+  reading: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
-    fontSize: 13,
-    maxWidth: '25%',
+    fontSize: 12,
+    minWidth: 60,
   },
-  meaningCompact: { fontSize: 13, flex: 1 },
-  chips: { flexDirection: 'row', gap: Spacing.one, alignItems: 'center' },
+  meaning: { fontSize: 13, flex: 1 },
+  chips: { flexDirection: 'row', gap: Spacing.one, alignItems: 'center', flexShrink: 0 },
   chip: {
     borderWidth: 1,
     paddingHorizontal: Spacing.two,

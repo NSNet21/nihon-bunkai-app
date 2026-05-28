@@ -240,8 +240,10 @@ export default function ShopScreen() {
                 ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
               </ThemedText>
               <View style={effectiveViewMode === 'grid' ? styles.productGrid : styles.productList}>
-                {bundles.map((p) => (
-                  <ProductCard key={p.slug} product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={effectiveViewMode} />
+                {bundles.map((p, idx) => (
+                  <Animated.View key={p.slug} entering={staggerEnter(idx)}>
+                    <ProductCard product={p} colors={colors} featured={p.slug === 'full-bundle'} viewMode={effectiveViewMode} />
+                  </Animated.View>
                 ))}
               </View>
             </View>
@@ -309,12 +311,24 @@ function LevelSection({
         {blurb}
       </ThemedText>
       <View style={viewMode === 'grid' ? styles.productGrid : styles.productList}>
-        {products.map((p) => (
-          <ProductCard key={p.slug} product={p} colors={colors} viewMode={viewMode} />
+        {products.map((p, idx) => (
+          <Animated.View key={p.slug} entering={staggerEnter(idx)}>
+            <ProductCard product={p} colors={colors} viewMode={viewMode} />
+          </Animated.View>
         ))}
       </View>
     </View>
   );
+}
+
+/* Round-5 P2 stagger helper — GPT round-4 "stagger list enter · YES
+   แต่ subtle มาก · 50ms stagger max". Caps at 10 steps so a long
+   list never exceeds ~500ms total. Re-mounting (tier toggle ↔ pack
+   import) re-fires the cascade for a soft transition. */
+const STAGGER_STEP_MS = 50;
+const STAGGER_CAP = 10;
+function staggerEnter(idx: number) {
+  return FadeIn.duration(180).delay(Math.min(idx, STAGGER_CAP) * STAGGER_STEP_MS);
 }
 
 const TOGGLE_SEGMENTS: { value: ViewMode; Icon: React.ComponentType<{ size: number; color: string }>; label: string }[] = [

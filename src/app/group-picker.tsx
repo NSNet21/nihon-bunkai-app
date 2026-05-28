@@ -19,6 +19,7 @@ import { useMemo } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { FiCheck, FiChevronLeft, FiLayers, FiPlay } from 'react-icons/fi';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ThemedText } from '@/components/themed-text';
@@ -189,20 +190,24 @@ export default function GroupPickerScreen() {
                     const isGroupBreak =
                       (idx + 1) % 5 === 0 && idx !== group.decks.length - 1;
                     return (
-                      <PressableScale
+                      <Animated.View
                         key={deck.id}
-                        onPress={() => toggleDeck(deck.id)}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked }}
-                        accessibilityLabel={`เลือก ${deck.title}`}
-                        style={[
-                          styles.deckRow,
-                          {
-                            borderColor: checked ? Accent.base : colors.border,
-                            backgroundColor: checked ? Accent.bg : colors.surface,
-                          },
-                          isGroupBreak && { marginBottom: Spacing.two },
-                        ]}>
+                        /* Round-5 P2 stagger — 50ms step capped at 10
+                           (total ≤500ms even for long N5 lists). */
+                        entering={FadeIn.duration(180).delay(Math.min(idx, 10) * 50)}>
+                        <PressableScale
+                          onPress={() => toggleDeck(deck.id)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked }}
+                          accessibilityLabel={`เลือก ${deck.title}`}
+                          style={[
+                            styles.deckRow,
+                            {
+                              borderColor: checked ? Accent.base : colors.border,
+                              backgroundColor: checked ? Accent.bg : colors.surface,
+                            },
+                            isGroupBreak && { marginBottom: Spacing.two },
+                          ]}>
                         <View style={styles.deckBody}>
                           <ThemedText style={[styles.deckTitle, { color: colors.text }]} numberOfLines={1}>
                             {deck.title}
@@ -229,7 +234,8 @@ export default function GroupPickerScreen() {
                           ]}>
                           {checked && <FiCheck size={14} color="#fff" strokeWidth={2.5} />}
                         </View>
-                      </PressableScale>
+                        </PressableScale>
+                      </Animated.View>
                     );
                   })}
                 </View>

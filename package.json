@@ -42,6 +42,7 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "~19.2.2",
     "csv-parse": "^6.2.1",
+    "playwright": "^1.60.0",
     "typescript": "~6.0.3",
     "wrangler": "^4.94.0"
   },

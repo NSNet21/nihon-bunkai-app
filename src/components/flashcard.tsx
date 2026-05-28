@@ -5,6 +5,7 @@ import { FiCheckSquare, FiSquare, FiX } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
 import Animated, {
   Easing,
+  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -502,13 +503,22 @@ export function Flashcard({
               ]}
               {...({ dataSet: { scroll: 'card' } } as object)}
               showsVerticalScrollIndicator>
-              {visibility.d && (
-                <ThemedText type="title" style={[styles.meaning, { fontSize: meaningSizeFinal, lineHeight: meaningLH }]}>
-                  {entry.d}
-                </ThemedText>
+              {/* Round-5 P2 progressive reveal — GPT round-4: "flip →
+                  kanji → 80ms → reading → 80ms → meaning". Mount-gated on
+                  `isFlipped` so each flip re-fires the cascade. Base
+                  delay 220ms lines the first fade up with the back face
+                  becoming visible (FLIP_DURATION 500 / 2 = 250). 160ms
+                  duration finishes each element well inside the flip
+                  tail so the card lands "settled". */}
+              {isFlipped && visibility.d && (
+                <Animated.View entering={FadeIn.duration(160).delay(220)}>
+                  <ThemedText type="title" style={[styles.meaning, { fontSize: meaningSizeFinal, lineHeight: meaningLH }]}>
+                    {entry.d}
+                  </ThemedText>
+                </Animated.View>
               )}
-              {visibility.pb && entry.p ? (
-                <View style={styles.backPRow}>
+              {isFlipped && visibility.pb && entry.p ? (
+                <Animated.View entering={FadeIn.duration(160).delay(300)} style={styles.backPRow}>
                   <ThemedText
                     type="default"
                     themeColor="textSecondary"
@@ -520,12 +530,12 @@ export function Flashcard({
                       <SpeakButton text={entry.p} language="ja-JP" colors={colors} />
                     </View>
                   </GestureDetector>
-                </View>
+                </Animated.View>
               ) : null}
-              {visibility.e && (
-                <View style={styles.markdownWrap}>
+              {isFlipped && visibility.e && (
+                <Animated.View entering={FadeIn.duration(160).delay(380)} style={styles.markdownWrap}>
                   <Markdown style={markdownStyles(colors, mdBody)}>{entry.e}</Markdown>
-                </View>
+                </Animated.View>
               )}
             </ScrollView>
             {/* Top crimson stripe — rendered AFTER ScrollView so it cleanly

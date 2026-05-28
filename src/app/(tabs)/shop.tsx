@@ -496,13 +496,6 @@ function ProductCard({
   const canDownloadInApp = isOwned && product.grantsApp;
   const showPdfHint = isOwned && hasPdfPart(product.slug);
   const isBuying = !!buying[product.slug];
-  /* Round-5 P1 structural differentiation — GPT round-4: "Featured ยังไม่
-     พอ · ใช้ structure ไม่ใช่สี". `first-edition` gets a collector-style
-     serial kicker; `pdf-bundle` swaps free-form desc for a level-spec
-     grid; the `featured` Full Bundle gets a divider + larger price zone
-     for "collector edition spread" feel — all without new color. */
-  const isFirstEdition = product.type === 'first-edition';
-  const isPdfBundle = product.type === 'pdf-bundle';
 
   return (
     <ThemedView
@@ -510,14 +503,8 @@ function ProductCard({
       style={[
         styles.card,
         viewMode === 'grid' && styles.cardGrid,
-        featured && styles.cardFeatured,
         { borderColor: featured ? Accent.base : colors.border, borderWidth: featured ? 1.5 : 1 },
       ]}>
-      {isFirstEdition && (
-        <ThemedText style={[styles.serialKicker, { color: Accent.base }]}>
-          ARCHIVE RELEASE · 75 SEATS
-        </ThemedText>
-      )}
       <View style={styles.cardHeader}>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={styles.cardTitleRow}>
@@ -557,27 +544,10 @@ function ProductCard({
               </View>
             )}
           </View>
-          {isPdfBundle ? (
-            <View style={styles.specGrid}>
-              {['N5', 'N4', 'N3', 'N2', 'N1'].map((lvl) => (
-                <View key={lvl} style={[styles.specChip, { borderColor: colors.border }]}>
-                  <ThemedText style={[styles.specChipText, { color: colors.textSecondary }]}>
-                    {lvl}
-                  </ThemedText>
-                </View>
-              ))}
-              <View style={[styles.specChip, { borderColor: colors.border }]}>
-                <ThemedText style={[styles.specChipText, { color: colors.textSecondary }]}>
-                  OFFLINE ARCHIVE
-                </ThemedText>
-              </View>
-            </View>
-          ) : (
-            product.desc && (
-              <ThemedText type="small" themeColor="textSecondary">
-                {product.desc}
-              </ThemedText>
-            )
+          {product.desc && (
+            <ThemedText type="small" themeColor="textSecondary">
+              {product.desc}
+            </ThemedText>
           )}
         </View>
         <View style={styles.priceCol}>
@@ -586,13 +556,7 @@ function ProductCard({
               ฿{product.was.toLocaleString()}
             </ThemedText>
           )}
-          <ThemedText
-            type="defaultSemiBold"
-            style={[
-              styles.price,
-              isFree && { color: Accent.base },
-              featured && styles.priceFeatured,
-            ]}>
+          <ThemedText type="defaultSemiBold" style={[styles.price, isFree && { color: Accent.base }]}>
             {isFree ? 'FREE' : `฿${product.price.toLocaleString()}`}
           </ThemedText>
           {product.save && (
@@ -603,9 +567,6 @@ function ProductCard({
         </View>
       </View>
 
-      {featured && (
-        <View style={[styles.featuredDivider, { backgroundColor: colors.border }]} />
-      )}
       {isStarter ? (
         <View style={[styles.actionRow, { backgroundColor: colors.background }]}>
           <FiCheck size={14} color={colors.textSecondary} />
@@ -1109,56 +1070,10 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     gap: Spacing.three,
   },
-  /* Round-5 P1 — Featured (Full Bundle) gets extra breathing + bigger
-     gap so the card reads as "collector edition spread" vs the sibling
-     PDF / First Edition cards. Pairs with `featuredDivider` and
-     `priceFeatured`. */
-  cardFeatured: {
-    padding: Spacing.four,
-    gap: Spacing.four,
-  },
-  /* Hairline rule between content and CTA on Featured only — adds
-     internal zoning without color or shadow. */
-  featuredDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: -Spacing.four,
-  },
   cardGrid: {
     flexBasis: '48%' as any,
     flexGrow: 1,
     minWidth: 240,
-  },
-  /* Round-5 P1 — First Edition serial kicker. Mono uppercase signals
-     "archive release" instead of urgency-scarcity marketing. 75 SEATS
-     is the cap (intentional design constraint), not a running count,
-     so it does not conflict with the conditional-social-proof rule. */
-  serialKicker: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.6,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  /* Round-5 P1 — PDF Bundle spec grid. Replaces the free-form desc with
-     a row of tiny mono level chips + OFFLINE ARCHIVE pill, giving the
-     card structural language distinct from app-bundles. */
-  specGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 2,
-  },
-  specChip: {
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 2,
-  },
-  specChipText: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.2,
-    fontWeight: '600',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1185,9 +1100,6 @@ const styles = StyleSheet.create({
   priceCol: { alignItems: 'flex-end', gap: 1 },
   wasPrice: { textDecorationLine: 'line-through' },
   price: { fontSize: 18 },
-  /* Featured price zone — taller + bigger so Full Bundle reads as the
-     hero card without needing extra color. */
-  priceFeatured: { fontSize: 26, letterSpacing: -0.3 },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',

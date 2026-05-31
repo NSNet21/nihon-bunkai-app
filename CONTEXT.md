@@ -58,6 +58,30 @@ _Avoid_: User Content, Custom Deck, local library
 The content currently usable in the app, including official ready content and user-imported content.
 _Avoid_: Official catalog only, shop catalog
 
+**Local Library**:
+Durable local app storage for ready content, including downloaded/imported official content and user-imported content.
+_Avoid_: Temporary cache, raw source files
+
+**Offline-first**:
+The app behavior where learning uses local Library data after content has been downloaded or imported, so Browse, Learn, Quiz, and Review can work without network.
+_Avoid_: Buying or downloading new content while offline
+
+**Cache**:
+Temporary browser/app storage that may be cleared by the platform or user.
+_Avoid_: Durable library, user backup
+
+**Cache Reset**:
+Clearing local browser/app storage. This can affect Local Library, progress, personal edits, or custom decks, so it must be treated differently from harmless temporary-cache cleanup.
+_Avoid_: Safe no-op, account deletion
+
+**Re-download**:
+Downloading official CSV content again through the app because the user's Content Entitlement still exists.
+_Avoid_: New purchase, restoring local-only user edits
+
+**Backup Warning**:
+User-facing warning that local-only personal edits, custom decks, or user-imported content may need manual backup before reset, migration, or device changes.
+_Avoid_: Official content entitlement warning
+
 **User Content**:
 Content imported or created by the user from outside the official Nihon Bunkai catalog.
 _Avoid_: Official catalog content, entitlement-backed content
@@ -91,7 +115,7 @@ A user-initiated export/import or storage flow for preserving user-owned data, s
 _Avoid_: Auto sync, Supabase term sync
 
 **Google Drive Backup**:
-A possible future manual backup/restore target using the user's own Google Drive storage.
+A manual backup/restore target concept using the user's own Google Drive storage.
 _Avoid_: Automatic sync requirement, app-owned cloud storage
 
 **Sync**:
@@ -125,6 +149,18 @@ _Avoid_: Full bilingual support assumption
 **Login Polish**:
 A deferred polish lane for improving login/auth UX after higher-priority functional work is stable.
 _Avoid_: Blocking core feature implementation, auth architecture rewrite
+
+**Visual QA**:
+Checking implemented UI for concrete visual defects such as overlap, text overflow, broken spacing, broken mobile layout, unreadable contrast, or screenshot mismatch.
+_Avoid_: Open-ended redesign
+
+**UI Polish**:
+Refining the visual feel and interface composition, such as spacing rhythm, hierarchy, button weight, copy density, and empty states.
+_Avoid_: Functional feature work, Visual QA defect pass
+
+**UX Polish**:
+Refining workflows and interactions so user states, errors, retries, and next actions are clearer.
+_Avoid_: Pure visual styling, new feature scope
 
 **Shop**:
 The app surface for official catalog packs/SKUs, ownership state, entitlement-aware download actions, and links out to Payhip checkout.
@@ -184,6 +220,132 @@ _Avoid_: Separate mode from Memorize
 The study mode for answering prompts with clearer correctness, result, or scoring behavior than Memorize.
 _Avoid_: Memorize, Learn
 
+**Quiz Variant**:
+A variant of Quiz that changes answer input style or prompt mechanics without becoming a separate top-level study mode.
+_Aliases_: Quiz Mode
+_Avoid_: Top-level mode sprawl
+
+**Multiple Choice**:
+A Quiz Variant where the learner selects an answer from choices.
+_Avoid_: Separate top-level mode, Memorize
+
+**Dictation**:
+A Quiz Variant where the learner types or reconstructs an answer from listening/recall.
+_Avoid_: Separate top-level mode, Memorize
+
+**Quiz Config**:
+Pre-session quiz settings such as card count, quiz variant, shuffle behavior, deck selection, or future filters.
+_Avoid_: Global app settings, permanent deck config
+
+**Settings**:
+The app surface for user/app preferences and account utilities, such as theme, auth/account actions, restore purchases, backup/import/export tools, privacy/account deletion, and future language toggle.
+_Avoid_: Browse/Search content navigation, per-session Quiz Config
+
+**Account**:
+The user's Supabase-backed app identity/auth profile used for login, entitlement sync, restore purchase, and app state sync.
+_Avoid_: Payhip customer, purchase record, local library
+
+**Profile**:
+User-facing account metadata or preferences, such as display information, onboarding state, or app preferences.
+_Avoid_: Entitlement, purchase record, Payhip customer
+
+**Onboarding**:
+The first-run flow that introduces the app, captures basic learner intent, or guides the user toward the initial app experience.
+_Avoid_: Login, entitlement, tutorial forever
+
+**Onboarding State**:
+Whether the user has already completed or dismissed onboarding.
+_Avoid_: Ownership state, progress state
+
+**Onboarding Polish**:
+A future UX refinement lane for improving the onboarding funnel, first-run clarity, and transition into Browse/Shop/Search.
+_Avoid_: Blocking core feature work unless onboarding prevents practical use
+
+**Account Deletion**:
+The request or process for deleting account/profile/auth-related app data.
+_Avoid_: Irrecoverable loss of purchase evidence, automatic content refund
+
+**Synced Session Deletion**:
+Deleting synced session/progress state associated with the account.
+_Avoid_: Deleting official source content, deleting Payhip order history
+
+**Delete Account**:
+Deleting backend account/profile/auth-related data.
+_Avoid_: Delete Local Data, automatic purchase erasure
+
+**Delete Local Data**:
+Deleting local device/app data such as Local Library, cache, progress, personal edits, user overrides, user imports, or custom decks.
+_Avoid_: Delete Account, server-side deletion
+
+**Delete Synced Data**:
+Deleting app state synced to backend, such as progress/session/review state.
+_Avoid_: Delete Local Data, deleting Payhip order history
+
+**Restore Purchase**:
+Recovering purchased content entitlement using prior purchase evidence or a restore identifier.
+_Avoid_: New purchase, PDF download
+
+**Automatic Restore**:
+Restore behavior that can happen without manual support when the app can match account, email, order, pending grant, or restore identifier.
+_Avoid_: Guaranteed restore for every case
+
+**Manual Restore**:
+Restore behavior that requires support review when automatic matching fails.
+_Avoid_: New purchase, instant restore promise
+
+**Restore Identifier**:
+An identifier separate from email credentials that may help recover purchases or entitlements, such as an order ID or app/payment-generated ID.
+_Avoid_: Password, email-only credential, primary customer-facing copy
+
+**Prior Purchase Evidence**:
+Evidence that a purchase happened, such as Payhip order ID, purchase email, receipt, or another restore identifier.
+_Avoid_: Entitlement itself, login session
+
+**Support Request**:
+Email-based manual support workflow for account deletion, restore help, or data/privacy requests.
+_Avoid_: Instant automated action guarantee
+
+**Support Inbox**:
+The manual support intake channel for requests such as account deletion, restore help, or privacy/data questions.
+_Avoid_: Realtime chat, instant response guarantee
+
+**Privacy Request**:
+A sensitive support request about personal data, such as account deletion, synced data deletion, data access, or data export.
+_Avoid_: General support issue, ordinary product question
+
+**Field Visibility**:
+A UI preference for showing or hiding entry/card fields without deleting the underlying data.
+_Aliases_: CSV Field visibility
+_Avoid_: Data deletion, source edit
+
+**CSV Field**:
+A source/display field from the CSV schema, such as `T`, `D`, `P`, or `E` from the full `NO, T, D, P, E` schema.
+_Avoid_: Card, Entry, deleted field
+
+**T Field**:
+The Term field: the headword or main item being learned.
+_Avoid_: Translation, explanation
+
+**D Field**:
+The Definition field: the meaning or definition shown for the term.
+_Avoid_: Pronunciation, explanation
+
+**P Field**:
+The Pronunciation field: reading or pronunciation information for the term.
+_Avoid_: Definition, explanation
+
+**E Field**:
+The Explanation field: richer markdown explanation/details for the term.
+_Avoid_: Term, definition, pronunciation
+
+**Learn Card Display Columns**:
+The field visibility preference for Learn/Memorize cards.
+_Avoid_: Quiz Card Display Columns, source schema edit
+
+**Quiz Card Display Columns**:
+The field visibility preference for Quiz cards.
+_Avoid_: Learn Card Display Columns, source schema edit
+
 **Review**:
 An activity that brings the learner back to previously seen items for reinforcement, often guided by progress or SRS state. Review can use Memorize, Quiz, or card UI mechanics, but it is not locked to one mode.
 _Avoid_: Quiz only, Memorize only
@@ -213,7 +375,7 @@ The result summary grouped by rating or outcome labels after a quiz/session.
 _Avoid_: Term Breakdown, raw progress state, source data
 
 **Term Breakdown**:
-The learner-facing decomposition of a term, matching the idea of `単語の分解`: breaking a word or item into meaningful parts for understanding. For MVP, this should primarily come from the existing JSON entry object rather than complex app-side transformation.
+The learner-facing decomposition of a term, matching the idea of `単語の分解`: breaking a word or item into meaningful parts for understanding.
 _Avoid_: Quiz result summary, score breakdown
 
 **Review Count**:
@@ -224,6 +386,26 @@ _Avoid_: Score, total cards
 A single run of learning, quiz, or review activity, created from one deck or multiple decks. A session can have progress, total cards, ratings, score, or results, but it is not a permanent deck.
 _Avoid_: Deck, bundle, ownership state
 
+**Shuffle**:
+Ordering behavior that changes the sequence of cards or entries inside a study/session flow without changing the official source order or deck definition.
+_Avoid_: Permanent deck reorder, source mutation
+
+**Session Shuffle**:
+Shuffle applied to cards within one session.
+_Avoid_: Deck definition change
+
+**Deck Shuffle**:
+Shuffle applied when starting or viewing study order for a deck.
+_Avoid_: Editing the deck's canonical order
+
+**Seeded Shuffle**:
+A reproducible shuffle order that can be resumed, restored, or debugged.
+_Avoid_: Fresh random order when resume/debug consistency matters
+
+**Random Shuffle**:
+A non-reproducible shuffle order generated fresh.
+_Avoid_: Resume-safe order
+
 **Continue**:
 A resume point for a user's latest progress in a specific mode, deck, or session.
 _Avoid_: Ownership state, deck state, entitlement state
@@ -233,7 +415,7 @@ Learner state for a deck, mode, or session, such as the latest index, completed 
 _Avoid_: Availability, ownership, purchase status
 
 **Overall Progress**:
-A possible future aggregate view of learner progress across decks, modes, or levels. Do not assume this exists in MVP unless the user re-opens stats or progress-dashboard work.
+A possible aggregate view of learner progress across decks, modes, or levels.
 _Avoid_: MVP requirement, purchase state
 
 **Pack**:
@@ -251,7 +433,7 @@ Content available without purchase, such as embedded starter content or samples.
 _Avoid_: Owned, entitled, Starter
 
 **Entitled**:
-Content unlocked by a purchase-backed app entitlement.
+Content unlocked by a purchase-backed Content Entitlement.
 _Avoid_: Free, downloaded
 
 **N5 Starter**:
@@ -273,11 +455,11 @@ _Aliases_: Entitlement
 _Avoid_: App Entitlement, purchase, order, payment, download, copyright ownership
 
 **App Entitlement**:
-A higher-level app benefit or app-access right, distinct from a content unlock. Use this full term when discussing Full Bundle or First Edition app-level benefits so it does not get confused with Content Entitlement.
+A higher-level app benefit or app-access right, distinct from a content unlock. Use this full term for higher-tier or privilege-style app benefits so it does not get confused with Content Entitlement.
 _Avoid_: Entitlement as shorthand, content unlock
 
 **Locked**:
-Content that exists in the catalog or UI but is not fully usable because the user does not own it yet. Locked content may show previews or samples, but full browse, study, import, or download actions should remain gated.
+Content that exists in the catalog or UI but is not fully usable because the user does not own it yet. Locked content may still appear as catalog, preview, or sample content.
 _Avoid_: Missing, unavailable, deleted
 
 **Purchase**:
@@ -285,7 +467,7 @@ The checkout action that happens through Payhip and can result in an entitlement
 _Avoid_: Entitlement, download, import
 
 **Download**:
-The app action that retrieves entitled CSV content from storage after a purchase-backed entitlement exists. For bundle packs, the app download covers CSV content only; PDFs are still downloaded through Payhip.
+The app action that retrieves entitled CSV content from storage after a purchase-backed Content Entitlement exists. In-app download means CSV download; PDFs are still downloaded through Payhip.
 _Avoid_: Purchase, import, PDF download
 
 **External CSV Download**:
@@ -301,7 +483,7 @@ PDF content downloaded through Payhip, not through the app import/download flow.
 _Avoid_: App CSV download, import
 
 **Import**:
-The app action that parses downloaded CSV content and adds it to the local app library so it becomes usable as decks.
+The app action that parses CSV content and adds it to the Local Library so it becomes usable as decks.
 _Avoid_: Download, entitlement
 
 **Official Import**:
@@ -333,7 +515,7 @@ Exporting user-owned app data such as custom decks, user-created content, or use
 _Avoid_: Official paid content export
 
 **Official Content Export**:
-Exporting official Nihon Bunkai content out of the app. This should be prohibited or tightly limited because it creates copyright and redistribution risk.
+Exporting official Nihon Bunkai content out of the app. This is copyright-sensitive and must not be treated as the default export path.
 _Avoid_: Default export behavior, user data export
 
 **Progress Export**:
@@ -361,6 +543,10 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Search** can expand beyond **Term Search** in future features.
 - **Catalog** is official-only; **Library** can contain official content and **User Content**.
 - **Custom Deck** is one form of **User Content**.
+- **Local Library** should be treated as more durable than temporary **Cache**, especially for user-imported content and personal edits.
+- **Offline-first** uses **Local Library** for study after content is available locally.
+- **Re-download** can recover official CSV content when **Content Entitlement** exists, but it does not recover local-only user edits or custom content.
+- **Cache Reset** needs **Backup Warning** copy if it can remove local-only user data.
 - **Official Source** stays immutable; **Personal Edit** should be stored as **User Override** against a **Library Copy**.
 - **User Override** is local-only by default and should not be synced to Supabase as term source.
 - **Manual Backup** or **Google Drive Backup** can preserve user-owned edits/data without making Supabase the user term store.
@@ -371,6 +557,8 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Thai-first** is the default until the language toggle phase is explicitly reopened.
 - **Login Polish** is a polish lane, not the default next task unless the user reopens it.
 - When core app logic, backlog features, and major UX flows are mostly stable, deferred polish lanes should be revisited proactively.
+- **Visual QA** should run after larger implementation rounds or before closing UI-impacting work.
+- **UI Polish** and **UX Polish** should not displace functional backlog unless the visual or interaction issue blocks practical use.
 - **Shop** presents **Catalog** items and can send the user to **Payhip Checkout**.
 - **Payhip Checkout** completes payment and handles PDF downloads; it is not the main Nihon Bunkai storefront experience.
 - **Payhip** handles checkout and PDF downloads; **Supabase** is the app-side source of truth for content entitlements.
@@ -381,6 +569,25 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Multi-deck Study** creates a temporary **Deck Group Session** from multiple selected **Decks**.
 - **Learn** is not a separate mode from **Memorize**; it is the UI/copy layer for the memorization-oriented flow.
 - **Memorize** and **Quiz** can use the same **Entries** and **Cards**, but they have different learner intent.
+- **Multiple Choice** and **Dictation** are **Quiz Variants**, not top-level modes separate from **Quiz**.
+- **Quiz Config** shapes a quiz/session before it starts and should not mutate deck definitions or global app settings.
+- **Quiz Mode** may be used as casual wording for **Quiz Variant**, but **Quiz Variant** is the precise glossary term.
+- **Settings** can grow to cover more app/account utilities, but session-specific study setup belongs in **Quiz Config** or the relevant study flow.
+- **Account** identifies the app user; it is separate from **Payhip Order**, **Purchase Record**, and **Local Library**.
+- **Profile** is user-facing metadata/preferences and should not be used as the entitlement or purchase source of truth.
+- **Onboarding State** is local-only for MVP and should not be tied to entitlement or content ownership.
+- **Onboarding Polish** should be revisited when major app flows are stable or if first-run UX blocks practical use.
+- **Account Deletion** can remove account/profile/auth-related state, but prior purchases may still be restorable with **Prior Purchase Evidence** or a **Restore Identifier**.
+- **Delete Account**, **Delete Local Data**, and **Delete Synced Data** are separate actions and need different warnings.
+- **Restore Purchase** should be hybrid in MVP: **Automatic Restore** when matching succeeds, **Manual Restore** through support when it does not.
+- **Restore Purchase** recovers or verifies rights; **Re-download** retrieves official CSV files again after those rights exist.
+- **Restore Identifier** is an internal/support umbrella term; customer-facing copy should ask for concrete items like order ID, purchase email, or receipt.
+- **Support Request** is manual and email-based unless a later automated workflow is explicitly built.
+- **Support Inbox** should be explained in plain language when discussed with the user: it means the place/channel where support requests arrive.
+- **Privacy Request** can go through the **Support Inbox** in MVP, but should be treated as more sensitive than ordinary support.
+- **Field Visibility** controls which **CSV Fields** appear on cards; it does not remove data from the **Entry**.
+- **T Field**, **D Field**, **P Field**, and **E Field** are display/source fields from the CSV-backed entry shape.
+- **Learn Card Display Columns** and **Quiz Card Display Columns** can differ because Learn/Memorize and Quiz have different display needs.
 - **Review** can be implemented through **Memorize**, **Quiz**, or other card-based mechanics.
 - **SRS** guides when items return for **Review**.
 - **FSRS** is the algorithmic implementation of **SRS** behavior in the app.
@@ -388,6 +595,8 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Score**, **Total**, **Result Breakdown**, and **Review Count** describe quiz/session results, not ownership or content availability.
 - **Term Breakdown** belongs to learning content explanation, not quiz result reporting.
 - **Session** can be created from one **Deck** or from a **Deck Group Session**.
+- **Shuffle** affects session/study ordering, not official source order.
+- **Seeded Shuffle** should be preferred when resume, restore, or debugging requires a stable order.
 - **Continue** resumes mode-specific progress, such as Learn/Memorize progress or Quiz progress, without changing ownership or deck identity.
 - **Progress** belongs to learner activity, not content availability.
 - **Overall Progress** is a future aggregate concept, not a current MVP assumption.
@@ -469,6 +678,10 @@ Dev: "Should deferred polish stay deferred forever?"
 
 Domain expert: "No. Once core logic and major flows are stable, suggest revisiting Language Toggle, Login Polish, and deeper UI/UX cleanup."
 
+Dev: "Is Visual QA the same as redesign?"
+
+Domain expert: "No. Visual QA catches concrete defects. UI Polish and UX Polish improve feel and workflow after the functional surface is stable."
+
 Dev: "Is Payhip the Shop?"
 
 Domain expert: "No. The app has a Shop surface and the landing is the main storefront. Payhip is the checkout/product host behind purchases and PDF downloads."
@@ -488,6 +701,78 @@ Domain expert: "No. Entry is the data unit, term is the learner-facing item, and
 Dev: "Is Learn a third study mode?"
 
 Domain expert: "No. Learn is UI/copy language for Memorize. Quiz is the separate test-like mode."
+
+Dev: "Is Multiple Choice a new top-level mode?"
+
+Domain expert: "No. Multiple Choice is a Quiz Variant. Quiz is the top-level mode."
+
+Dev: "Can the user say Quiz Mode?"
+
+Domain expert: "Yes, as casual wording. In docs and architecture, Quiz Variant is the precise term."
+
+Dev: "Does Quiz Config edit the deck?"
+
+Domain expert: "No. Quiz Config prepares a session. It does not change the deck definition."
+
+Dev: "Should Settings contain every study option?"
+
+Domain expert: "No. Settings is for app/account preferences and utilities. Per-session study options belong in Quiz Config or the study flow."
+
+Dev: "Is Account the same as a Payhip customer?"
+
+Domain expert: "No. Account is the app identity/auth profile. Payhip customer/order data is purchase evidence."
+
+Dev: "Does Profile decide what the user owns?"
+
+Domain expert: "No. Profile is metadata/preferences. Content Entitlement decides app-side content unlocks."
+
+Dev: "Should onboarding sync across devices now?"
+
+Domain expert: "No. Onboarding State can stay local-only for MVP."
+
+Dev: "Can onboarding UX be polished later?"
+
+Domain expert: "Yes. Onboarding Polish is a good deferred UX lane once core flows are stable."
+
+Dev: "If the user deletes the account, are purchases gone forever?"
+
+Domain expert: "Not necessarily. Purchases may be restorable with prior purchase evidence or a restore identifier."
+
+Dev: "Is Delete Account the same as deleting local data?"
+
+Domain expert: "No. Delete Account affects backend account/profile/auth-related data. Delete Local Data affects data on this device."
+
+Dev: "Should restore always be instant?"
+
+Domain expert: "No. MVP restore is hybrid: automatic when matching works, manual support when it does not."
+
+Dev: "Is re-download the same as restore purchase?"
+
+Domain expert: "No. Restore Purchase recovers the right. Re-download uses an existing right to download official CSV files again."
+
+Dev: "Should the UI ask for a Restore Identifier?"
+
+Domain expert: "No. Ask for concrete customer language like order ID, purchase email, or receipt. Restore Identifier is an internal/support term."
+
+Dev: "Is support request automated?"
+
+Domain expert: "No. Treat it as email-based manual support unless automation is explicitly implemented."
+
+Dev: "Is Support Inbox live chat?"
+
+Domain expert: "No. Support Inbox means the support intake channel for manual requests, not realtime chat."
+
+Dev: "Is deleting account just a normal support question?"
+
+Domain expert: "No. It is a Privacy Request and should be handled with more care than ordinary support."
+
+Dev: "If the user hides E, is the E data deleted?"
+
+Domain expert: "No. Field Visibility only changes card display. The Entry still has its CSV fields."
+
+Dev: "What does E mean?"
+
+Domain expert: "E is Explanation: the richer markdown explanation/details field."
 
 Dev: "Is Review the same as Quiz?"
 
@@ -512,6 +797,10 @@ Domain expert: "Use Result Breakdown for quiz result bars. Term Breakdown is res
 Dev: "Is a session a deck?"
 
 Domain expert: "No. A session is one run of study or quiz activity created from one or more decks."
+
+Dev: "Does Shuffle rewrite the deck?"
+
+Domain expert: "No. Shuffle changes the order inside a study/session flow. It does not mutate official source order or deck definition."
 
 Dev: "Does Continue mean the deck is owned or imported?"
 

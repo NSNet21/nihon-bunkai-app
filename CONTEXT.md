@@ -154,6 +154,16 @@ _Avoid_: Blocking core feature implementation, auth architecture rewrite
 Checking implemented UI for concrete visual defects such as overlap, text overflow, broken spacing, broken mobile layout, unreadable contrast, or screenshot mismatch.
 _Avoid_: Open-ended redesign
 
+**Regression Check**:
+Checking that previously working app pages, flows, UI states, data paths, or behavior still work after a change.
+_Aliases_: app regression
+_Avoid_: New feature validation only, open-ended redesign, visual preference pass
+
+**Full Regression Check**:
+A broader regression pass across multiple important app routes, states, viewports, data paths, and flows after a risky or large change.
+_Aliases_: overall app regression, Deep Regression Pass
+_Avoid_: Quick Check, isolated feature check, open-ended redesign
+
 **UI Polish**:
 Refining the visual feel and interface composition, such as spacing rhythm, hierarchy, button weight, copy density, and empty states.
 _Avoid_: Functional feature work, Visual QA defect pass

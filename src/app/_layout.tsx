@@ -56,6 +56,24 @@ function FocusBlurOnNavigate() {
   return null;
 }
 
+function WebDocumentTitle() {
+  const pathname = usePathname();
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const routeTitle =
+      pathname === '/shop' ? 'Shop'
+      : pathname === '/search' ? 'Search'
+      : pathname === '/settings' ? 'Settings'
+      : pathname === '/login' ? 'Login'
+      : pathname.startsWith('/deck/') ? 'Deck'
+      : pathname.startsWith('/onboarding/') ? 'Onboarding'
+      : pathname === '/group-picker' ? 'Multi-deck Study'
+      : 'Browse';
+    document.title = `${routeTitle} · Nihon Bunkai`;
+  }, [pathname]);
+  return null;
+}
+
 function ThemedRoot() {
   const { scheme: colorScheme } = useThemeColors();
 
@@ -77,6 +95,7 @@ function ThemedRoot() {
       <SearchShortcut />
       <OnboardingGate />
       <FocusBlurOnNavigate />
+      <WebDocumentTitle />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" />

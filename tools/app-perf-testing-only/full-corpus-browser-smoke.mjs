@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 
 const target = process.argv[2] || 'https://app.nihon-bunkai.com';
 const here = path.dirname(fileURLToPath(import.meta.url));
-const appRoot = path.resolve(here, '..');
+const appRoot = path.resolve(here, '..', '..');
 const workspaceRoot = path.resolve(appRoot, '..');
 const csvRoot = process.env.NB_CSV_ROOT
   ? path.resolve(process.env.NB_CSV_ROOT)

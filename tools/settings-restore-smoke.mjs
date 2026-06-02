@@ -47,9 +47,13 @@ if (bodyText.includes('เข้าสู่ระบบ')) {
   if (!/\/login/.test(page.url())) {
     await page.goto(new URL('/login', target).toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   }
-  await page.getByPlaceholder('you@example.com').waitFor({ state: 'visible', timeout: 45_000 });
-  await page.getByPlaceholder('you@example.com').fill(email);
-  await page.getByPlaceholder(/รหัสผ่าน/).fill(password);
+  const emailInput = page.locator('input[type="email"]').first();
+  const passwordInput = page.locator('input[type="password"]').first();
+  await emailInput.waitFor({ state: 'visible', timeout: 45_000 });
+  await emailInput.click();
+  await emailInput.pressSequentially(email);
+  await passwordInput.click();
+  await passwordInput.pressSequentially(password);
   await page.getByText('เข้าสู่ระบบ', { exact: true }).last().click();
   await page.waitForURL(/\/($|\?)/, { timeout: 20_000 }).catch(() => null);
   await page.waitForTimeout(2_000);
@@ -92,4 +96,16 @@ const result = {
 };
 
 await browser.close();
+if (
+  !result.signedIn ||
+  !result.hasUnlockRightsCopy ||
+  !result.hasRestoreSection ||
+  !result.hasRestoreSupportCopy ||
+  !result.hasLocalDataSafetyCopy ||
+  !result.hasSupportIssueCopy ||
+  !result.hasPrivacySupportCopy ||
+  result.errorCount > 0
+) {
+  throw new Error(`Settings restore smoke failed:\n${JSON.stringify(result, null, 2)}`);
+}
 console.log(JSON.stringify(result, null, 2));

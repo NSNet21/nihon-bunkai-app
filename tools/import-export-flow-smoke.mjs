@@ -33,6 +33,11 @@ async function openLibraryActions(page) {
     try {
       await action.waitFor({ state: 'visible', timeout: 15_000 });
       await action.click({ timeout: 10_000 });
+      await page.waitForTimeout(250);
+      if (!(await page.getByText('Library actions', { exact: false }).first().isVisible().catch(() => false))) {
+        const box = await action.boundingBox();
+        if (box) await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      }
       clickError = null;
       break;
     } catch (error) {

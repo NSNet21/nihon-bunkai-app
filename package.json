@@ -44,6 +44,7 @@
     "csv-parse": "^6.2.1",
     "playwright": "^1.60.0",
     "typescript": "~6.0.3",
+    "vitest": "^4.1.8",
     "wrangler": "^4.94.0"
   },
   "pnpm": {
@@ -59,7 +60,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "build:icons": "node tools/rasterize-app-icon.mjs"
+    "build:icons": "node tools/rasterize-app-icon.mjs",
+    "test:import-export": "vitest run src/lib/import-export/__tests__/import-export.test.ts",
+    "smoke:import-export": "node tools/import-export-flow-smoke.mjs"
   },
   "private": true
 }

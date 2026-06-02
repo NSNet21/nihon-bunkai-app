@@ -7,6 +7,7 @@ import { parseManualCsv } from '../manual-csv';
 import { parseManualImportFiles } from '../manual-import';
 import { serializeDeckCsv } from '../export-csv';
 import { selectExportableDecks } from '../export-library';
+import { buildExportHierarchy } from '../export-hierarchy';
 
 describe('library source metadata', () => {
   it('marks embedded free decks with source free', () => {
@@ -107,5 +108,56 @@ describe('export csv', () => {
       { id: 'locked', isFree: false },
     ] as any[];
     expect(selectExportableDecks(decks).map((deck) => deck.id)).toEqual(['free', 'paid', 'manual']);
+  });
+});
+
+describe('export hierarchy', () => {
+  it('groups official decks by JLPT level and content type', () => {
+    const groups = buildExportHierarchy([
+      {
+        id: 'vocab-n5-pack99',
+        type: 'vocab',
+        level: 'N5',
+        title: 'Vocab N5 · Pack 99',
+        entryCount: 1,
+        isFree: false,
+        pack: 'vocab-n5-pack99',
+        tags: ['vocab', 'n5', 'vocab-n5-pack99'],
+        source: 'manual',
+      },
+    ]);
+    expect(groups[0].label).toBe('N5');
+    expect(groups[0].sections[0].label).toBe('Vocab');
+    expect(groups[0].sections[0].decks[0].id).toBe('vocab-n5-pack99');
+  });
+
+  it('supports user custom group names without colliding with official levels', () => {
+    const groups = buildExportHierarchy([
+      {
+        id: 'custom-n1-pack01',
+        type: 'vocab',
+        level: 'N1',
+        title: 'My custom N1 · Pack 01',
+        entryCount: 2,
+        isFree: false,
+        pack: 'custom-n1-pack01',
+        tags: ['group:my-card-set', 'custom-n1-pack01'],
+        source: 'manual',
+      },
+      {
+        id: 'custom-n5-pack01',
+        type: 'vocab',
+        level: 'N5',
+        title: 'My custom N5 · Pack 01',
+        entryCount: 2,
+        isFree: false,
+        pack: 'custom-n5-pack01',
+        tags: ['my-card-set', 'custom-n5-pack01'],
+        source: 'manual',
+      },
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe('my-card-set');
+    expect(groups[0].sections.map((section) => section.label)).toEqual(['N5', 'N1']);
   });
 });

@@ -8,6 +8,7 @@ import { useThemePalette } from '@/context/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
+import { buildExportHierarchy, type ExportHierarchyGroup } from '@/lib/import-export/export-hierarchy';
 import { buildDeckCsv, buildDeckZip, downloadBlob, selectExportableDecks } from '@/lib/import-export/export-library';
 import { parseManualImportFiles, saveManualImport, type ManualImportParseResult } from '@/lib/import-export/manual-import';
 
@@ -104,7 +105,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
   }
 
   function openBatchExport() {
-    setSelected(new Set(exportableDecks.map((deck) => deck.id)));
+    setSelected(new Set());
     setMode('export-batch');
   }
 
@@ -119,7 +120,12 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
               <ThemedText type="defaultSemiBold">Library actions</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">Import / Export สำหรับ deck ที่พร้อมเรียน</ThemedText>
             </View>
-            <Pressable onPress={close} hitSlop={8} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+            <Pressable
+              onPress={close}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="ปิด Library actions"
+              style={({ pressed }) => [styles.closeButton, pressed && { opacity: 0.6 }]}>
               <FiX size={20} color={colors.text} strokeWidth={2} />
             </Pressable>
           </View>
@@ -184,11 +190,11 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
             />
           )}
 
-          {status && (
+          {status ? (
             <ThemedView type="backgroundElement" style={styles.status}>
               <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText>
             </ThemedView>
-          )}
+          ) : null}
         </Pressable>
       </Pressable>
     </Modal>
@@ -240,21 +246,17 @@ function DeckPicker({
   onBack: () => void;
   onPick: (deck: Deck) => void;
 }) {
+  const hierarchy = useMemo(() => buildExportHierarchy(decks), [decks]);
   return (
     <View style={styles.picker}>
       <PickerHeader title="เลือก deck ที่จะ export" onBack={onBack} />
-      <ScrollView style={styles.deckList} contentContainerStyle={styles.deckListInner}>
-        {decks.map((deck) => (
-          <ActionRow
-            key={deck.id}
-            label={deck.title}
-            hint={`${deck.entryCount} entries · ${deck.source.toUpperCase()}`}
-            icon={<FiDownload size={17} color={Accent.base} />}
-            disabled={busy}
-            onPress={() => onPick(deck)}
-          />
-        ))}
-      </ScrollView>
+      <HierarchyDeckList
+        groups={hierarchy}
+        busy={busy}
+        selected={new Set()}
+        mode="single"
+        onPick={onPick}
+      />
     </View>
   );
 }
@@ -274,37 +276,17 @@ function BatchPicker({
   onBack: () => void;
   onExport: () => void;
 }) {
-  const colors = useThemePalette();
+  const hierarchy = useMemo(() => buildExportHierarchy(decks), [decks]);
   return (
     <View style={styles.picker}>
       <PickerHeader title={`Batch export · ${selected.size}/${decks.length}`} onBack={onBack} />
-      <ScrollView style={styles.deckList} contentContainerStyle={styles.deckListInner}>
-        {decks.map((deck) => {
-          const checked = selected.has(deck.id);
-          const Icon = checked ? FiCheckSquare : FiSquare;
-          return (
-            <Pressable
-              key={deck.id}
-              onPress={() => onToggle(deck.id)}
-              disabled={busy}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked }}
-              style={({ pressed, hovered }: any) => [
-                styles.actionRow,
-                { borderBottomColor: colors.border, backgroundColor: hovered ? colors.surface2 : 'transparent' },
-                pressed && { opacity: 0.7 },
-              ]}>
-              <Icon size={17} color={checked ? Accent.base : colors.textHint} />
-              <View style={{ flex: 1, gap: 2 }}>
-                <ThemedText type="defaultSemiBold">{deck.title}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {deck.entryCount} entries · {deck.source.toUpperCase()}
-                </ThemedText>
-              </View>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <HierarchyDeckList
+        groups={hierarchy}
+        busy={busy}
+        selected={selected}
+        mode="batch"
+        onToggle={onToggle}
+      />
       <Pressable
         onPress={onExport}
         disabled={busy || selected.size === 0}
@@ -318,6 +300,213 @@ function BatchPicker({
         </ThemedText>
       </Pressable>
     </View>
+  );
+}
+
+function HierarchyDeckList({
+  groups,
+  busy,
+  selected,
+  mode,
+  onPick,
+  onToggle,
+}: {
+  groups: ExportHierarchyGroup[];
+  busy: boolean;
+  selected: Set<string>;
+  mode: 'single' | 'batch';
+  onPick?: (deck: Deck) => void;
+  onToggle?: (deckId: string) => void;
+}) {
+  const colors = useThemePalette();
+  const [openGroups, setOpenGroups] = useState(() => new Set(groups.map((group) => group.key)));
+  const [openSections, setOpenSections] = useState(
+    () => new Set(groups.flatMap((group) => group.sections.map((section) => section.key))),
+  );
+  const allGroupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
+  const allSectionKeys = useMemo(
+    () => groups.flatMap((group) => group.sections.map((section) => section.key)),
+    [groups],
+  );
+
+  function expandAll() {
+    setOpenGroups(new Set(allGroupKeys));
+    setOpenSections(new Set(allSectionKeys));
+  }
+  function collapseAll() {
+    setOpenGroups(new Set());
+    setOpenSections(new Set());
+  }
+  function jumpTo(group: ExportHierarchyGroup) {
+    setOpenGroups((prev) => new Set(prev).add(group.key));
+  }
+  function toggleGroup(group: ExportHierarchyGroup) {
+    setOpenGroups((prev) => toggleSet(prev, group.key));
+  }
+  function toggleSection(key: string) {
+    setOpenSections((prev) => toggleSet(prev, key));
+  }
+  function setDecks(deckIds: string[], checked: boolean) {
+    if (!onToggle) return;
+    for (const deckId of deckIds) {
+      if (selected.has(deckId) !== checked) onToggle(deckId);
+    }
+  }
+
+  return (
+    <View style={styles.hierarchyWrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.indexRail}>
+        <Pressable onPress={expandAll} style={[styles.indexChip, { borderColor: colors.border }]}>
+          <ThemedText type="small" style={{ color: Accent.base }}>ขยาย</ThemedText>
+        </Pressable>
+        <Pressable onPress={collapseAll} style={[styles.indexChip, { borderColor: colors.border }]}>
+          <ThemedText type="small" themeColor="textSecondary">ย่อ</ThemedText>
+        </Pressable>
+        {groups.map((group) => (
+          <Pressable key={group.key} onPress={() => jumpTo(group)} style={[styles.indexChip, { borderColor: colors.border }]}>
+            <ThemedText type="small" themeColor="textSecondary">{group.label}</ThemedText>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <ScrollView style={styles.deckList} contentContainerStyle={styles.deckListInner}>
+        {groups.map((group) => {
+          const groupOpen = openGroups.has(group.key);
+          const groupDecks = group.sections.flatMap((section) => section.decks);
+          const groupChecked = groupDecks.length > 0 && groupDecks.every((deck) => selected.has(deck.id));
+          return (
+            <View key={group.key} style={styles.hierarchyGroup}>
+              <HierarchyHeader
+                label={group.label}
+                meta={`${groupDecks.length} decks`}
+                checked={groupChecked}
+                checkable={mode === 'batch'}
+                open={groupOpen}
+                disabled={busy}
+                onToggleOpen={() => toggleGroup(group)}
+                onToggleChecked={() => setDecks(groupDecks.map((deck) => deck.id), !groupChecked)}
+              />
+              {groupOpen && group.sections.map((section) => {
+                const sectionOpen = openSections.has(section.key);
+                const sectionChecked = section.decks.length > 0 && section.decks.every((deck) => selected.has(deck.id));
+                return (
+                  <View key={section.key} style={styles.hierarchySection}>
+                    <HierarchyHeader
+                      label={section.label}
+                      meta={`${section.decks.length} decks`}
+                      checked={sectionChecked}
+                      checkable={mode === 'batch'}
+                      open={sectionOpen}
+                      disabled={busy}
+                      compact
+                      onToggleOpen={() => toggleSection(section.key)}
+                      onToggleChecked={() => setDecks(section.decks.map((deck) => deck.id), !sectionChecked)}
+                    />
+                    {sectionOpen && section.decks.map((deck) => (
+                      <DeckChoiceRow
+                        key={deck.id}
+                        deck={deck}
+                        busy={busy}
+                        checked={selected.has(deck.id)}
+                        mode={mode}
+                        onPick={onPick}
+                        onToggle={onToggle}
+                      />
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function HierarchyHeader({
+  label,
+  meta,
+  checked,
+  checkable,
+  open,
+  disabled,
+  compact,
+  onToggleOpen,
+  onToggleChecked,
+}: {
+  label: string;
+  meta: string;
+  checked: boolean;
+  checkable: boolean;
+  open: boolean;
+  disabled: boolean;
+  compact?: boolean;
+  onToggleOpen: () => void;
+  onToggleChecked: () => void;
+}) {
+  const colors = useThemePalette();
+  const Icon = checked ? FiCheckSquare : FiSquare;
+  return (
+    <View style={[styles.hierarchyHeader, compact && styles.hierarchyHeaderCompact, { borderBottomColor: colors.border }]}>
+      {checkable ? (
+        <Pressable
+          onPress={onToggleChecked}
+          disabled={disabled}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked }}
+          style={({ pressed }) => [styles.hierarchyCheck, pressed && { opacity: 0.7 }]}>
+          <Icon size={16} color={checked ? Accent.base : colors.textHint} />
+        </Pressable>
+      ) : null}
+      <Pressable onPress={onToggleOpen} style={({ pressed }) => [styles.hierarchyTitleButton, pressed && { opacity: 0.7 }]}>
+        <ThemedText type={compact ? 'smallBold' : 'defaultSemiBold'}>{open ? '⌄' : '›'} {label}</ThemedText>
+        <ThemedText type="small" themeColor="textHint">{meta}</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+function DeckChoiceRow({
+  deck,
+  busy,
+  checked,
+  mode,
+  onPick,
+  onToggle,
+}: {
+  deck: Deck;
+  busy: boolean;
+  checked: boolean;
+  mode: 'single' | 'batch';
+  onPick?: (deck: Deck) => void;
+  onToggle?: (deckId: string) => void;
+}) {
+  const colors = useThemePalette();
+  const Icon = checked ? FiCheckSquare : FiSquare;
+  return (
+    <Pressable
+      onPress={() => (mode === 'single' ? onPick?.(deck) : onToggle?.(deck.id))}
+      disabled={busy}
+      accessibilityRole={mode === 'batch' ? 'checkbox' : 'button'}
+      accessibilityState={mode === 'batch' ? { checked } : undefined}
+      style={({ pressed, hovered }: any) => [
+        styles.actionRow,
+        styles.hierarchyDeckRow,
+        { borderBottomColor: colors.border, backgroundColor: hovered ? colors.surface2 : 'transparent' },
+        pressed && { opacity: 0.7 },
+      ]}>
+      {mode === 'batch' ? (
+        <Icon size={17} color={checked ? Accent.base : colors.textHint} />
+      ) : (
+        <FiDownload size={17} color={Accent.base} />
+      )}
+      <View style={{ flex: 1, gap: 2 }}>
+        <ThemedText type="defaultSemiBold">{deck.title}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {deck.entryCount} entries · {deck.source.toUpperCase()}
+        </ThemedText>
+      </View>
+    </Pressable>
   );
 }
 
@@ -361,6 +550,13 @@ function importSummary(parsed: ManualImportParseResult): string {
   return parts.join(' · ') || 'ไม่มีไฟล์ที่ import ได้';
 }
 
+function toggleSet(values: Set<string>, key: string) {
+  const next = new Set(values);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+}
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -384,6 +580,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.three,
   },
+  closeButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radii.sm,
+    marginTop: -4,
+    marginRight: -4,
+  },
   actionList: { borderTopWidth: StyleSheet.hairlineWidth },
   actionRow: {
     flexDirection: 'row',
@@ -405,6 +610,46 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   deckListInner: { paddingBottom: Spacing.two },
+  hierarchyWrap: { gap: Spacing.two },
+  indexRail: {
+    gap: Spacing.two,
+    paddingBottom: Spacing.one,
+  },
+  indexChip: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
+  hierarchyGroup: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  hierarchySection: {
+    paddingLeft: Spacing.two,
+  },
+  hierarchyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  hierarchyHeaderCompact: {
+    paddingLeft: Spacing.two,
+  },
+  hierarchyCheck: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hierarchyTitleButton: {
+    flex: 1,
+    gap: 1,
+  },
+  hierarchyDeckRow: {
+    paddingLeft: Spacing.four,
+  },
   primaryButton: {
     alignItems: 'center',
     paddingVertical: Spacing.three,

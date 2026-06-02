@@ -33,6 +33,29 @@ Pressing it opens a modal/action sheet with four actions:
 
 The copy stays Thai-first. English verbs like `Import` and `Export` are acceptable as command labels when paired with short Thai helper text.
 
+## Help And Usage Copy
+
+The app should include short usage guidance so learners understand what each action does before selecting files.
+
+MVP placement:
+
+- Put inline hints inside the Browse Library action modal/action sheet.
+- Add a small "วิธีใช้ Import / Export" help section in Settings or another suitable support/help surface. Settings is acceptable for the help article because it is explanatory support copy, not the primary Library action.
+
+Modal hints:
+
+- Import one file: explain that one CSV or ZIP can be added to the local Library.
+- Batch import: explain that many CSV files or one ZIP can be added at once.
+- Export one deck: explain that one ready deck will be saved as CSV.
+- Batch export: explain that selected ready decks will be saved as a ZIP.
+
+Help copy must be short and practical. It should mention:
+
+- Imported files must follow Nihon Bunkai / Onevoca-style `NO,T,D,P,E` CSV shape.
+- Official paid content still requires purchase to download through the app.
+- Export only works for decks already ready in the user's Library.
+- Local-only imported content is not automatically synced across devices.
+
 ## MVP Import Behavior
 
 Supported inputs:
@@ -43,8 +66,16 @@ Supported inputs:
 
 Supported CSV schema:
 
-- Required headers: `NO,T,D,P,E`
+- Required headers: `T,D,P,E`; `NO` is supported and preferred but can be empty or omitted for manual imports.
 - Header matching accepts uppercase official headers and lowercase variants internally. Exported official shape remains uppercase.
+
+`NO` rules:
+
+- If `NO` is empty or omitted, the app auto-numbers rows in file order starting at 1.
+- If `NO` is provided, every non-empty `NO` value must form a strictly sequential integer series with step `+1`.
+- Valid examples: `1,2,3,...,x` or `a,a+1,a+2,...,x` where `a < x`.
+- Invalid examples: duplicates, gaps, descending numbers, decimals, text values, or mixed blank and numbered rows.
+- Export always writes normalized numeric `NO` values.
 
 Supported official filename patterns:
 
@@ -80,7 +111,10 @@ Export schema:
 
 Export scope:
 
-- Default selector includes all ready decks: free embedded decks, paid imported official decks, and manual imported decks.
+- Default selector includes ready Local Library decks: free embedded decks, entitlement-backed imported official decks, and manual imported decks.
+- Export must never read from locked catalog/product metadata or generate CSV content for products that are not already ready in the user's Library.
+- Exporting paid official content is allowed only for decks already present as local ready entries after entitlement-backed download/import.
+- Exporting manual imported decks is allowed because the user supplied that file locally; these decks must not be labeled as entitlement-owned official content.
 - Export does not grant ownership and does not change local Library state.
 
 ## Data Boundary
@@ -125,11 +159,15 @@ First-pass implementation must not rewrite the signed-download import path. Shar
 
 Logic-first tests:
 
-- CSV schema validation accepts valid `NO,T,D,P,E`.
+- CSV schema validation accepts valid `T,D,P,E` with omitted `NO`.
+- CSV schema validation accepts valid `NO,T,D,P,E` when `NO` is sequential.
+- CSV parser auto-numbers rows when `NO` is omitted or empty.
+- CSV schema validation rejects duplicate, gapped, descending, decimal, text, or mixed blank/numbered `NO` values.
 - CSV schema validation rejects missing required columns.
 - Filename parser creates correct deck metadata for vocab/grammar/kanji/glossary.
 - ZIP import parses multiple CSV files and reports valid/invalid counts.
 - Export serializer writes `NO,T,D,P,E` in order and preserves row values.
+- Export selector excludes locked catalog/product entries and uses only ready Local Library deck rows.
 
 Browser interaction tests:
 

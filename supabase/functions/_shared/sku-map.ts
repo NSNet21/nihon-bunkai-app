@@ -40,6 +40,29 @@ export const BUCKET = "paid-content";
 
 export type SkuId = keyof typeof SKU_TO_ZIPS;
 
+export const SKU_DOWNLOAD_COVERAGE: Record<SkuId, readonly string[]> = {
+  "n5-vocab-v2": ["n5-vocab-v2", "full-bundle", "first-edition"],
+
+  "n4-csv": ["n4-csv", "n4-bundle", "full-bundle", "first-edition"],
+  "n4-bundle": ["n4-bundle", "full-bundle", "first-edition"],
+
+  "n3-csv": ["n3-csv", "n3-bundle", "full-bundle", "first-edition"],
+  "n3-bundle": ["n3-bundle", "full-bundle", "first-edition"],
+
+  "n2-csv": ["n2-csv", "n2-bundle", "full-bundle", "first-edition"],
+  "n2-bundle": ["n2-bundle", "full-bundle", "first-edition"],
+
+  "n1-csv": ["n1-csv", "n1-bundle", "full-bundle", "first-edition"],
+  "n1-bundle": ["n1-bundle", "full-bundle", "first-edition"],
+
+  "full-bundle": ["full-bundle", "first-edition"],
+  "first-edition": ["first-edition"],
+};
+
 export function isValidSku(sku: string): sku is SkuId {
   return sku in SKU_TO_ZIPS;
+}
+
+export function getCoveringSkusForDownload(sku: SkuId): readonly string[] {
+  return SKU_DOWNLOAD_COVERAGE[sku] ?? [sku];
 }

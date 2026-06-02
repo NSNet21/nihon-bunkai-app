@@ -170,10 +170,22 @@ export default function BrowseScreen() {
     () => buildRows(decks, closedLevels, closedCategories),
     [decks, closedLevels, closedCategories],
   );
-  const totalFreeEntries = decks
-    .filter((d) => d.isFree)
-    .reduce((s, d) => s + d.entryCount, 0);
-  const freePackCount = decks.filter((d) => d.isFree).length;
+  const libraryStats = useMemo(() => {
+    let totalEntries = 0;
+    let paidPackCount = 0;
+    for (const deck of decks) {
+      totalEntries += deck.entryCount;
+      if (!deck.isFree) paidPackCount += 1;
+    }
+    return {
+      totalEntries,
+      packCount: decks.length,
+      paidPackCount,
+    };
+  }, [decks]);
+  const librarySubtitle = libraryStats.paidPackCount > 0
+    ? `${libraryStats.totalEntries} entries · ${libraryStats.packCount} packs · พร้อมเรียน`
+    : `${libraryStats.totalEntries} entries · ${libraryStats.packCount} packs ฟรี · ดูเพิ่มที่ Shop`;
 
   /* renderItem stable across renders — depends only on the two stable
      toggle callbacks. Together with React.memo'd row components, this
@@ -243,7 +255,7 @@ export default function BrowseScreen() {
                 </ThemedText>
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
-                {totalFreeEntries} entries · {freePackCount} packs ฟรี · ดูเพิ่มที่ Shop
+                {librarySubtitle}
               </ThemedText>
               {/* Multi-deck Study entry — utility row treatment per GPT
                   round-3 verdict ("pill ควรเป็น tool/action ไม่ใช่

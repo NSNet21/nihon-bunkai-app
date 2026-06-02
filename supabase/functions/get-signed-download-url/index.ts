@@ -17,7 +17,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.0";
 
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { BUCKET, isValidSku, SKU_TO_ZIPS } from "../_shared/sku-map.ts";
+import {
+  BUCKET,
+  getCoveringSkusForDownload,
+  isValidSku,
+  SKU_TO_ZIPS,
+} from "../_shared/sku-map.ts";
 
 const SIGNED_URL_TTL_SECONDS = 5 * 60; // 5 min — matches Phase 1.3 spec
 
@@ -67,7 +72,7 @@ Deno.serve(async (req) => {
     .from("entitlements")
     .select("id")
     .eq("user_id", user.id)
-    .eq("sku_id", skuId)
+    .in("sku_id", [...getCoveringSkusForDownload(skuId)])
     .limit(1);
 
   if (entErr) return jsonResponse({ error: "entitlement_check_failed" }, 500);

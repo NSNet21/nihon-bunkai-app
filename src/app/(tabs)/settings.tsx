@@ -628,7 +628,7 @@ function RestoreSection({ onRestored }: { onRestored: () => Promise<void> }) {
       </Pressable>
 
       <ThemedText type="small" themeColor="textHint" style={restoreStyles.hint}>
-        Order ID อยู่ใน Payhip receipt email · ถ้ายังหาไม่เจอ → mailto {SUPPORT_EMAIL}
+        Order ID อยู่ใน Payhip receipt email · ถ้ายังหาไม่เจอ ติดต่อ {SUPPORT_EMAIL}
       </ThemedText>
     </ThemedView>
   );
@@ -819,7 +819,7 @@ function AccountCard({
         <View style={{ flex: 1 }}>
           <ThemedText type="defaultSemiBold">{email}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            {entitlementCount} pack ปลดล็อก
+            สิทธิ์ปลดล็อก {entitlementCount} รายการ
           </ThemedText>
         </View>
       </View>

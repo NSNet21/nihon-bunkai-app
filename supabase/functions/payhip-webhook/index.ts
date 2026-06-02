@@ -4,19 +4,17 @@
  * Receives Payhip "paid" / "refunded" events and updates entitlements.
  *
  * Flow per [[app-phase-1a-breakdown]] + GPT-aligned safety nets:
- *   1. Verify Payhip signature (HMAC-SHA256 with PAYHIP_API_KEY)
+ *   1. Verify Payhip signature (plain SHA256 of PAYHIP_API_KEY)
  *   2. INSERT into purchase_records (immutable audit log — always, even pre-grant)
- *   3. Lookup auth.users by buyer email
+ *   3. Lookup profiles by buyer email
  *      - If found  → INSERT entitlement (source='payhip') for the matched SKU
  *      - If absent → INSERT pending_grant (drained on signup with same email)
  *   4. Return 200 (Payhip retries on non-2xx)
  *
  * Signature format note:
- *   Payhip docs are vague on signature concat order. We try a few common
- *   patterns (raw API key as HMAC secret, sha256 of email+key, etc.) and
- *   log everything until we learn the real algo from a live test coupon.
- *   For first deploys: PAYHIP_VERIFY_STRICT=false → log mismatch, still process
- *   (treat as test-mode); flip to strict once verified.
+ *   Payhip sends signature = sha256(apiKey). This is static per key and
+ *   verifies sender knowledge, not payload integrity. Strict mode is locked
+ *   after live coupon verification.
  *
  * verify_jwt is FALSE because Payhip is the caller, not a Supabase user.
  */
@@ -78,7 +76,7 @@ Deno.serve(async (req) => {
     })),
   });
 
-  // Signature verification (best-effort until algo is locked from live data)
+  // Signature verification: Payhip documents plain sha256(apiKey).
   const sigOk = apiKey ? await tryVerify(payload, apiKey) : false;
   if (apiKey) {
     console.log("[payhip-webhook] signature:", sigOk ? "ok" : "mismatch", {
@@ -171,15 +169,29 @@ Deno.serve(async (req) => {
 
   for (const { sku } of itemSkus) {
     if (matchedUser?.id) {
-      const { error: grantErr } = await admin
+      const { data: existingGrant, error: existingGrantErr } = await admin
         .from("entitlements")
-        .insert({
-          user_id: matchedUser.id,
-          sku_id: sku,
-          source: "payhip",
-          buyer_email: buyerEmail,
-          payment_ref: orderId,
-        });
+        .select("id")
+        .eq("user_id", matchedUser.id)
+        .eq("sku_id", sku)
+        .limit(1);
+
+      if (existingGrantErr) {
+        console.error("[payhip-webhook] grant lookup failed", existingGrantErr);
+      }
+
+      const alreadyGranted = Boolean(existingGrant?.length);
+      const { error: grantErr } = alreadyGranted
+        ? { error: null }
+        : await admin
+          .from("entitlements")
+          .insert({
+            user_id: matchedUser.id,
+            sku_id: sku,
+            source: "payhip",
+            buyer_email: buyerEmail,
+            payment_ref: orderId,
+          });
       if (grantErr && !grantErr.message.includes("duplicate")) {
         console.error("[payhip-webhook] grant failed", grantErr);
       } else {
@@ -229,20 +241,6 @@ async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function hmacSha256Hex(message: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return Array.from(new Uint8Array(sig))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }

@@ -311,9 +311,24 @@ export async function pullNow(userId: string): Promise<{ ok: boolean; pulled: nu
         .maybeSingle(),
     ]);
 
-    if (cardsRes.error) console.warn('[sync] pull cardStates failed:', cardsRes.error.message);
-    if (sessionsRes.error) console.warn('[sync] pull sessionLogs failed:', sessionsRes.error.message);
-    if (streakRes.error) console.warn('[sync] pull streakMeta failed:', streakRes.error.message);
+    const pullErrors = [
+      ['cardStates', cardsRes.error],
+      ['sessionLogs', sessionsRes.error],
+      ['streakMeta', streakRes.error],
+    ] as const;
+    const errors = pullErrors.filter(([, error]) => !!error);
+    if (errors.length > 0) {
+      if (errors.every(([, error]) => isAbortError(error))) {
+        return { ok: false, pulled: 0 };
+      }
+      for (const [label, error] of errors) {
+        const pullError = error;
+        if (pullError && !isAbortError(pullError)) {
+          console.warn(`[sync] pull ${label} failed:`, pullError.message);
+        }
+      }
+      return { ok: false, pulled: 0 };
+    }
 
     let pulled = 0;
 
@@ -384,6 +399,12 @@ export async function pullNow(userId: string): Promise<{ ok: boolean; pulled: nu
   } finally {
     isPulling = false;
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const maybe = error as { name?: string; message?: string };
+  return maybe.name === 'AbortError' || maybe.message?.includes('AbortError') === true;
 }
 
 /* ─── Lifecycle ──────────────────────────────────────────────────────── */

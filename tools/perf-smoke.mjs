@@ -2,6 +2,11 @@ import { chromium } from 'playwright';
 
 const target = process.argv[2] || 'https://app.nihon-bunkai.com';
 const routes = ['/', '/search', '/shop', '/settings'];
+const searchQuery = process.env.NB_SMOKE_SEARCH_QUERY || '問題';
+const searchExpectedText = (process.env.NB_SMOKE_SEARCH_EXPECTED || '問題,もんだい,ปัญหา')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
 
 function now() {
   return Number(process.hrtime.bigint() / 1_000_000n);
@@ -70,7 +75,7 @@ async function measureSearch(page) {
 
   const typeStarted = now();
   await page.click('input[placeholder*="คำญี่ปุ่น"]');
-  await page.keyboard.type('去年');
+  await page.keyboard.type(searchQuery);
   await page.waitForTimeout(500);
   const bodyText = await page.locator('body').innerText({ timeout: 10_000 });
   const searchState = await page.evaluate(() => {
@@ -83,10 +88,12 @@ async function measureSearch(page) {
 
   return {
     route: '/search',
+    query: searchQuery,
+    expectedText: searchExpectedText,
     inputReadyMs,
     queryFeedbackMs: now() - typeStarted,
     inputValue: searchState.inputValue,
-    hasResultText: bodyText.includes('きょねん') || bodyText.includes('ปีที่แล้ว') || bodyText.includes('去年'),
+    hasResultText: searchExpectedText.some((text) => bodyText.includes(text)),
     bodyTextLength: bodyText.length,
     visibleTextSample: searchState.visibleText,
   };

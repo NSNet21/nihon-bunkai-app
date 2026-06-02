@@ -62,6 +62,9 @@
     "lint": "expo lint",
     "build:icons": "node tools/rasterize-app-icon.mjs",
     "test:import-export": "vitest run src/lib/import-export/__tests__/import-export.test.ts",
+    "smoke:perf": "node tools/perf-smoke.mjs",
+    "smoke:full-corpus": "node tools/app-perf-testing-only/full-corpus-browser-smoke.mjs",
+    "smoke:settings-restore": "node tools/settings-restore-smoke.mjs",
     "smoke:import-export": "node tools/import-export-flow-smoke.mjs"
   },
   "private": true

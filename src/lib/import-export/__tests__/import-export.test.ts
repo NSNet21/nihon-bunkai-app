@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import JSZip from 'jszip';
 
 import { decks as freeDecks } from '../../../data/free-tier';
 import { parseLibraryCsvFilename } from '../filename';
 import { parseManualCsv } from '../manual-csv';
+import { parseManualImportFiles } from '../manual-import';
 
 describe('library source metadata', () => {
   it('marks embedded free decks with source free', () => {
@@ -54,5 +56,34 @@ describe('parseLibraryCsvFilename', () => {
 
   it('rejects unknown filenames', () => {
     expect(parseLibraryCsvFilename('random.csv')).toBeNull();
+  });
+});
+
+describe('parseManualImportFiles', () => {
+  it('imports valid CSV files and reports invalid files', async () => {
+    const good = new File(['T,D,P,E\n猫,แมว,ねこ,note'], 'vocab-n5-pack99.csv', { type: 'text/csv' });
+    const bad = new File(['A,B\n1,2'], 'bad.csv', { type: 'text/csv' });
+    const result = await parseManualImportFiles([good, bad], new Set());
+    expect(result.ready).toHaveLength(1);
+    expect(result.ready[0].deck.id).toBe('vocab-n5-pack99');
+    expect(result.ready[0].deck.source).toBe('manual');
+    expect(result.ready[0].entries.source).toBe('manual');
+    expect(result.failed[0].fileName).toBe('bad.csv');
+  });
+
+  it('parses CSV files inside ZIP', async () => {
+    const zip = new JSZip();
+    zip.file('vocab/vocab-n5-pack98.csv', 'T,D,P,E\n犬,หมา,いぬ,note');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const file = new File([blob], 'manual.zip', { type: 'application/zip' });
+    const result = await parseManualImportFiles([file], new Set());
+    expect(result.ready[0].deck.id).toBe('vocab-n5-pack98');
+  });
+
+  it('skips embedded free deck ids', async () => {
+    const file = new File(['T,D,P,E\n猫,แมว,ねこ,note'], 'vocab-n5-pack01.csv', { type: 'text/csv' });
+    const result = await parseManualImportFiles([file], new Set(['vocab-n5-pack01']));
+    expect(result.ready).toHaveLength(0);
+    expect(result.skipped[0].reason).toMatch(/free/i);
   });
 });

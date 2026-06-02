@@ -96,13 +96,14 @@ async function parseZip(
       title: meta.title,
       entryCount: rows.length,
       isFree: false,
+      source: 'entitlement',
       pack: meta.pack,
       tags: meta.tags,
       skuId,
       importedAt,
     };
     decks.push(deck);
-    entries.push({ pack: meta.pack, skuId, rows });
+    entries.push({ pack: meta.pack, source: 'entitlement', skuId, rows });
   }
 
   return { decks, entries };

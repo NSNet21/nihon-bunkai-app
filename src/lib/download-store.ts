@@ -26,23 +26,28 @@ export type DownloadedZip = {
   downloadedAt: number;
 };
 
-export type PaidDeckRecord = Deck & {
-  /** SKU that granted this deck. */
-  skuId: string;
+export type LibraryDeckRecord = Deck & {
+  source: 'entitlement' | 'manual';
+  /** SKU that granted this deck, only for entitlement-backed content. */
+  skuId?: string;
   importedAt: number;
 };
 
-export type PaidEntriesRecord = {
+export type LibraryEntriesRecord = {
   /** Pack id (matches PaidDeckRecord.pack). */
   pack: string;
-  skuId: string;
+  source: 'entitlement' | 'manual';
+  skuId?: string;
   rows: CsvRow[];
 };
 
+export type PaidDeckRecord = LibraryDeckRecord;
+export type PaidEntriesRecord = LibraryEntriesRecord;
+
 class DownloadDB extends Dexie {
   zips!: Table<DownloadedZip, string>;
-  paidDecks!: Table<PaidDeckRecord, string>;
-  paidEntries!: Table<PaidEntriesRecord, string>;
+  paidDecks!: Table<LibraryDeckRecord, string>;
+  paidEntries!: Table<LibraryEntriesRecord, string>;
 
   constructor() {
     super('nihon-bunkai-downloads');
@@ -53,6 +58,11 @@ class DownloadDB extends Dexie {
       zips: '&name, skuId, downloadedAt',
       paidDecks: '&id, skuId, level, type',
       paidEntries: '&pack, skuId',
+    });
+    this.version(3).stores({
+      zips: '&name, skuId, downloadedAt',
+      paidDecks: '&id, source, skuId, level, type',
+      paidEntries: '&pack, source, skuId',
     });
   }
 }
@@ -112,30 +122,35 @@ export async function totalCachedSize(): Promise<number> {
 
 // ─── Paid deck helpers ───────────────────────────────────────────────────
 
-export async function savePaidDecks(decks: PaidDeckRecord[]): Promise<void> {
+export async function saveLibraryDecks(decks: LibraryDeckRecord[]): Promise<void> {
   const d = getDB();
   if (!d || decks.length === 0) return;
   await d.paidDecks.bulkPut(decks);
 }
 
-export async function savePaidEntries(records: PaidEntriesRecord[]): Promise<void> {
+export async function saveLibraryEntries(records: LibraryEntriesRecord[]): Promise<void> {
   const d = getDB();
   if (!d || records.length === 0) return;
   await d.paidEntries.bulkPut(records);
 }
 
-export async function listPaidDecks(): Promise<PaidDeckRecord[]> {
+export async function listLibraryDecks(): Promise<LibraryDeckRecord[]> {
   const d = getDB();
   if (!d) return [];
   return d.paidDecks.toArray();
 }
 
-export async function getPaidEntries(pack: string): Promise<CsvRow[] | undefined> {
+export async function getLibraryEntries(pack: string): Promise<CsvRow[] | undefined> {
   const d = getDB();
   if (!d) return undefined;
   const rec = await d.paidEntries.get(pack);
   return rec?.rows;
 }
+
+export const savePaidDecks = saveLibraryDecks;
+export const savePaidEntries = saveLibraryEntries;
+export const listPaidDecks = listLibraryDecks;
+export const getPaidEntries = getLibraryEntries;
 
 export async function deletePaidContentForSku(skuId: string): Promise<void> {
   const d = getDB();
@@ -166,4 +181,3 @@ export async function saveZipToDevice(zipName: string): Promise<boolean> {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return true;
 }
-

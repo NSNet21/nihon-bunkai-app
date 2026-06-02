@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 import { decks as freeDecks, entriesForDeckAsync as freeEntriesForDeckAsync } from '@/data/free-tier';
 import type { CsvRow, Deck, Entry } from '@/data/types';
 import { DECKS_IMPORTED_EVENT } from '@/lib/deck-import';
-import { getPaidEntries, listPaidDecks } from '@/lib/download-store';
+import { getLibraryEntries, listLibraryDecks } from '@/lib/download-store';
 
 export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () => void } {
   const [paidDecks, setPaidDecks] = useState<Deck[]>([]);
@@ -30,7 +30,7 @@ export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () =>
 
     async function load() {
       setLoading(true);
-      const paid = await listPaidDecks();
+      const paid = await listLibraryDecks();
       if (cancelled) return;
       setPaidDecks(paid as Deck[]);
       setLoading(false);
@@ -70,11 +70,11 @@ export async function entriesForDeckAsync(deckId: string): Promise<Entry[]> {
   const fromFree = await freeEntriesForDeckAsync(deckId);
   if (fromFree.length > 0) return fromFree;
 
-  const paid = await getPaidEntries(deckId);
+  const paid = await getLibraryEntries(deckId);
   if (!paid) return [];
 
   // Need the deck metadata to build full Entry objects
-  const allPaid = await listPaidDecks();
+  const allPaid = await listLibraryDecks();
   const deck = allPaid.find((d) => d.id === deckId);
   if (!deck) return [];
 

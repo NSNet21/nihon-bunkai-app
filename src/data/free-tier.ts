@@ -19,7 +19,7 @@ import metaJson from './free-tier-meta.json';
 
 import type { CsvRow, Deck, Entry } from './types';
 
-type Meta = { decks: Omit<Deck, 'isFree'>[] };
+type Meta = { decks: Omit<Deck, 'isFree' | 'source'>[] };
 const meta = metaJson as unknown as Meta;
 
 /** Lowercase level key (or `glossary`) used as the bundle filename. */
@@ -31,7 +31,7 @@ function bundleKeyForDeck(deck: Pick<Deck, 'level' | 'type'>): BundleKey {
 }
 
 /** Free decks list, sync. Flagged `isFree=true` to match the type. */
-const freeDecks: Deck[] = meta.decks.map((d) => ({ ...d, isFree: true }));
+const freeDecks: Deck[] = meta.decks.map((d) => ({ ...d, isFree: true, source: 'free' }));
 export const decks: Deck[] = freeDecks;
 
 /** Cache: bundle key → promise resolving to that level's entry map.

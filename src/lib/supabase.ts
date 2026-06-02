@@ -8,7 +8,7 @@ const FALLBACK_KEY = 'sb_publishable_IqXCZw1o6PF4TOrI6eEXRA_46PM2K4N';
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || FALLBACK_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_KEY;
 
-if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+if (process.env.NODE_ENV !== 'production' && (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY)) {
   console.warn('[supabase] env vars missing, using hardcoded fallback (HMR-tolerant).');
 }
 

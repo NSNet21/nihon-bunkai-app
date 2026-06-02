@@ -27,15 +27,24 @@ async function openLibraryActions(page) {
   const libraryMatches = await page.getByText('Library', { exact: false }).count();
   await page.keyboard.press('Home').catch(() => null);
   await page.mouse.wheel(0, -5000).catch(() => null);
-  const action = page.getByLabel('เปิด Import / Export').first();
-  await action.waitFor({ state: 'visible', timeout: 15_000 });
-  await action.scrollIntoViewIfNeeded();
-  try {
-    await action.click({ trial: true });
-    await action.click();
-  } catch (clickError) {
+  let clickError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const action = page.getByLabel('เปิด Import / Export').first();
+    try {
+      await action.waitFor({ state: 'visible', timeout: 15_000 });
+      await action.click({ timeout: 10_000 });
+      clickError = null;
+      break;
+    } catch (error) {
+      clickError = error;
+      await page.waitForTimeout(500);
+      await page.keyboard.press('Home').catch(() => null);
+      await page.mouse.wheel(0, -5000).catch(() => null);
+    }
+  }
+  if (clickError) {
     const candidates = await describeCandidates(page.getByLabel('เปิด Import / Export'));
-    throw new Error(`Library action is not visible. Matches: ${libraryMatches}. Candidates:\n${candidates}`);
+    throw new Error(`Library action is not clickable. Matches: ${libraryMatches}. Candidates:\n${candidates}`, { cause: clickError });
   }
   try {
     await page.getByText('Library actions', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });

@@ -120,11 +120,13 @@ async function loadCorpus() {
       isFree: false,
       pack: meta.pack,
       tags: meta.tags,
+      source: 'entitlement',
       skuId: 'smoke-full-corpus',
       importedAt: Date.now(),
     });
     paidEntries.push({
       pack: meta.pack,
+      source: 'entitlement',
       skuId: 'smoke-full-corpus',
       rows,
     });

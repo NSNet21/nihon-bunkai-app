@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ContinueCard } from '@/components/continue-card';
+import { LibraryActionsModal } from '@/components/library-actions-modal';
 import { PressableScale } from '@/components/pressable-scale';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
@@ -92,9 +93,10 @@ export default function BrowseScreen() {
   const [subsOnly, setSubsOnly] = useState(false);
   const listRef = useRef<FlashListRef<Row>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
   const colors = useThemePalette();
 
-  const { decks } = useAllDecks();
+  const { decks, refresh } = useAllDecks();
   const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
   const [lastSessionLearn] = usePersistedState<LastSession | null>('last-session-learn', null);
 
@@ -307,6 +309,7 @@ export default function BrowseScreen() {
                 onCollapseAll={collapseAll}
                 subsOnly={subsOnly}
                 onToggleSubsOnly={() => setSubsOnly((v) => !v)}
+                onOpenLibraryActions={() => setLibraryActionsOpen(true)}
               />
             </View>
           }
@@ -314,6 +317,12 @@ export default function BrowseScreen() {
           contentContainerStyle={styles.listContent}
         />
       </SafeAreaView>
+      <LibraryActionsModal
+        visible={libraryActionsOpen}
+        decks={decks}
+        onClose={() => setLibraryActionsOpen(false)}
+        onImported={refresh}
+      />
       <ScrollToTop
         visible={showScrollTop}
         onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
@@ -359,11 +368,13 @@ function Toolbar({
   onCollapseAll,
   subsOnly,
   onToggleSubsOnly,
+  onOpenLibraryActions,
 }: {
   onExpandAll: () => void;
   onCollapseAll: () => void;
   subsOnly: boolean;
   onToggleSubsOnly: () => void;
+  onOpenLibraryActions: () => void;
 }) {
   const colors = useThemePalette();
   return (
@@ -400,6 +411,15 @@ function Toolbar({
           <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
             เฉพาะหมวด
           </ThemedText>
+        </View>
+      </ScaleButton>
+      <ScaleButton
+        onPress={onOpenLibraryActions}
+        accessibilityLabel="เปิด Import / Export"
+        style={[styles.toolBtn, { borderColor: colors.border }]}>
+        <View style={styles.toolBtnContent}>
+          <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">Library</ThemedText>
         </View>
       </ScaleButton>
     </View>
@@ -539,10 +559,17 @@ const DeckRow = memo(function DeckRow({ deck, isLast }: { deck: Deck; isLast: bo
                 </ThemedText>
               </View>
             )}
-            {!deck.isFree && owned && (
+            {deck.source === 'entitlement' && owned && (
               <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
                 <ThemedText type="small" style={{ color: Accent.base }}>
                   OWNED
+                </ThemedText>
+              </View>
+            )}
+            {deck.source === 'manual' && owned && (
+              <View style={[styles.badge, { backgroundColor: Accent.bg }]}>
+                <ThemedText type="small" style={{ color: Accent.base }}>
+                  IMPORT
                 </ThemedText>
               </View>
             )}

@@ -5,6 +5,8 @@ import { decks as freeDecks } from '../../../data/free-tier';
 import { parseLibraryCsvFilename } from '../filename';
 import { parseManualCsv } from '../manual-csv';
 import { parseManualImportFiles } from '../manual-import';
+import { serializeDeckCsv } from '../export-csv';
+import { selectExportableDecks } from '../export-library';
 
 describe('library source metadata', () => {
   it('marks embedded free decks with source free', () => {
@@ -85,5 +87,25 @@ describe('parseManualImportFiles', () => {
     const result = await parseManualImportFiles([file], new Set(['vocab-n5-pack01']));
     expect(result.ready).toHaveLength(0);
     expect(result.skipped[0].reason).toMatch(/free/i);
+  });
+});
+
+describe('export csv', () => {
+  it('writes NO,T,D,P,E in order', () => {
+    const csv = serializeDeckCsv([
+      { no: 7, t: '猫', d: 'แมว', p: 'ねこ', e: 'note' },
+    ]);
+    expect(csv.split(/\r?\n/)[0]).toBe('NO,T,D,P,E');
+    expect(csv).toContain('7,猫,แมว,ねこ,note');
+  });
+
+  it('selects only ready Library decks', () => {
+    const decks = [
+      { id: 'free', isFree: true, source: 'free' },
+      { id: 'paid', isFree: false, source: 'entitlement' },
+      { id: 'manual', isFree: false, source: 'manual' },
+      { id: 'locked', isFree: false },
+    ] as any[];
+    expect(selectExportableDecks(decks).map((deck) => deck.id)).toEqual(['free', 'paid', 'manual']);
   });
 });

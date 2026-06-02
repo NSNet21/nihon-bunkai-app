@@ -91,6 +91,13 @@ export default function SettingsScreen() {
             <LanguageToggle />
           </View>
 
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              วิธีใช้ Import / Export
+            </ThemedText>
+            <ImportExportHelp />
+          </View>
+
           {/* Auto-sync toggle — only shown when signed in, since guest mode
               doesn't have a cloud destination. Auth context reads this
               key + wires startSync/stopSync accordingly. */}
@@ -204,6 +211,23 @@ function AutoSyncToggle() {
         </ThemedText>
       </View>
     </Pressable>
+  );
+}
+
+function ImportExportHelp() {
+  return (
+    <ThemedView type="backgroundElement" style={styles.aboutCard}>
+      <ThemedText type="defaultSemiBold">Library backup</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Import ใช้กับ CSV/ZIP รูปแบบ NO,T,D,P,E หรือ T,D,P,E แล้วเพิ่มเข้าเครื่องนี้
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Export ทำได้เฉพาะ deck ที่พร้อมเรียนใน Library แล้ว ไม่ดึง content ที่ยังล็อกอยู่
+      </ThemedText>
+      <ThemedText type="small" themeColor="textHint">
+        Content ที่ import เองยังไม่ sync ข้ามเครื่อง ควร export เก็บไว้ก่อนล้างข้อมูล browser
+      </ThemedText>
+    </ThemedView>
   );
 }
 

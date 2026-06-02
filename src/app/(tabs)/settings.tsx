@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiLogIn, FiLogOut, FiPackage, FiRefreshCw, FiSquare, FiUser } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -14,6 +14,7 @@ import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { supabase } from '@/lib/supabase';
+import { SUPPORT_EMAIL, buildSupportMailto, type SupportIssue } from '@/lib/support-safety';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 export default function SettingsScreen() {
@@ -122,6 +123,20 @@ export default function SettingsScreen() {
               <RestoreSection onRestored={refreshEntitlements} />
             </View>
           )}
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              ความปลอดภัยของ Library
+            </ThemedText>
+            <LocalDataSafetyCard />
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
+              SUPPORT
+            </ThemedText>
+            <SupportSection userEmail={user?.email} />
+          </View>
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
@@ -696,8 +711,6 @@ const restoreStyles = StyleSheet.create({
 
 /* ─── PRIVACY ──────────────────────────────────────────────────────── */
 
-const SUPPORT_EMAIL = 'hi@nihon-bunkai.com';
-
 /** Privacy section per GPT verdict — no self-serve delete in v1, just a
  *  mailto request channel + transparent copy about what gets deleted and
  *  how purchase restoration works. Self-serve delete is P1 backlog. */
@@ -784,6 +797,162 @@ const privacyStyles = StyleSheet.create({
   },
   disclaimerLine: {
     lineHeight: 18,
+  },
+});
+
+/* ─── LOCAL DATA + SUPPORT SAFETY ───────────────────────────────────── */
+
+function LocalDataSafetyCard() {
+  return (
+    <ThemedView type="backgroundElement" style={safetyStyles.card}>
+      <View style={safetyStyles.headerRow}>
+        <FiShield size={18} color={Accent.base} />
+        <ThemedText type="defaultSemiBold">ก่อนล้าง cache / ย้ายเครื่อง</ThemedText>
+      </View>
+      <SafetyLine>
+        Official content ที่ซื้อแล้ว restore สิทธิ์ได้จาก account แล้ว download/import ใหม่
+      </SafetyLine>
+      <SafetyLine>
+        PDF ใช้ Payhip receipt หรือ Payhip account เป็นทาง download หลัก
+      </SafetyLine>
+      <SafetyLine emphasis>
+        Deck ที่ import เองยังอยู่เฉพาะเครื่องนี้ ควร Export backup ก่อนล้าง browser data
+      </SafetyLine>
+    </ThemedView>
+  );
+}
+
+function SafetyLine({ children, emphasis = false }: { children: string; emphasis?: boolean }) {
+  return (
+    <View style={safetyStyles.lineRow}>
+      <FiAlertTriangle size={14} color={emphasis ? Accent.base : '#9a8f83'} />
+      <ThemedText
+        type="small"
+        themeColor={emphasis ? undefined : 'textSecondary'}
+        style={[safetyStyles.lineText, emphasis && { color: Accent.base }]}>
+        {children}
+      </ThemedText>
+    </View>
+  );
+}
+
+function SupportSection({ userEmail }: { userEmail?: string }) {
+  const colors = useThemePalette();
+
+  function openSupport(issue: SupportIssue) {
+    const url = buildSupportMailto({ issue, accountEmail: userEmail });
+    Linking.openURL(url).catch(() => {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.prompt('ส่งอีเมลหา support ได้ที่:', SUPPORT_EMAIL);
+      }
+    });
+  }
+
+  return (
+    <ThemedView type="backgroundElement" style={safetyStyles.card}>
+      <View style={safetyStyles.headerRow}>
+        <FiHelpCircle size={18} color={Accent.base} />
+        <ThemedText type="defaultSemiBold">ส่งข้อมูลให้ support ครบในครั้งเดียว</ThemedText>
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" style={safetyStyles.subtitle}>
+        เลือกหัวข้อ แล้วแอปจะเปิดอีเมลพร้อมช่อง Account email, Purchase email และ Payhip Order ID
+      </ThemedText>
+      <View style={safetyStyles.supportGrid}>
+        <SupportLinkRow
+          colors={colors}
+          icon="mail"
+          title="Restore / Unlock"
+          hint="ซื้อแล้วไม่ขึ้นในแอป"
+          onPress={() => openSupport('restore')}
+        />
+        <SupportLinkRow
+          colors={colors}
+          icon="package"
+          title="Payhip / Download"
+          hint="หา receipt หรือ PDF ไม่เจอ"
+          onPress={() => openSupport('download')}
+        />
+        <SupportLinkRow
+          colors={colors}
+          icon="shield"
+          title="Library backup"
+          hint="import/export หรือข้อมูลในเครื่อง"
+          onPress={() => openSupport('library-backup')}
+        />
+      </View>
+    </ThemedView>
+  );
+}
+
+function SupportLinkRow({
+  colors,
+  icon,
+  title,
+  hint,
+  onPress,
+}: {
+  colors: typeof Colors.light;
+  icon: 'mail' | 'package' | 'shield';
+  title: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  const Icon = icon === 'mail' ? FiMail : icon === 'package' ? FiPackage : FiShield;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={`ติดต่อ support เรื่อง ${title}`}
+      style={({ pressed }) => [
+        safetyStyles.supportRow,
+        { borderColor: colors.border, backgroundColor: colors.background },
+        pressed && { opacity: 0.85 },
+      ]}>
+      <Icon size={16} color={Accent.base} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <ThemedText type="defaultSemiBold">{title}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {hint}
+        </ThemedText>
+      </View>
+      <FiExternalLink size={15} color={Accent.base} />
+    </Pressable>
+  );
+}
+
+const safetyStyles = StyleSheet.create({
+  card: {
+    padding: Spacing.three,
+    borderRadius: Radii.sm,
+    gap: Spacing.two,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  subtitle: { lineHeight: 18 },
+  lineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+  },
+  lineText: {
+    flex: 1,
+    lineHeight: 18,
+  },
+  supportGrid: {
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
   },
 });
 
@@ -884,8 +1053,8 @@ function RestoreBtn({
 
   const label =
     state === 'loading' ? 'กำลังตรวจสอบ…' :
-    state === 'done'    ? 'อัพเดทแล้ว' :
-                          'อัพเดทการซื้อ';
+    state === 'done'    ? 'ตรวจแล้ว' :
+                          'ตรวจสิทธิ์ / Restore';
 
   const IconCmp = state === 'done' ? FiCheck : FiRefreshCw;
   const color = state === 'done' ? Accent.base : textColor;

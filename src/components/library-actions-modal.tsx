@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiArchive, FiCheckSquare, FiDownload, FiSquare, FiUpload, FiX } from 'react-icons/fi';
+import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiSquare, FiUpload, FiX } from 'react-icons/fi';
 
+import { ImportHowToContent } from '@/components/import-how-to-content';
 import type { Deck } from '@/data/types';
 import { Accent, Radii, Spacing } from '@/constants/theme';
 import { useThemePalette } from '@/context/theme';
@@ -12,7 +13,7 @@ import { buildExportHierarchy, type ExportHierarchyGroup } from '@/lib/import-ex
 import { buildDeckCsv, buildDeckZip, downloadBlob, selectExportableDecks } from '@/lib/import-export/export-library';
 import { parseManualImportFiles, saveManualImport, type ManualImportParseResult } from '@/lib/import-export/manual-import';
 
-type Mode = 'actions' | 'export-one' | 'export-batch';
+type Mode = 'actions' | 'how-to' | 'export-one' | 'export-batch';
 
 type LibraryActionsModalProps = {
   visible: boolean;
@@ -22,6 +23,7 @@ type LibraryActionsModalProps = {
 };
 
 const ACTIONS = {
+  howTo: 'How to import',
   importOne: 'Import one file',
   importBatch: 'Batch import',
   exportOne: 'Export one deck',
@@ -113,7 +115,11 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <Pressable style={styles.overlay} onPress={close}>
         <Pressable
-          style={[styles.panel, { backgroundColor: colors.background, borderColor: colors.border }]}
+          style={[
+            styles.panel,
+            mode === 'how-to' && styles.howToPanel,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
           onPress={(e) => e.stopPropagation?.()}>
           <View style={styles.header}>
             <View>
@@ -132,6 +138,13 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
 
           {mode === 'actions' && (
             <View style={styles.actionList}>
+              <ActionRow
+                label={ACTIONS.howTo}
+                hint="เตรียม CSV ใน Sheets/Excel แล้วนำเข้าแอปโดยตรง"
+                icon={<FiHelpCircle size={17} color={Accent.base} />}
+                disabled={busy}
+                onPress={() => setMode('how-to')}
+              />
               <ActionRow
                 label={ACTIONS.importOne}
                 hint="เพิ่ม CSV หรือ ZIP 1 ไฟล์เข้า Library เครื่องนี้"
@@ -161,6 +174,15 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                 onPress={openBatchExport}
               />
             </View>
+          )}
+
+          {mode === 'how-to' && (
+            <ImportHowTo
+              busy={busy}
+              onBack={() => setMode('actions')}
+              onImportOne={() => void onImport(false)}
+              onImportBatch={() => void onImport(true)}
+            />
           )}
 
           {mode === 'export-one' && (
@@ -198,6 +220,30 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function ImportHowTo({
+  busy,
+  onBack,
+  onImportOne,
+  onImportBatch,
+}: {
+  busy: boolean;
+  onBack: () => void;
+  onImportOne: () => void;
+  onImportBatch: () => void;
+}) {
+  return (
+    <View style={styles.picker}>
+      <PickerHeader title="เตรียม CSV เพื่อนำเข้า" onBack={onBack} />
+      <ImportHowToContent
+        busy={busy}
+        showImportActions
+        onImportOne={onImportOne}
+        onImportBatch={onImportBatch}
+      />
+    </View>
   );
 }
 
@@ -573,6 +619,12 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     padding: Spacing.four,
     gap: Spacing.three,
+    overflow: 'hidden',
+    flexShrink: 1,
+  },
+  howToPanel: {
+    maxWidth: 600,
+    maxHeight: '82%',
   },
   header: {
     flexDirection: 'row',
@@ -598,7 +650,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  picker: { gap: Spacing.three },
+  picker: {
+    flexShrink: 1,
+    minHeight: 0,
+    gap: Spacing.three,
+  },
   pickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

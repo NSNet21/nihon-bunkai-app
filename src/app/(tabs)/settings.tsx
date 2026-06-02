@@ -1,11 +1,12 @@
 import { Link } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUser } from 'react-icons/fi';
+import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUser, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { ColumnVisibility } from '@/components/flashcard';
+import { ImportHowToContent } from '@/components/import-how-to-content';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ThemedText } from '@/components/themed-text';
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const entitlementCount = entitledPacks.size + entitledSkus.size;
   const scrollRef = useRef<ScrollView>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [importHowToVisible, setImportHowToVisible] = useState(false);
 
   return (
     <ThemedView style={styles.container}>
@@ -108,9 +110,9 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              วิธีใช้ Import / Export
+              HOW TO IMPORT
             </ThemedText>
-            <ImportExportHelp />
+            <ImportExportHelp onOpenHowTo={() => setImportHowToVisible(true)} />
           </View>
 
           {/* Auto-sync toggle — only shown when signed in, since guest mode
@@ -177,6 +179,35 @@ export default function SettingsScreen() {
         visible={showScrollTop}
         onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
       />
+      <Modal
+        visible={importHowToVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImportHowToVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setImportHowToVisible(false)}>
+          <Pressable
+            style={[styles.modalPanel, { backgroundColor: colors.background, borderColor: colors.border }]}
+            onPress={(event) => event.stopPropagation?.()}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <ThemedText type="defaultSemiBold">How to import</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  เตรียมไฟล์ CSV/ZIP แล้วนำเข้า Library โดยตรง
+                </ThemedText>
+              </View>
+              <Pressable
+                onPress={() => setImportHowToVisible(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="ปิดวิธีเตรียม CSV"
+                style={({ pressed }) => [styles.modalCloseButton, pressed && { opacity: 0.6 }]}>
+                <FiX size={20} color={colors.text} strokeWidth={2} />
+              </Pressable>
+            </View>
+            <ImportHowToContent />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ThemedView>
   );
 }
@@ -247,19 +278,30 @@ function AutoSyncToggle() {
   );
 }
 
-function ImportExportHelp() {
+function ImportExportHelp({ onOpenHowTo }: { onOpenHowTo: () => void }) {
+  const colors = useThemePalette();
   return (
     <ThemedView type="backgroundElement" style={styles.aboutCard}>
-      <ThemedText type="defaultSemiBold">Library backup</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Import ใช้กับ CSV/ZIP รูปแบบ NO,T,D,P,E หรือ T,D,P,E แล้วเพิ่มเข้าเครื่องนี้
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Export ทำได้เฉพาะ deck ที่พร้อมเรียนใน Library แล้ว ไม่ดึง content ที่ยังล็อกอยู่
-      </ThemedText>
-      <ThemedText type="small" themeColor="textHint">
-        Content ที่ import เองยังไม่ sync ข้ามเครื่อง ควร export เก็บไว้ก่อนล้างข้อมูล browser
-      </ThemedText>
+      <Pressable
+        onPress={onOpenHowTo}
+        onPressIn={onOpenHowTo}
+        hitSlop={4}
+        accessibilityRole="button"
+        accessibilityLabel="เปิดวิธีเตรียม CSV เพื่อนำเข้า"
+        style={({ pressed }) => [
+          styles.howToHelpRow,
+          { borderColor: colors.border, backgroundColor: colors.background },
+          pressed && { opacity: 0.82 },
+        ]}>
+        <FiHelpCircle size={18} color={Accent.base} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <ThemedText type="defaultSemiBold">How to import</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            เตรียม CSV/ZIP จาก Sheets หรือ Excel แล้วนำเข้า Library
+          </ThemedText>
+        </View>
+        <FiChevronRight size={18} color={colors.textHint} />
+      </Pressable>
     </ThemedView>
   );
 }
@@ -1228,7 +1270,50 @@ const styles = StyleSheet.create({
   aboutCard: {
     padding: Spacing.two,
     borderRadius: 4,
-    gap: 2,
+    gap: Spacing.two,
+  },
+  howToHelpRow: {
+    marginTop: Spacing.one,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.four,
+  },
+  modalPanel: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '82%',
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    padding: Spacing.four,
+    gap: Spacing.three,
+    overflow: 'hidden',
+    flexShrink: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radii.sm,
+    marginTop: -4,
+    marginRight: -4,
   },
   /* Badge toggle vertical padding trimmed ~25% per GPT polish round
      2026-05-27. Row was visually heavier than the visibility settings

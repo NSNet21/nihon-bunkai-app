@@ -8,6 +8,7 @@ import { parseManualImportFiles } from '../manual-import';
 import { serializeDeckCsv } from '../export-csv';
 import { selectExportableDecks } from '../export-library';
 import { buildExportHierarchy } from '../export-hierarchy';
+import { IMPORT_HOW_TO_STEPS, IMPORT_SCHEMA_HEADERS } from '../import-how-to';
 
 describe('library source metadata', () => {
   it('marks embedded free decks with source free', () => {
@@ -159,5 +160,20 @@ describe('export hierarchy', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('my-card-set');
     expect(groups[0].sections.map((section) => section.label)).toEqual(['N5', 'N1']);
+  });
+});
+
+describe('import how-to copy model', () => {
+  it('teaches direct CSV preparation without making Google Drive an app integration', () => {
+    expect(IMPORT_SCHEMA_HEADERS).toEqual(['NO', 'T', 'D', 'P', 'E']);
+    expect(IMPORT_HOW_TO_STEPS.map((step) => step.key)).toEqual(['prepare', 'export', 'import']);
+    expect(IMPORT_HOW_TO_STEPS.map((step) => step.title)).toEqual([
+      'เตรียมตาราง',
+      'บันทึกเป็น CSV',
+      'นำเข้า Library',
+    ]);
+    expect(IMPORT_HOW_TO_STEPS.some((step) => /Google Drive/i.test(step.body))).toBe(false);
+    expect(IMPORT_HOW_TO_STEPS[2].body).toMatch(/Library/);
+    expect(IMPORT_HOW_TO_STEPS[2].body).toMatch(/CSV\/ZIP/);
   });
 });

@@ -8,6 +8,7 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming, type S
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FOCUS_SEARCH_EVENT } from '@/components/search-shortcut';
+import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemePalette } from '@/context/theme';
@@ -30,12 +31,16 @@ const SEARCH_DEBOUNCE_MS = 120;
    with 1k+ matches. Cap kept at 10k as a hard safety so a degenerate
    wildcard query can't lock up Fuse on the largest corpora. */
 const RESULT_HARD_CAP = 10_000;
+const SCROLL_TOP_THRESHOLD = 640;
 
 /* JLPT level → sort weight. Glossary entries (level === null) sort last
    so the browse-all view + jump strip both read top-down N5→N1→G. */
 const LEVEL_ORDER: Record<string, number> = { N5: 0, N4: 1, N3: 2, N2: 3, N1: 4 };
 function levelWeight(level: JlptLevel | null): number {
   return level ? LEVEL_ORDER[level] ?? 5 : 5;
+}
+function withHexAlpha(hex: string, alpha: string): string {
+  return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alpha}` : hex;
 }
 type JumpKey = JlptLevel | 'GLOSSARY';
 const JUMP_KEYS: JumpKey[] = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
@@ -58,7 +63,6 @@ const FAST_TRACK_WIDTH = 24;     /* tap hitbox + side breathing room */
 const FAST_LINE_WIDTH = 1;       /* the hairline rail (drag-only) */
 const FAST_THUMB_WIDTH = 12;     /* slim, vertical-authority block */
 const FAST_THUMB_HEIGHT = 30;    /* terse height — editorial */
-const FAST_LABEL_OFFSET = 12;    /* gap between block and label */
 
 /* Union of items the FlashList renders. Headers carry their JLPT key
    + the row count for the section caption; rows wrap the existing
@@ -67,20 +71,26 @@ const FAST_LABEL_OFFSET = 12;    /* gap between block and label */
 type SectionHeaderItem = { __header: true; id: string; key: JumpKey; count: number };
 type RowItem = { __header?: false; id: string; result: SearchResult };
 type ListItem = SectionHeaderItem | RowItem;
+type FastToastInfo = { group: string; term: string; reading: string; visible: boolean };
+const EMPTY_FAST_TOAST: FastToastInfo = { group: '', term: '', reading: '', visible: false };
 
 export default function SearchScreen() {
   const router = useRouter();
   const c = useThemePalette();
 
   const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
-  const { width: viewportW } = useWindowDimensions();
+  const { width: viewportW, height: viewportH } = useWindowDimensions();
   const compact = viewportW > 0 && viewportW < 480;
+  const compactToast = viewportW > 0 && viewportW < 768;
+  const shortMobileViewport = viewportW > 0 && viewportW < 768 && viewportH > 0 && viewportH < 680;
+  const edgeScrollSurface = Platform.OS === 'web' && viewportW >= 768;
   /* Touch-class breakpoint — phone portrait through tablet landscape.
      Used to gate the FastScroller + native-scrollbar-hide pair, so
      iPad / Android tablet users get the same draggable-thumb
      affordance the phone gets. Above 1024 px we assume mouse + wheel
      and keep the native scrollbar. */
   const touchSeek = viewportW > 0 && viewportW < 1024;
+  const tabletSearchRail = edgeScrollSurface && touchSeek;
 
   /* Two fixed size tiers — compact (mobile) vs wide (desktop). Earlier
      iteration interpolated everything across 320→480 px which sounded
@@ -104,6 +114,9 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [focused, setFocused] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [fastToast, setFastToast] = useState<FastToastInfo>(EMPTY_FAST_TOAST);
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlashListRef<ListItem>>(null);
 
@@ -122,6 +135,28 @@ export default function SearchScreen() {
      show/hide cadence. */
   const fastVisible = useSharedValue(0);
   const fastHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollTopSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fastToastBackground = useMemo(
+    () => withHexAlpha(c.surface, Platform.OS === 'web' ? 'd9' : 'f2'),
+    [c.surface],
+  );
+  const stickyOffsetStyle = useMemo(() => {
+    if (!edgeScrollSurface || headerHeight <= 0) return null;
+    return Platform.OS === 'web'
+      ? ({ '--search-sticky-offset': `${headerHeight}px` } as unknown as object)
+      : null;
+  }, [edgeScrollSurface, headerHeight]);
+  const tabletRailStyle = useMemo(() => {
+    if (!tabletSearchRail) return null;
+    const railWidth = Math.min(MaxContentWidth, Math.max(560, Math.round(viewportW * 0.82)));
+    return { maxWidth: railWidth };
+  }, [tabletSearchRail, viewportW]);
+
+  const handleFastLabelChange = useCallback((next: FastToastInfo) => {
+    setFastToast((prev) => (
+      prev.group === next.group && prev.term === next.term && prev.reading === next.reading && prev.visible === next.visible ? prev : next
+    ));
+  }, []);
 
   const syncFastThumbFromScroll = useCallback(() => {
     /* JS-thread function — called from onListScroll (JS callback).
@@ -147,6 +182,10 @@ export default function SearchScreen() {
     fastScrollMetrics.current.offset = contentOffset.y;
     fastScrollMetrics.current.contentHeight = contentSize.height;
     fastScrollMetrics.current.viewportHeight = layoutMeasurement.height;
+    setShowScrollTop((prev) => {
+      const next = contentOffset.y > SCROLL_TOP_THRESHOLD;
+      return prev === next ? prev : next;
+    });
     syncFastThumbFromScroll();
     /* Show thumb the moment scroll fires + schedule a fade-out after
        1500 ms of no further scroll events. While the user is
@@ -159,6 +198,36 @@ export default function SearchScreen() {
       if (!fastIsDragging.value) fastVisible.value = withTiming(0, { duration: 280 });
     }, 1500);
   }, [syncFastThumbFromScroll, fastVisible, fastIsDragging]);
+
+  const scrollToTop = useCallback(() => {
+    if (scrollTopSettleTimerRef.current) clearTimeout(scrollTopSettleTimerRef.current);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setShowScrollTop(false);
+    scrollTopSettleTimerRef.current = setTimeout(() => {
+      if (fastScrollMetrics.current.offset > 24) {
+        listRef.current?.scrollToOffset({ offset: 0, animated: false });
+        fastScrollMetrics.current.offset = 0;
+        syncFastThumbFromScroll();
+      }
+    }, 900);
+  }, [syncFastThumbFromScroll]);
+
+  useEffect(() => () => {
+    if (scrollTopSettleTimerRef.current) clearTimeout(scrollTopSettleTimerRef.current);
+  }, []);
+
+  const forwardHeaderWheelToList = useCallback((event: any) => {
+    if (!edgeScrollSurface) return;
+    const deltaY = Number(event?.nativeEvent?.deltaY ?? event?.deltaY ?? 0);
+    if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 1) return;
+    const { offset, contentHeight, viewportHeight } = fastScrollMetrics.current;
+    const nextRawOffset = Math.max(0, offset + deltaY);
+    const maxOffset = contentHeight > viewportHeight
+      ? Math.max(0, contentHeight - viewportHeight)
+      : null;
+    const nextOffset = maxOffset == null ? nextRawOffset : Math.min(maxOffset, nextRawOffset);
+    listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+  }, [edgeScrollSurface]);
 
   /* Debounce: avoid running Fuse on every keystroke. */
   useEffect(() => {
@@ -297,9 +366,9 @@ export default function SearchScreen() {
             compact={compact}
             sizes={rowSizes}
           />;
-      return <View style={styles.cellWrap}>{inner}</View>;
+      return <View style={[styles.cellWrap, tabletRailStyle]}>{inner}</View>;
     },
-    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid],
+    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid, tabletRailStyle],
   );
 
   /* FlashList recycles cells by type — telling it that headers and rows
@@ -319,13 +388,34 @@ export default function SearchScreen() {
       <ThemedText style={[styles.ghostKanji, { color: c.textHint }]}>
         検
       </ThemedText>
-      <SafeAreaView style={styles.headerSafe} edges={['top']}>
-        <View style={styles.headerWrap}>
-          <ThemedText type="title">Search</ThemedText>
+      {edgeScrollSurface && headerHeight > 0 ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.desktopHeaderScrim,
+            tabletRailStyle,
+            {
+              height: headerHeight,
+              backgroundColor: withHexAlpha(c.background, Platform.OS === 'web' ? 'c7' : 'ec'),
+              borderBottomColor: c.border,
+            },
+          ]}
+        />
+      ) : null}
+      <SafeAreaView
+        style={[styles.headerSafe, tabletRailStyle]}
+        edges={['top']}
+        onLayout={(event) => setHeaderHeight(event.nativeEvent.layout.height)}
+        {...(edgeScrollSurface ? ({ onWheel: forwardHeaderWheelToList } as any) : {})}>
+        <View
+          style={[styles.headerWrap, shortMobileViewport && styles.headerWrapShortMobile]}
+          {...(edgeScrollSurface ? ({ onWheel: forwardHeaderWheelToList } as any) : {})}>
+          <ThemedText type="title" style={shortMobileViewport && styles.searchTitleShortMobile}>Search</ThemedText>
 
           <View
             style={[
               styles.inputRow,
+              shortMobileViewport && styles.inputRowShortMobile,
               {
                 backgroundColor: c.surface,
                 borderColor: focused ? Accent.base : c.border,
@@ -379,7 +469,7 @@ export default function SearchScreen() {
               the kana/kanji/grammar shapes the index supports. Hidden
               once the user starts typing. */}
           {ready && !hasQuery && (
-            <ThemedText style={[styles.queryHint, { color: c.textHint }]}>
+            <ThemedText style={[styles.queryHint, shortMobileViewport && styles.queryHintShortMobile, { color: c.textHint }]}>
               ลอง: 食べる · 一緒 · 〜ように
             </ThemedText>
           )}
@@ -394,7 +484,7 @@ export default function SearchScreen() {
             with the search bar above, keeping the count/refresh row
             vertically aligned with the cell content below. */}
         {ready && hasResults && (
-          <View style={[styles.totalStrip, { borderBottomColor: c.border }]}>
+          <View style={[styles.totalStrip, shortMobileViewport && styles.totalStripShortMobile, { borderBottomColor: c.border }]}>
             <ThemedText style={[styles.totalText, { color: c.textMuted, fontSize: chromeSizes.totalText }]}>
               ทั้งหมด <ThemedText style={[styles.totalNumber, { color: c.text, fontSize: chromeSizes.totalNumber }]}>{results.length.toLocaleString()}</ThemedText> รายการ
               {hasQuery && results.length !== totalEntries ? (
@@ -421,15 +511,12 @@ export default function SearchScreen() {
         )}
       </SafeAreaView>
 
-      {/* listWrap sits OUTSIDE the maxWidth-bound headerSafe so the
-          scroll surface spans the full viewport width — that puts the
-          browser scrollbar all the way at the viewport's right edge.
-          Cells inside are re-centered to the same MaxContentWidth
-          column as the header via cellWrap (maxWidth + alignSelf
-          center), so visually the content column doesn't drift even
-          though the scrollable area got wider. */}
+      {/* On tablet/desktop web, listWrap spans the viewport so the
+          native scrollbar sits at the far right edge while cells stay
+          centered via cellWrap. Phone keeps the older content-width
+          list behavior because its compact layout already feels right. */}
       <View
-        style={styles.listWrap}
+        style={[styles.listWrap, edgeScrollSurface && styles.desktopListWrap, stickyOffsetStyle]}
         /* dataSet → data-list="search" on web. Lets global.css scope
            the sticky-header pointer-events fix to just this FlashList
            (see global.css "FlashList sticky-header wrappers"). RN's
@@ -446,7 +533,10 @@ export default function SearchScreen() {
              iOS contacts behaviour). Disabled in filter mode (no
              headers in listData then). */
           stickyHeaderIndices={stickyHeaderIndices}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            edgeScrollSurface && headerHeight > 0 ? { paddingTop: headerHeight } : null,
+          ]}
           renderItem={renderItem}
           onScroll={onListScroll}
           scrollEventThrottle={16}
@@ -482,9 +572,69 @@ export default function SearchScreen() {
             isDragging={fastIsDragging}
             visible={fastVisible}
             themeColor={c}
+            showLabel
+            onLabelChange={handleFastLabelChange}
           />
         )}
       </View>
+      {touchSeek && fastToast.visible && (fastToast.group || fastToast.term || fastToast.reading) ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.fastScrollerToastLayer,
+            tabletSearchRail && styles.fastScrollerToastLayerTablet,
+            compactToast && styles.fastScrollerToastLayerCompact,
+          ]}>
+          <View style={[
+            styles.fastScrollerToast,
+            compactToast && styles.fastScrollerToastCompact,
+            { backgroundColor: fastToastBackground, borderColor: c.borderStrong },
+          ]}>
+            <View style={[styles.fastScrollerToastAccent, compactToast && styles.fastScrollerToastAccentCompact]} />
+            <View style={styles.fastScrollerToastCopy}>
+              {fastToast.group ? (
+                <ThemedText
+                  style={[
+                    styles.fastScrollerToastGroup,
+                    compactToast && styles.fastScrollerToastGroupCompact,
+                    { color: c.textMuted },
+                  ]}
+                  numberOfLines={1}>
+                  {fastToast.group}
+                </ThemedText>
+              ) : null}
+              {fastToast.term ? (
+                <ThemedText
+                  style={[
+                    styles.fastScrollerToastTerm,
+                    compactToast && styles.fastScrollerToastTermCompact,
+                    { color: c.text },
+                  ]}
+                  numberOfLines={1}>
+                  {fastToast.term}
+                </ThemedText>
+              ) : null}
+              {fastToast.reading ? (
+                <ThemedText
+                  style={[
+                    styles.fastScrollerToastReading,
+                    compactToast && styles.fastScrollerToastReadingCompact,
+                    { color: c.textHint },
+                  ]}
+                  numberOfLines={1}>
+                  {fastToast.reading}
+                </ThemedText>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      ) : null}
+      <ScrollToTop
+        visible={showScrollTop}
+        onPress={scrollToTop}
+        rightOffset={touchSeek ? FAST_TRACK_WIDTH + Spacing.sp5 : undefined}
+        bottomOffset={touchSeek ? BottomTabInset + Spacing.five : undefined}
+      />
       <JumpGridModal
         visible={jumpGridOpen}
         themeColor={c}
@@ -744,21 +894,21 @@ interface FastScrollerProps {
      is actually moving (mirrors native scroll-indicator behaviour). */
   visible: SharedValue<number>;
   themeColor: typeof Colors.light | typeof Colors.dark;
+  showLabel: boolean;
+  onLabelChange?: (next: FastToastInfo) => void;
 }
 
-/** Mobile FastScroller — overlay-layer thumb pinned to the listWrap
+/** Touch FastScroller — overlay-layer thumb pinned to the listWrap
  *  right edge. Drag = proportional scroll across the corpus (~2k
  *  entries on free tier) without the long-flick fatigue of a native
- *  scroll. A pill label appears to the left of the thumb during the
- *  drag showing which JLPT section the user is hovering over. The
+ *  scroll. Label rendering is published to the parent as a centered
+ *  toast, so it never fights the native scrollbar lane on tablet. The
  *  thumb position is a Reanimated SharedValue so onScroll updates
- *  (every 16 ms) and gesture updates both stay on the UI thread —
- *  React never re-renders for the position itself, only for the
- *  drag-state mode switch (label visibility + thumb tint). */
-function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, isDragging, visible, themeColor: c }: FastScrollerProps) {
+ *  (every 16 ms) and gesture updates both stay on the UI thread. */
+function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, isDragging, visible, themeColor: c, showLabel, onLabelChange }: FastScrollerProps) {
   const [trackHeight, setTrackHeight] = useState(0);
-  const [dragLabel, setDragLabel] = useState<string>('');
   const [labelVisible, setLabelVisible] = useState(false);
+  const lastPublishedLabelRef = useRef<FastToastInfo>(EMPTY_FAST_TOAST);
   /* Cached track top in window coordinates — captured on layout AND
      re-measured on every drag-begin so we stay accurate after the
      viewport scrolls/resizes between drags. The gesture handler's
@@ -791,21 +941,63 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
      has variable height in FlashList; an exact offset-to-index map
      would need a measured-heights table that isn't worth the
      complexity for a label hint. */
-  const labelForY = useCallback((y: number): string => {
-    if (!listJumpIndices || listData.length === 0) return '';
+  const toastForY = useCallback((y: number): FastToastInfo => {
+    if (listData.length === 0) return EMPTY_FAST_TOAST;
     const maxThumb = Math.max(1, trackHeight - FAST_THUMB_HEIGHT);
     const ratio = Math.max(0, Math.min(1, y / maxThumb));
-    const approxIdx = Math.floor(ratio * listData.length);
+    const approxIdx = Math.min(listData.length - 1, Math.floor(ratio * listData.length));
     let currentKey: JumpKey | null = null;
     let bestIdx = -1;
-    for (const [key, idx] of listJumpIndices) {
-      if (idx <= approxIdx && idx > bestIdx) {
-        currentKey = key;
-        bestIdx = idx;
+    if (listJumpIndices) {
+      for (const [key, idx] of listJumpIndices) {
+        if (idx <= approxIdx && idx > bestIdx) {
+          currentKey = key;
+          bestIdx = idx;
+        }
       }
     }
-    return currentKey ? JUMP_LONG_LABEL[currentKey] : '';
-  }, [listJumpIndices, listData.length, trackHeight]);
+    let currentItem: RowItem | null = null;
+    for (let i = approxIdx; i >= 0; i--) {
+      const candidate = listData[i];
+      if (!('__header' in candidate && candidate.__header)) {
+        currentItem = candidate;
+        break;
+      }
+    }
+    if (!currentItem) {
+      for (let i = approxIdx + 1; i < listData.length; i++) {
+        const candidate = listData[i];
+        if (!('__header' in candidate && candidate.__header)) {
+          currentItem = candidate;
+          break;
+        }
+      }
+    }
+    const entry = currentItem?.result.entry;
+    const group = entry
+      ? entry.type === 'glossary'
+        ? 'GLOSSARY'
+        : `${entry.level ?? 'GLOSSARY'} · ${TYPE_LABEL[entry.type]}`
+      : currentKey
+        ? JUMP_LONG_LABEL[currentKey]
+        : '';
+    const reading = entry?.p[0] && entry.p[0] !== entry.t ? entry.p[0] : '';
+    return {
+      group,
+      term: entry?.t ?? '',
+      reading,
+      visible: false,
+    };
+  }, [listJumpIndices, listData, trackHeight]);
+
+  const publishLabel = useCallback((info: FastToastInfo, visible: boolean) => {
+    const nextVisible = showLabel && visible && Boolean(info.group || info.term || info.reading);
+    const next = { ...info, visible: nextVisible };
+    const last = lastPublishedLabelRef.current;
+    if (last.group === next.group && last.term === next.term && last.reading === next.reading && last.visible === next.visible) return;
+    lastPublishedLabelRef.current = next;
+    onLabelChange?.(next);
+  }, [onLabelChange, showLabel]);
 
   /* JS-side drag tick — pointer position (window-absolute Y from the
      gesture) → container-relative pointerY → thumb top (pointer at
@@ -824,8 +1016,13 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
     const { contentHeight, viewportHeight } = metricsRef.current;
     const targetOffset = ratio * Math.max(0, contentHeight - viewportHeight);
     listRef.current?.scrollToOffset({ offset: targetOffset, animated: false });
-    setDragLabel(labelForY(clamped));
-  }, [thumbY, trackHeight, metricsRef, listRef, labelForY]);
+    publishLabel(toastForY(clamped), true);
+  }, [thumbY, trackHeight, metricsRef, listRef, toastForY, publishLabel]);
+
+  const hideLabel = useCallback(() => {
+    setLabelVisible(false);
+    publishLabel(EMPTY_FAST_TOAST, false);
+  }, [publishLabel]);
 
   const pan = useMemo(() => Gesture.Pan()
     .onBegin((e) => {
@@ -839,13 +1036,13 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
     })
     .onEnd(() => {
       isDragging.value = false;
-      runOnJS(setLabelVisible)(false);
+      runOnJS(hideLabel)();
     })
     .onFinalize(() => {
       isDragging.value = false;
-      runOnJS(setLabelVisible)(false);
+      runOnJS(hideLabel)();
     }),
-  [isDragging, onPanTo, measureTrack]);
+  [isDragging, onPanTo, measureTrack, hideLabel]);
 
   const thumbStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: thumbY.value }],
@@ -855,10 +1052,6 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
        mid-scrub release doesn't make the thumb blink as the
        scroll-settle timer races. */
     opacity: isDragging.value ? 1 : visible.value,
-  }));
-  const labelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: thumbY.value }],
-    opacity: withTiming(isDragging.value ? 1 : 0, { duration: 140 }),
   }));
   return (
     <View ref={trackRef} style={styles.fastScrollerTrack} onLayout={onTrackLayout}>
@@ -875,19 +1068,6 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
           ]}
         />
       </GestureDetector>
-      {labelVisible && dragLabel ? (
-        <Animated.View
-          style={[
-            styles.fastScrollerLabel,
-            { borderColor: c.borderStrong },
-            labelStyle,
-          ]}
-        >
-          <ThemedText style={[styles.fastScrollerLabelText, { color: c.text }]} numberOfLines={1}>
-            {dragLabel}
-          </ThemedText>
-        </Animated.View>
-      ) : null}
     </View>
   );
 }
@@ -900,7 +1080,24 @@ const styles = StyleSheet.create({
      header sizes to its content (Search title + input + total
      strip); flex:1 belongs on the listWrap sibling below so it
      claims the remaining vertical space. */
-  headerSafe: { width: '100%', maxWidth: MaxContentWidth },
+  headerSafe: { width: '100%', maxWidth: MaxContentWidth, zIndex: 3 },
+  desktopHeaderScrim: {
+    position: 'absolute',
+    top: 0,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    zIndex: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    pointerEvents: 'none',
+    opacity: 1,
+    ...(Platform.OS === 'web'
+      ? ({
+          backdropFilter: 'blur(32px)',
+          WebkitBackdropFilter: 'blur(32px)',
+        } as any)
+      : null),
+  },
   /* Ghost kanji backdrop — sticky, anchored to ThemedView root.
      Matches Shop's muted treatment (secondary surface, not the main
      Browse page which uses crimson + larger). */
@@ -921,6 +1118,15 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
     gap: Spacing.three,
   },
+  headerWrapShortMobile: {
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
+    gap: Spacing.two,
+  },
+  searchTitleShortMobile: {
+    fontSize: 38,
+    lineHeight: 42,
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -936,6 +1142,11 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web'
       ? ({ transition: 'border-color 180ms ease' } as unknown as object)
       : null),
+  },
+  inputRowShortMobile: {
+    height: 38,
+    paddingHorizontal: Spacing.two,
+    gap: Spacing.one,
   },
   accentBar: {
     position: 'absolute',
@@ -963,13 +1174,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.4,
   },
-  /* Outer flex wrapper around FlashList — bound to MaxContentWidth +
-     centered, so the listWrap fits the cell column tightly and the
-     scrollbar sits flush against the right edge of the content
-     instead of floating in dead space far to the right. flex:1
-     claims remaining vertical space below headerSafe. Exposes
-     `data-list="search"` for the global.css sticky-header scope. */
+  queryHintShortMobile: {
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  /* Touch/tablet default: keep the list bound to the centered content
+     rail. Desktop overrides this below so the scroll surface becomes
+     page-wide while rows remain centered through cellWrap. */
   listWrap: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  desktopListWrap: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    maxWidth: '100%' as any,
+    alignSelf: 'stretch',
+    zIndex: 1,
+  },
   listContent: {
     paddingBottom: BottomTabInset + Spacing.four,
   },
@@ -1002,6 +1224,10 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  totalStripShortMobile: {
+    paddingTop: Spacing.one,
+    paddingBottom: Spacing.one,
   },
   refreshBtn: {
     padding: Spacing.one,
@@ -1182,39 +1408,94 @@ const styles = StyleSheet.create({
     height: FAST_THUMB_HEIGHT,
     borderRadius: 0,
   },
-  /* Section label — translucent + backdrop-filter:blur for a frosted
-     glass effect (user request). Sized to content (no minWidth)
-     with a hairline border so it reads as an editorial tag, not a
-     UI tooltip. The blur takes the row content underneath and
-     softens it just enough to make the mono caps readable without
-     requiring an opaque card. Falls back to a semi-translucent
-     surface tint on platforms without backdrop-filter (older
-     browsers / native iOS-Android before BlurView). */
-  fastScrollerLabel: {
+  /* Center toast for fast-scroll section feedback. It sits away from
+     the native scrollbar / FastScroller lane, uses no layout space,
+     and never intercepts pointer events. */
+  fastScrollerToastLayer: {
     position: 'absolute',
     top: 0,
-    right: FAST_TRACK_WIDTH + FAST_LABEL_OFFSET,
-    height: FAST_THUMB_HEIGHT,
-    paddingHorizontal: Spacing.three,
-    borderWidth: 1,
-    borderRadius: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 11,
+  },
+  fastScrollerToastLayerTablet: {
+    transform: [{ translateY: 56 }],
+  },
+  fastScrollerToastLayerCompact: {
+    paddingTop: 48,
+  },
+  fastScrollerToast: {
+    minWidth: 188,
+    maxWidth: 320,
+    minHeight: 64,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: Spacing.three,
     pointerEvents: 'none',
     ...Platform.select({
       web: ({
-        backgroundColor: 'rgba(0,0,0,0)',
-        backdropFilter: 'blur(14px) saturate(160%)',
-        WebkitBackdropFilter: 'blur(14px) saturate(160%)',
+        boxShadow: '0 14px 30px rgba(0,0,0,0.18)',
+        backdropFilter: 'blur(18px) saturate(145%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(145%)',
       } as unknown as object),
-      default: { backgroundColor: 'rgba(127,127,127,0.18)' },
+      default: { elevation: 8 },
     }),
   },
-  fastScrollerLabelText: {
+  fastScrollerToastCompact: {
+    minWidth: 150,
+    maxWidth: 234,
+    minHeight: 52,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    gap: Spacing.two,
+  },
+  fastScrollerToastAccent: {
+    width: 6,
+    height: 38,
+    backgroundColor: Accent.base,
+  },
+  fastScrollerToastAccentCompact: {
+    width: 5,
+    height: 30,
+  },
+  fastScrollerToastCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  fastScrollerToastGroup: {
     fontFamily: Platform.select({ web: 'JetBrains Mono, monospace', default: undefined }),
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  fastScrollerToastGroupCompact: {
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  fastScrollerToastTerm: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  fastScrollerToastTermCompact: {
+    fontSize: 15,
+  },
+  fastScrollerToastReading: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  fastScrollerToastReadingCompact: {
+    fontSize: 10,
   },
 });

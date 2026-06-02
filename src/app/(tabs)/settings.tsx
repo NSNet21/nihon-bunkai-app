@@ -1,11 +1,12 @@
 import { Link } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUser } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { ColumnVisibility } from '@/components/flashcard';
+import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -17,10 +18,14 @@ import { supabase } from '@/lib/supabase';
 import { SUPPORT_EMAIL, buildSupportMailto, type SupportIssue } from '@/lib/support-safety';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
+const SCROLL_TOP_THRESHOLD = 400;
+
 export default function SettingsScreen() {
   const { status, user, entitledPacks, entitledSkus, signOut, refreshEntitlements } = useAuth();
   const colors = useThemePalette();
   const entitlementCount = entitledPacks.size + entitledSkus.size;
+  const scrollRef = useRef<ScrollView>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   return (
     <ThemedView style={styles.container}>
@@ -32,9 +37,18 @@ export default function SettingsScreen() {
       </ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator>
+          showsVerticalScrollIndicator
+          onScroll={(event) => {
+            const y = event.nativeEvent.contentOffset.y;
+            setShowScrollTop((prev) => {
+              const next = y > SCROLL_TOP_THRESHOLD;
+              return prev === next ? prev : next;
+            });
+          }}
+          scrollEventThrottle={100}>
           <View style={styles.content}>
           <View style={styles.header}>
             <ThemedText type="title">Settings</ThemedText>
@@ -159,6 +173,10 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+      <ScrollToTop
+        visible={showScrollTop}
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+      />
     </ThemedView>
   );
 }

@@ -130,6 +130,7 @@
    takes care of that). */
 div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] {
   pointer-events: none;
+  top: var(--search-sticky-offset, 0px) !important;
 }
 div[data-list="search"] div[style*="position: absolute"][style*="z-index: 1"] [data-sticky-pressable="search-header"] {
   pointer-events: auto;

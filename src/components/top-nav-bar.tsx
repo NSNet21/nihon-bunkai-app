@@ -138,7 +138,7 @@ function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors
       style={[
         styles.mobileTopSearch,
         {
-          backgroundColor: colors.surface2,
+          backgroundColor: colors.surface,
           borderColor: active ? Accent.base : colors.border,
         },
         pressed && { opacity: 0.78 },

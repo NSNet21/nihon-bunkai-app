@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiSquare, FiUpload, FiX } from 'react-icons/fi';
+import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiMinus, FiPlus, FiSquare, FiUpload, FiX } from 'react-icons/fi';
 
 import { ImportHowToContent } from '@/components/import-how-to-content';
 import type { Deck } from '@/data/types';
@@ -505,8 +505,19 @@ function HierarchyHeader({
         </Pressable>
       ) : null}
       <Pressable onPress={onToggleOpen} style={({ pressed }) => [styles.hierarchyTitleButton, pressed && { opacity: 0.7 }]}>
-        <ThemedText type={compact ? 'smallBold' : 'defaultSemiBold'}>{open ? '⌄' : '›'} {label}</ThemedText>
-        <ThemedText type="small" themeColor="textHint">{meta}</ThemedText>
+        {open ? <FiMinus
+          size={compact ? 15 : 17}
+          color={colors.textHint}
+          style={styles.hierarchyToggleIcon}
+        /> : <FiPlus
+          size={compact ? 15 : 17}
+          color={colors.textHint}
+          style={styles.hierarchyToggleIcon}
+        />}
+        <View style={styles.hierarchyTitleText}>
+          <ThemedText type={compact ? 'smallBold' : 'defaultSemiBold'}>{label}</ThemedText>
+          <ThemedText type="small" themeColor="textHint">{meta}</ThemedText>
+        </View>
       </Pressable>
     </View>
   );
@@ -538,7 +549,12 @@ function DeckChoiceRow({
       style={({ pressed, hovered }: any) => [
         styles.actionRow,
         styles.hierarchyDeckRow,
-        { borderBottomColor: colors.border, backgroundColor: hovered ? colors.surface2 : 'transparent' },
+        {
+          borderBottomColor: colors.border,
+          backgroundColor: checked && mode === 'batch'
+            ? 'rgba(224, 32, 44, 0.07)'
+            : hovered ? colors.surface2 : 'transparent',
+        },
         pressed && { opacity: 0.7 },
       ]}>
       {mode === 'batch' ? (
@@ -688,23 +704,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     paddingVertical: Spacing.two,
+    paddingLeft: Spacing.three,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   hierarchyHeaderCompact: {
-    paddingLeft: Spacing.two,
+    paddingLeft: Spacing.four,
   },
   hierarchyCheck: {
-    width: 28,
+    width: 32,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   hierarchyTitleButton: {
     flex: 1,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  hierarchyTitleText: {
+    flex: 1,
     gap: 1,
   },
+  hierarchyToggleIcon: {
+    flexShrink: 0,
+    marginRight: Spacing.one,
+  },
   hierarchyDeckRow: {
-    paddingLeft: Spacing.four,
+    paddingLeft: Spacing.five,
   },
   primaryButton: {
     alignItems: 'center',

@@ -92,7 +92,7 @@ async function describeCandidates(locator) {
 async function ensureBrowseDeckVisible(page, title) {
   const deck = page.getByText(title, { exact: false }).first();
   if (await deck.isVisible().catch(() => false)) return;
-  await clickFirstVisible(page.getByLabel('ขยายทั้งหมด'));
+  await clickFirstVisible(page.getByLabel('Expand all'));
   try {
     await deck.waitFor({ timeout: 15_000 });
   } catch (error) {

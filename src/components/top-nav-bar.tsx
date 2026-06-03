@@ -141,11 +141,14 @@ function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors
           backgroundColor: colors.surface,
           borderColor: active ? Accent.base : colors.border,
         },
+        active && Platform.OS === 'web'
+          ? ({ boxShadow: `0 0 0 1px ${Accent.soft}` } as any)
+          : null,
         pressed && { opacity: 0.78 },
       ]}
     >
       <FiSearch size={16} color={activeColor} />
-      <ThemedText style={[styles.mobileTopSearchText, { color: active ? colors.text : colors.textHint }]}>
+      <ThemedText style={[styles.mobileTopSearchText, { color: active ? Accent.base : colors.textHint }]}>
         ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
       </ThemedText>
       <View style={[styles.mobileTopSearchFocusMark, { backgroundColor: Accent.base, opacity: active ? 1 : 0.18 }]} />

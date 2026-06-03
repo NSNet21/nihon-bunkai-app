@@ -1,7 +1,7 @@
 import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
 import { useRef } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiArrowLeft, FiBookOpen, FiSettings, FiShoppingBag } from 'react-icons/fi';
+import { FiArrowLeft, FiBookOpen, FiSearch, FiSettings, FiShoppingBag } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -75,7 +75,13 @@ function BackButton({ onPress, colors }: { onPress: () => void; colors: typeof C
   );
 }
 
-function BrandLink({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
+function BrandLink({
+  onPress,
+  stacked = false,
+}: {
+  onPress: () => void;
+  stacked?: boolean;
+}) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
@@ -90,17 +96,41 @@ function BrandLink({ onPress, colors }: { onPress: () => void; colors: typeof Co
         onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed, hovered }: any) => [
           styles.brand,
+          stacked && styles.brandStacked,
           hovered && { opacity: 0.7 },
           pressed && { opacity: 0.5 },
         ]}>
-        <ThemedText type="defaultSemiBold" style={{ color: Accent.base, letterSpacing: 1 }}>
+        <ThemedText type="defaultSemiBold" style={[styles.brandKanji, stacked && styles.brandKanjiStacked]}>
           日本分解
         </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={{ letterSpacing: 1.5 }}>
-          · NIHON BUNKAI
+        <ThemedText type="small" themeColor="textSecondary" style={[styles.brandRomaji, stacked && styles.brandRomajiStacked]}>
+          NIHON BUNKAI
         </ThemedText>
       </Pressable>
     </Animated.View>
+  );
+}
+
+function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="ไปหน้า Search"
+      style={({ pressed }) => [
+        styles.mobileTopSearch,
+        {
+          backgroundColor: colors.surface2,
+          borderColor: colors.border,
+        },
+        pressed && { opacity: 0.72 },
+      ]}
+    >
+      <FiSearch size={16} color={colors.textSecondary} />
+      <ThemedText style={[styles.mobileTopSearchText, { color: colors.textHint }]}>
+        ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
+      </ThemedText>
+    </Pressable>
   );
 }
 
@@ -133,6 +163,7 @@ export function TopNavBar() {
 
   const isFocusMode = FOCUS_PATTERNS.some((re) => re.test(pathname));
   const isMobile = hasHydrated && width < MOBILE_NAV_BREAKPOINT;
+  const shouldHideMobileTopBar = isMobile && pathname !== '/';
 
   /* Track which routes we've already kicked a prefetch on so hovering
      the same tab twice doesn't fire repeat fetches. Cleared only on
@@ -146,13 +177,15 @@ export function TopNavBar() {
     imperativeRouter.prefetch(href as any);
   };
 
+  if (shouldHideMobileTopBar) return null;
+
   return (
     <SafeAreaView
       edges={['top']}
       style={{ backgroundColor: colors.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
       <View style={styles.bar}>
-        <View style={styles.inner}>
-          <BrandLink onPress={() => router.push('/')} colors={colors} />
+        <View style={[styles.inner, isMobile && styles.mobileInner]}>
+          <BrandLink onPress={() => router.push('/')} stacked={isMobile} />
           {isFocusMode ? (
             <BackButton onPress={() => router.push('/')} colors={colors} />
           ) : !isMobile ? (
@@ -182,7 +215,7 @@ export function TopNavBar() {
               })}
             </View>
           ) : (
-            <View style={styles.mobileBrandRule} />
+            <MobileTopSearchEntry onPress={() => router.push('/search')} colors={colors} />
           )}
         </View>
       </View>
@@ -222,16 +255,9 @@ export function MobileBottomNav() {
                 : null)}
               style={({ pressed }) => [
                 styles.mobileNavItem,
-                isActive && styles.mobileNavItemActive,
                 pressed && { opacity: 0.65 },
               ]}
             >
-              <View
-                style={[
-                  styles.mobileNavActiveRail,
-                  { opacity: isActive ? 1 : 0, backgroundColor: Accent.base },
-                ]}
-              />
               <Icon size={19} color={color} />
               <ThemedText
                 style={[
@@ -271,16 +297,56 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
     flexWrap: 'wrap',
   },
-  mobileBrandRule: {
-    width: 28,
-    height: 1,
-    backgroundColor: Accent.base,
-    opacity: 0.75,
+  mobileInner: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    gap: Spacing.two,
+    flexWrap: 'nowrap',
   },
   brand: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: Spacing.one,
+  },
+  brandStacked: {
+    minWidth: 76,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 0,
+  },
+  brandKanji: {
+    color: Accent.base,
+    letterSpacing: 1,
+  },
+  brandKanjiStacked: {
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  brandRomaji: {
+    letterSpacing: 1.5,
+  },
+  brandRomajiStacked: {
+    fontSize: 8,
+    lineHeight: 10,
+    letterSpacing: 1.2,
+  },
+  mobileTopSearch: {
+    minHeight: 38,
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    overflow: 'hidden',
+  },
+  mobileTopSearchText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12,
+    lineHeight: 16,
   },
   tabs: {
     flexDirection: 'row',
@@ -351,16 +417,6 @@ const styles = StyleSheet.create({
     gap: 3,
     borderRadius: Radii.sm,
     overflow: 'hidden',
-  },
-  mobileNavItemActive: {
-    backgroundColor: Accent.bg,
-  },
-  mobileNavActiveRail: {
-    position: 'absolute',
-    top: 0,
-    left: 18,
-    right: 18,
-    height: 2,
   },
   mobileNavLabel: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),

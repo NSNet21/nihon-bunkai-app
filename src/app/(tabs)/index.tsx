@@ -10,7 +10,6 @@ import {
   FiLock,
   FiMinusSquare,
   FiPlusSquare,
-  FiSearch,
 } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -29,14 +28,12 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
 import { useAllDecks } from '@/hooks/use-decks';
-import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { Deck } from '@/data/types';
 import type { LastSession } from '@/lib/last-session';
 
 const SCROLL_TOP_THRESHOLD = 400;
-const MOBILE_NAV_BREAKPOINT = 768;
 
 type Row =
   | { kind: 'levelHeader';    title: string; key: string; level: string; isOpen: boolean; childCount: number }
@@ -99,7 +96,6 @@ function buildRows(
 
 export default function BrowseScreen() {
   const router = useRouter();
-  const { width: viewportW } = useWindowDimensions();
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
@@ -107,8 +103,6 @@ export default function BrowseScreen() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
   const colors = useThemePalette();
-  const hasHydrated = useHasHydrated();
-  const isMobile = hasHydrated && viewportW < MOBILE_NAV_BREAKPOINT;
 
   const { decks, refresh } = useAllDecks();
   const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
@@ -264,7 +258,6 @@ export default function BrowseScreen() {
           scrollEventThrottle={100}
           ListHeaderComponent={
             <View style={styles.headerWrap}>
-              {isMobile && <MobileSearchEntry onPress={() => router.push('/search')} colors={colors} />}
               {/* Hero — editorial display headline with mono sub label */}
               <View style={styles.subLabelRow}>
                 <View style={styles.pip} />
@@ -457,36 +450,6 @@ function Toolbar({
   );
 }
 
-function MobileSearchEntry({
-  onPress,
-  colors,
-}: {
-  onPress: () => void;
-  colors: ReturnType<typeof useThemePalette>;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="ไปหน้า Search"
-      style={({ pressed }) => [
-        styles.mobileSearchEntry,
-        {
-          backgroundColor: colors.surface2,
-          borderColor: colors.border,
-        },
-        pressed && { opacity: 0.72 },
-      ]}
-    >
-      <FiSearch size={17} color={colors.textSecondary} />
-      <ThemedText style={[styles.mobileSearchText, { color: colors.textHint }]}>
-        ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
-      </ThemedText>
-      <View style={[styles.mobileSearchMark, { backgroundColor: Accent.base }]} />
-    </Pressable>
-  );
-}
-
 /** Chevron rotates 0deg → -90deg when group collapses (mobile-convention) */
 function AnimatedChevron({ isOpen, size, color }: { isOpen: boolean; size: number; color: string }) {
   const rotation = useSharedValue(isOpen ? 0 : -90);
@@ -656,26 +619,6 @@ const styles = StyleSheet.create({
        so the hero stack reads as one block. Section transitions get
        explicit marginTop on the boundary children below. */
     gap: Spacing.two,
-  },
-  mobileSearchEntry: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    paddingHorizontal: Spacing.three,
-    marginBottom: Spacing.three,
-    overflow: 'hidden',
-  },
-  mobileSearchText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  mobileSearchMark: {
-    width: 2,
-    height: 18,
   },
   topAccentBar: {
     position: 'absolute',

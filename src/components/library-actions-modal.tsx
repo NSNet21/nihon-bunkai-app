@@ -55,6 +55,11 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
     onClose();
   }
 
+  function openMode(nextMode: Mode) {
+    setStatus('');
+    setMode(nextMode);
+  }
+
   async function onImport(multiple: boolean) {
     const files = await pickFiles('.csv,.zip,text/csv,application/zip', multiple);
     if (files.length === 0) return;
@@ -108,7 +113,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
 
   function openBatchExport() {
     setSelected(new Set());
-    setMode('export-batch');
+    openMode('export-batch');
   }
 
   return (
@@ -143,7 +148,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                 hint="เตรียม CSV ใน Sheets/Excel แล้วนำเข้าแอปโดยตรง"
                 icon={<FiHelpCircle size={17} color={Accent.base} />}
                 disabled={busy}
-                onPress={() => setMode('how-to')}
+                onPress={() => openMode('how-to')}
               />
               <ActionRow
                 label={ACTIONS.importOne}
@@ -164,7 +169,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                 hint="เลือก 1 deck ที่พร้อมเรียน แล้ว save เป็น CSV"
                 icon={<FiDownload size={17} color={Accent.base} />}
                 disabled={busy || exportableDecks.length === 0}
-                onPress={() => setMode('export-one')}
+                onPress={() => openMode('export-one')}
               />
               <ActionRow
                 label={ACTIONS.exportBatch}
@@ -179,7 +184,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
           {mode === 'how-to' && (
             <ImportHowTo
               busy={busy}
-              onBack={() => setMode('actions')}
+              onBack={() => openMode('actions')}
               onImportOne={() => void onImport(false)}
               onImportBatch={() => void onImport(true)}
             />
@@ -189,7 +194,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
             <DeckPicker
               decks={exportableDecks}
               busy={busy}
-              onBack={() => setMode('actions')}
+              onBack={() => openMode('actions')}
               onPick={(deck) => void onExportDeck(deck)}
             />
           )}
@@ -207,7 +212,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                   return next;
                 });
               }}
-              onBack={() => setMode('actions')}
+              onBack={() => openMode('actions')}
               onExport={() => void onExportBatch()}
             />
           )}

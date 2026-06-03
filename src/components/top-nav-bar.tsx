@@ -117,8 +117,8 @@ function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel="ไปหน้า Search"
-      style={({ pressed, hovered }: any) => {
-        const active = pressed || hovered;
+      style={({ pressed, focused }: any) => {
+        const active = pressed || focused;
         return [
           styles.mobileTopSearch,
           {
@@ -129,8 +129,8 @@ function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors
         ];
       }}
     >
-      {({ pressed, hovered }: any) => {
-        const active = pressed || hovered;
+      {({ pressed, focused }: any) => {
+        const active = pressed || focused;
         const color = active ? Accent.base : colors.textSecondary;
         return (
           <>
@@ -227,7 +227,7 @@ export function TopNavBar() {
               })}
             </View>
           ) : (
-            <MobileTopSearchEntry onPress={() => router.push('/search')} colors={colors} />
+            <MobileTopSearchEntry onPress={() => router.push('/search?focus=1' as never)} colors={colors} />
           )}
         </View>
       </View>
@@ -253,7 +253,8 @@ export function MobileBottomNav() {
       <View style={styles.mobileNavInner}>
         {MOBILE_TABS.map((tab) => {
           const isActive = tab.href === '/' ? pathname === '/' : pathname === tab.href;
-          const color = isActive ? Accent.base : colors.textSecondary;
+          const iconColor = isActive ? Accent.base : colors.textSecondary;
+          const labelColor = isActive ? Accent.base : colors.textHint;
           const Icon = tab.Icon;
           return (
             <Pressable
@@ -270,11 +271,11 @@ export function MobileBottomNav() {
                 pressed && { opacity: 0.65 },
               ]}
             >
-              <Icon size={19} color={color} />
+              <Icon size={22} color={iconColor} />
               <ThemedText
                 style={[
                   styles.mobileNavLabel,
-                  { color },
+                  { color: labelColor },
                   isActive && styles.mobileNavLabelActive,
                 ]}
               >
@@ -436,12 +437,12 @@ const styles = StyleSheet.create({
   },
   mobileNavLabel: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1,
+    fontSize: 8,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   mobileNavLabelActive: {
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

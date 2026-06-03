@@ -1,5 +1,5 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { FiRefreshCw, FiSearch, FiX } from 'react-icons/fi';
@@ -76,6 +76,7 @@ const EMPTY_FAST_TOAST: FastToastInfo = { group: '', term: '', reading: '', visi
 
 export default function SearchScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ focus?: string }>();
   const c = useThemePalette();
 
   const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
@@ -119,6 +120,7 @@ export default function SearchScreen() {
   const [fastToast, setFastToast] = useState<FastToastInfo>(EMPTY_FAST_TOAST);
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlashListRef<ListItem>>(null);
+  const focusParam = Array.isArray(params.focus) ? params.focus[0] : params.focus;
 
   /* FastScroller wiring — mobile (compact) only. Latest scroll
      metrics live in a ref so the high-frequency onScroll callback
@@ -333,6 +335,12 @@ export default function SearchScreen() {
     window.addEventListener(FOCUS_SEARCH_EVENT, onFocusEvent);
     return () => window.removeEventListener(FOCUS_SEARCH_EVENT, onFocusEvent);
   }, []);
+
+  useEffect(() => {
+    if (focusParam !== '1') return;
+    const id = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(id);
+  }, [focusParam]);
 
   const openEntry = useCallback(
     (deckId: string, entryId: string) => {

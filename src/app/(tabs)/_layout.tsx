@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 
-import { TopNavBar } from '@/components/top-nav-bar';
+import { MobileBottomNav, TopNavBar } from '@/components/top-nav-bar';
 
 export default function TabsLayout() {
   return (
@@ -19,6 +19,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
         </Tabs>
       </View>
+      <MobileBottomNav />
     </View>
   );
 }

@@ -1,7 +1,7 @@
 import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
 import { useRef } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
-import { FiArrowLeft } from 'react-icons/fi';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FiArrowLeft, FiBookOpen, FiSettings, FiShoppingBag } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -9,8 +9,12 @@ import { ThemedText } from './themed-text';
 
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useThemePalette } from '@/context/theme';
+import { useHasHydrated } from '@/hooks/use-has-hydrated';
 
 type Tab = { href: string; label: string };
+type MobileTab = Tab & { Icon: typeof FiBookOpen };
+
+const MOBILE_NAV_BREAKPOINT = 768;
 
 function BackButton({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
   const scale = useSharedValue(1);
@@ -107,6 +111,12 @@ const TABS: Tab[] = [
   { href: '/settings',  label: 'Settings' },
 ];
 
+const MOBILE_TABS: MobileTab[] = [
+  { href: '/',          label: 'Browse',   Icon: FiBookOpen },
+  { href: '/shop',      label: 'Shop',     Icon: FiShoppingBag },
+  { href: '/settings',  label: 'Settings', Icon: FiSettings },
+];
+
 /* Routes that enter focus mode — nav links hide, only Back button shows.
    Memorize + Quiz + Quiz Config are immersive study paths. Practice Hub
    (/deck/[id]) itself keeps nav so users can switch sections. */
@@ -118,8 +128,11 @@ export function TopNavBar() {
   const pathname = usePathname();
   const router = useRouter();
   const colors = useThemePalette();
+  const { width } = useWindowDimensions();
+  const hasHydrated = useHasHydrated();
 
   const isFocusMode = FOCUS_PATTERNS.some((re) => re.test(pathname));
+  const isMobile = hasHydrated && width < MOBILE_NAV_BREAKPOINT;
 
   /* Track which routes we've already kicked a prefetch on so hovering
      the same tab twice doesn't fire repeat fetches. Cleared only on
@@ -142,7 +155,7 @@ export function TopNavBar() {
           <BrandLink onPress={() => router.push('/')} colors={colors} />
           {isFocusMode ? (
             <BackButton onPress={() => router.push('/')} colors={colors} />
-          ) : (
+          ) : !isMobile ? (
             <View style={styles.tabs}>
               {TABS.map((tab) => {
                 const isActive = pathname === tab.href;
@@ -168,8 +181,70 @@ export function TopNavBar() {
                 );
               })}
             </View>
+          ) : (
+            <View style={styles.mobileBrandRule} />
           )}
         </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+export function MobileBottomNav() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const colors = useThemePalette();
+  const { width } = useWindowDimensions();
+  const hasHydrated = useHasHydrated();
+  const isMobile = hasHydrated && width < MOBILE_NAV_BREAKPOINT;
+
+  if (!isMobile) return null;
+
+  return (
+    <SafeAreaView
+      edges={['bottom']}
+      style={[styles.mobileNavSafe, { backgroundColor: colors.background, borderTopColor: colors.border }]}
+    >
+      <View style={styles.mobileNavInner}>
+        {MOBILE_TABS.map((tab) => {
+          const isActive = tab.href === '/' ? pathname === '/' : pathname === tab.href;
+          const color = isActive ? Accent.base : colors.textSecondary;
+          const Icon = tab.Icon;
+          return (
+            <Pressable
+              key={tab.href}
+              onPress={() => router.push(tab.href as any)}
+              accessibilityRole="link"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: isActive }}
+              {...(Platform.OS === 'web'
+                ? ({ 'aria-current': isActive ? 'page' : undefined, 'data-active': isActive ? 'true' : 'false' } as any)
+                : null)}
+              style={({ pressed }) => [
+                styles.mobileNavItem,
+                isActive && styles.mobileNavItemActive,
+                pressed && { opacity: 0.65 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.mobileNavActiveRail,
+                  { opacity: isActive ? 1 : 0, backgroundColor: Accent.base },
+                ]}
+              />
+              <Icon size={19} color={color} />
+              <ThemedText
+                style={[
+                  styles.mobileNavLabel,
+                  { color },
+                  isActive && styles.mobileNavLabelActive,
+                ]}
+              >
+                {tab.label}
+              </ThemedText>
+            </Pressable>
+          );
+        })}
       </View>
     </SafeAreaView>
   );
@@ -195,6 +270,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.four,
     flexWrap: 'wrap',
+  },
+  mobileBrandRule: {
+    width: 28,
+    height: 1,
+    backgroundColor: Accent.base,
+    opacity: 0.75,
   },
   brand: {
     flexDirection: 'row',
@@ -247,5 +328,48 @@ const styles = StyleSheet.create({
   },
   backLabel: {
     fontSize: 13,
+  },
+  mobileNavSafe: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    ...(Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null),
+  },
+  mobileNavInner: {
+    minHeight: 58,
+    paddingHorizontal: Spacing.two,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.one,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  mobileNavItem: {
+    position: 'relative',
+    minWidth: 74,
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  mobileNavItemActive: {
+    backgroundColor: Accent.bg,
+  },
+  mobileNavActiveRail: {
+    position: 'absolute',
+    top: 0,
+    left: 18,
+    right: 18,
+    height: 2,
+  },
+  mobileNavLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  mobileNavLabelActive: {
+    fontWeight: '800',
   },
 });

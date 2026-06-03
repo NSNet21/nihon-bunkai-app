@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiHelpCircle, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -58,6 +58,7 @@ type ViewMode = 'list' | 'grid';
 type ShopTier = 'level' | 'bundle';
 
 export default function ShopScreen() {
+  const params = useLocalSearchParams<{ scrollTop?: string }>();
   const colors = useThemePalette();
   const [viewMode, setViewMode] = usePersistedState<ViewMode>('shop-view-mode', 'list');
   const [shopTier, setShopTier] = usePersistedState<ShopTier>('shop-tier', 'level');
@@ -81,10 +82,20 @@ export default function ShopScreen() {
   const router = useRouter();
   const { showToast } = useToast();
   const scrollRef = useRef<ScrollView>(null);
+  const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const [showScrollTop, setShowScrollTop] = useState(false);
   // SKUs that the user just clicked "Buy" on — awaiting webhook confirmation
   const [buying, setBuying] = useState<Record<string, BuyingState>>({});
   const prevEntitledRef = useRef<Set<string>>(new Set(entitledSkus));
+
+  useEffect(() => {
+    if (!scrollTopParam) return;
+    const id = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      setShowScrollTop(false);
+    }, 80);
+    return () => clearTimeout(id);
+  }, [scrollTopParam]);
 
   const startBuying = useCallback((slug: string, productName: string) => {
     setBuying((prev) => ({ ...prev, [slug]: { startedAt: Date.now(), productName } }));

@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUser, FiX } from 'react-icons/fi';
@@ -22,12 +22,23 @@ import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from 
 const SCROLL_TOP_THRESHOLD = 400;
 
 export default function SettingsScreen() {
+  const params = useLocalSearchParams<{ scrollTop?: string }>();
   const { status, user, entitledPacks, entitledSkus, signOut, refreshEntitlements } = useAuth();
   const colors = useThemePalette();
   const entitlementCount = entitledPacks.size + entitledSkus.size;
   const scrollRef = useRef<ScrollView>(null);
+  const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [importHowToVisible, setImportHowToVisible] = useState(false);
+
+  useEffect(() => {
+    if (!scrollTopParam) return;
+    const id = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      setShowScrollTop(false);
+    }, 80);
+    return () => clearTimeout(id);
+  }, [scrollTopParam]);
 
   return (
     <ThemedView style={styles.container}>

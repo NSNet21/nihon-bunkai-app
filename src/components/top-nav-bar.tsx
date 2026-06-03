@@ -16,6 +16,14 @@ type MobileTab = Tab & { Icon: typeof FiBookOpen };
 
 const MOBILE_NAV_BREAKPOINT = 768;
 
+function withScrollTopParam(href: string, extraParams?: Record<string, string>) {
+  const params = { ...extraParams, scrollTop: String(Date.now()) };
+  const query = Object.entries(params)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&');
+  return `${href}?${query}`;
+}
+
 function BackButton({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
@@ -197,9 +205,9 @@ export function TopNavBar() {
       style={{ backgroundColor: colors.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
       <View style={styles.bar}>
         <View style={[styles.inner, isMobile && styles.mobileInner]}>
-          <BrandLink onPress={() => router.push('/')} stacked={isMobile} />
+          <BrandLink onPress={() => router.push(withScrollTopParam('/') as never)} stacked={isMobile} />
           {isFocusMode ? (
-            <BackButton onPress={() => router.push('/')} colors={colors} />
+            <BackButton onPress={() => router.push(withScrollTopParam('/') as never)} colors={colors} />
           ) : !isMobile ? (
             <View style={styles.tabs}>
               {TABS.map((tab) => {
@@ -207,7 +215,7 @@ export function TopNavBar() {
                 return (
                   <Pressable
                     key={tab.href}
-                    onPress={() => router.push(tab.href as any)}
+                    onPress={() => router.push(withScrollTopParam(tab.href) as never)}
                     onHoverIn={() => handleHover(tab.href)}
                     style={({ pressed, hovered }: any) => [
                       styles.tab,
@@ -227,7 +235,10 @@ export function TopNavBar() {
               })}
             </View>
           ) : (
-            <MobileTopSearchEntry onPress={() => router.push('/search?focus=1' as never)} colors={colors} />
+            <MobileTopSearchEntry
+              onPress={() => router.push(withScrollTopParam('/search', { focus: '1' }) as never)}
+              colors={colors}
+            />
           )}
         </View>
       </View>
@@ -259,7 +270,7 @@ export function MobileBottomNav() {
           return (
             <Pressable
               key={tab.href}
-              onPress={() => router.push(tab.href as any)}
+              onPress={() => router.push(withScrollTopParam(tab.href) as never)}
               accessibilityRole="link"
               accessibilityLabel={tab.label}
               accessibilityState={{ selected: isActive }}

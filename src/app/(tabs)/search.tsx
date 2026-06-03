@@ -76,7 +76,7 @@ const EMPTY_FAST_TOAST: FastToastInfo = { group: '', term: '', reading: '', visi
 
 export default function SearchScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ focus?: string }>();
+  const params = useLocalSearchParams<{ focus?: string; scrollTop?: string }>();
   const c = useThemePalette();
 
   const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
@@ -121,6 +121,7 @@ export default function SearchScreen() {
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<FlashListRef<ListItem>>(null);
   const focusParam = Array.isArray(params.focus) ? params.focus[0] : params.focus;
+  const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
 
   /* FastScroller wiring — mobile (compact) only. Latest scroll
      metrics live in a ref so the high-frequency onScroll callback
@@ -341,6 +342,17 @@ export default function SearchScreen() {
     const id = setTimeout(() => inputRef.current?.focus(), 80);
     return () => clearTimeout(id);
   }, [focusParam]);
+
+  useEffect(() => {
+    if (!scrollTopParam) return;
+    const id = setTimeout(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      fastScrollMetrics.current.offset = 0;
+      syncFastThumbFromScroll();
+      setShowScrollTop(false);
+    }, 80);
+    return () => clearTimeout(id);
+  }, [scrollTopParam, syncFastThumbFromScroll]);
 
   const openEntry = useCallback(
     (deckId: string, entryId: string) => {

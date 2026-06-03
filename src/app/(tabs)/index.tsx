@@ -1,5 +1,5 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import {
@@ -96,6 +96,7 @@ function buildRows(
 
 export default function BrowseScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ scrollTop?: string }>();
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
@@ -103,6 +104,7 @@ export default function BrowseScreen() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
   const colors = useThemePalette();
+  const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
 
   const { decks, refresh } = useAllDecks();
   const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
@@ -188,6 +190,16 @@ export default function BrowseScreen() {
     () => buildRows(decks, closedLevels, closedCategories),
     [decks, closedLevels, closedCategories],
   );
+
+  useEffect(() => {
+    if (!scrollTopParam) return;
+    const id = setTimeout(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      setShowScrollTop(false);
+    }, 80);
+    return () => clearTimeout(id);
+  }, [scrollTopParam]);
+
   const libraryStats = useMemo(() => {
     let totalEntries = 0;
     let paidPackCount = 0;

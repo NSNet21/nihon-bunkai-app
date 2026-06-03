@@ -9,6 +9,10 @@ export function studyFallbackHref(deckId?: string) {
   return `/deck/${deckId}`;
 }
 
+export function searchFallbackHref() {
+  return '/?scrollTop=search-back';
+}
+
 export function navigateBackOrFallback(router: BackRouter, fallbackHref: string) {
   if (router.canGoBack()) {
     router.back();

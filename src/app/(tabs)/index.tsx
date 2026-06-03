@@ -235,16 +235,9 @@ export default function BrowseScreen() {
               <View style={styles.subLabelRow}>
                 <View style={styles.pip} />
                 <ThemedText type="small" themeColor="textHint" style={styles.subLabel}>
-                  // TODAY · วันนี้
+                  // BROWSE · คลังคำศัพท์
                 </ThemedText>
               </View>
-              <ThemedText type="title" style={styles.displayHeadline}>
-                วันนี้
-                {'\n'}
-                <ThemedText type="title" style={[styles.displayHeadline, styles.displayHeadlineAccent]}>
-                  ทบทวน?
-                </ThemedText>
-              </ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {librarySubtitle}
               </ThemedText>
@@ -293,20 +286,28 @@ export default function BrowseScreen() {
               {showContinue && lastSession && (
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
-              <View style={styles.libraryGroupHead}>
-                <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
-                <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
-                  // LIBRARY · คลังคำ
-                </ThemedText>
+              <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.libraryBlockHead}>
+                <View style={styles.libraryGroupHead}>
+                  <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
+                  <View style={styles.libraryTitleStack}>
+                    <ThemedText type="defaultSemiBold" style={styles.libraryTitle}>
+                      คลังคำศัพท์
+                    </ThemedText>
+                    <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
+                      // LIBRARY · level / group / deck
+                    </ThemedText>
+                  </View>
+                </View>
+                <Toolbar
+                  onOpenLibrarySearch={() => setLibrarySearchOpen(true)}
+                  onExpandAll={expandAll}
+                  onCollapseAll={collapseAll}
+                  subsOnly={subsOnly}
+                  onToggleSubsOnly={toggleToolbarScope}
+                  onOpenLibraryActions={() => setLibraryActionsOpen(true)}
+                />
               </View>
-              <Toolbar
-                onOpenLibrarySearch={() => setLibrarySearchOpen(true)}
-                onExpandAll={expandAll}
-                onCollapseAll={collapseAll}
-                subsOnly={subsOnly}
-                onToggleSubsOnly={toggleToolbarScope}
-                onOpenLibraryActions={() => setLibraryActionsOpen(true)}
-              />
             </View>
           }
           renderItem={renderItem}
@@ -385,6 +386,8 @@ function Toolbar({
 }) {
   const colors = useThemePalette();
   const { width } = useWindowDimensions();
+  const [searchTriggerActive, setSearchTriggerActive] = useState(false);
+  const searchOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCompact = width < 520;
   const useTouchIcons = width < 900;
   const expandLabel = isCompact ? 'Open' : 'Expand';
@@ -392,23 +395,39 @@ function Toolbar({
   const scopeLabel = subsOnly ? 'Group' : 'All';
   const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
   const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
+
+  useEffect(() => () => {
+    if (searchOpenTimerRef.current) clearTimeout(searchOpenTimerRef.current);
+  }, []);
+
+  const openLibrarySearchWithFeedback = useCallback(() => {
+    if (searchOpenTimerRef.current) clearTimeout(searchOpenTimerRef.current);
+    setSearchTriggerActive(true);
+    searchOpenTimerRef.current = setTimeout(() => {
+      onOpenLibrarySearch();
+      setSearchTriggerActive(false);
+      searchOpenTimerRef.current = null;
+    }, 210);
+  }, [onOpenLibrarySearch]);
+
   return (
     <View style={styles.toolbarStack}>
       <Pressable
-        onPress={onOpenLibrarySearch}
+        onPress={openLibrarySearchWithFeedback}
         accessibilityRole="button"
         accessibilityLabel="เปิด Library Search"
         style={({ pressed }) => [
           styles.librarySearchDock,
-          { borderColor: pressed ? Accent.base : colors.border, backgroundColor: colors.surface },
+          {
+            borderColor: pressed || searchTriggerActive ? Accent.base : colors.border,
+            backgroundColor: colors.surface,
+          },
+          searchTriggerActive && styles.librarySearchDockActive,
           pressed && styles.headerPressed,
         ]}>
-        <FiSearch size={15} color={Accent.base} />
+        <FiSearch size={15} color={searchTriggerActive ? Accent.base : colors.textMuted} />
         <ThemedText type="small" style={[styles.librarySearchDockText, { color: colors.textSecondary }]}>
           ค้นในคลังคำ · level / group / deck
-        </ThemedText>
-        <ThemedText type="small" style={[styles.librarySearchDockHint, { color: colors.textHint }]}>
-          ⌕
         </ThemedText>
       </Pressable>
       <View style={styles.toolbar}>
@@ -508,8 +527,8 @@ function LibrarySearchModal({
               accessibilityRole="button"
               accessibilityLabel="ปิด Library Search"
               hitSlop={8}
-              style={({ pressed }) => [styles.librarySearchClose, pressed && styles.pressed]}>
-              <FiX size={16} color={colors.textSecondary} />
+              style={styles.librarySearchClose}>
+              {({ pressed }) => <FiX size={17} color={pressed ? Accent.base : colors.textSecondary} />}
             </Pressable>
           </View>
           <View style={[styles.librarySearchInputShell, { backgroundColor: colors.surface, borderColor: active ? Accent.base : colors.border }]}>
@@ -532,24 +551,14 @@ function LibrarySearchModal({
                 accessibilityRole="button"
                 accessibilityLabel="ล้าง Library Search"
                 hitSlop={8}
-                style={({ pressed }) => [styles.groupSearchClear, pressed && styles.pressed]}>
-                <FiX size={14} color={Accent.base} />
+                style={({ pressed }) => [styles.groupSearchClear, pressed && styles.groupSearchClearActive]}>
+                {({ pressed }) => <FiX size={15} color={pressed ? colors.bg : Accent.base} />}
               </Pressable>
             )}
           </View>
-          <ThemedText type="small" style={[styles.librarySearchSubcopy, { color: colors.textMuted }]}>
-            หา level, group หรือ deck แล้วเลือกเข้า flow เรียนต่อ
-          </ThemedText>
 
-          {!active ? (
-            <View style={[styles.librarySearchEmptyState, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
-              <ThemedText type="defaultSemiBold">ลองพิมพ์สิ่งที่จำได้</ThemedText>
-              <ThemedText type="small" style={{ color: colors.textMuted }}>
-                เช่น N5, kanji, vocab, pack 02, owned หรือ import
-              </ThemedText>
-            </View>
-          ) : empty ? (
-            <View style={[styles.librarySearchEmptyState, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+          {!active ? null : empty ? (
+            <View style={styles.librarySearchQuietState}>
               <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>ไม่พบผลลัพธ์</ThemedText>
               <ThemedText type="small" style={{ color: colors.textMuted }}>
                 ลองค้นด้วย level, group, deck title หรือ pack number
@@ -835,17 +844,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontSize: 10,
   },
-  displayHeadline: {
-    fontFamily: Platform.select({ web: 'Oswald, "Arial Narrow", Impact, sans-serif', default: undefined }),
-    fontWeight: '700',
-    fontSize: 38,
-    lineHeight: 42,
-    letterSpacing: -0.5,
-    textTransform: 'uppercase',
-  },
-  displayHeadlineAccent: {
-    color: Accent.base,
-  },
   heroSubtitle: {
     /* No extra marginTop — headerWrap.gap (8) handles it. Keeping the
        4px boost made subtitle drift away from the headline. */
@@ -883,16 +881,32 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
+  librarySectionDivider: {
+    height: 2,
+    position: 'relative',
+    marginTop: Spacing.four,
+    marginBottom: Spacing.three,
+  },
+  libraryBlockHead: {
+    marginHorizontal: -Spacing.four,
+  },
   libraryGroupHead: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.two,
-    marginTop: Spacing.five,
   },
-  libraryPip: { width: 14, height: 2 },
+  libraryPip: { width: 20, height: 2, marginTop: 12 },
+  libraryTitleStack: {
+    gap: 1,
+  },
+  libraryTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: 0,
+  },
   libraryKicker: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 10,
+    fontSize: 9,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
     fontWeight: '700',
@@ -914,13 +928,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
+  librarySearchDockActive: {
+    shadowColor: Accent.base,
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
   librarySearchDockText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 14,
-  },
-  librarySearchDockHint: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
     fontSize: 14,
   },
   librarySearchOverlay: {
@@ -956,8 +972,8 @@ const styles = StyleSheet.create({
   },
   librarySearchClose: {
     marginLeft: 'auto',
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -978,15 +994,9 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ web: 'Sarabun, Inter, sans-serif', default: undefined }),
     outlineStyle: 'none' as never,
   },
-  librarySearchSubcopy: {
-    fontSize: 12,
-  },
-  librarySearchEmptyState: {
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    padding: Spacing.four,
+  librarySearchQuietState: {
+    paddingTop: Spacing.three,
     gap: Spacing.one,
-    marginTop: Spacing.two,
   },
   librarySearchResultHead: {
     flexDirection: 'row',
@@ -1040,10 +1050,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   groupSearchClear: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
+    borderRadius: Radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  groupSearchClearActive: {
+    backgroundColor: Accent.base,
   },
   toolbar: {
     flexDirection: 'row',
@@ -1073,6 +1087,7 @@ const styles = StyleSheet.create({
   toolBtn: {
     minHeight: 36,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: 5,
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
@@ -1081,6 +1096,7 @@ const styles = StyleSheet.create({
   toolBtnContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
   },
   scopeBtn: {

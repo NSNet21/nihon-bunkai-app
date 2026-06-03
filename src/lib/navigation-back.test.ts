@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { navigateBackOrFallback, studyFallbackHref } from './navigation-back';
+import { navigateBackOrFallback, searchFallbackHref, studyFallbackHref } from './navigation-back';
 
 describe('studyFallbackHref', () => {
   it('falls back to the deck hub for a normal study route', () => {
@@ -9,6 +9,12 @@ describe('studyFallbackHref', () => {
 
   it('falls back to Browse for group study routes', () => {
     expect(studyFallbackHref('__group__')).toBe('/');
+  });
+});
+
+describe('searchFallbackHref', () => {
+  it('falls back to Browse with an instant top reset', () => {
+    expect(searchFallbackHref()).toBe('/?scrollTop=search-back');
   });
 });
 

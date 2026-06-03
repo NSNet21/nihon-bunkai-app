@@ -2,7 +2,7 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import { FiRefreshCw, FiSearch, FiX } from 'react-icons/fi';
+import { FiArrowLeft, FiRefreshCw, FiSearch, FiX } from 'react-icons/fi';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useThemePalette } from '@/context/theme';
 import { useSearchIndex } from '@/hooks/use-search-index';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { ContentType, JlptLevel } from '@/data/types';
+import { navigateBackOrFallback, searchFallbackHref } from '@/lib/navigation-back';
 import type { SearchResult } from '@/lib/search-index';
 import { searchFocusToken } from '@/lib/search-route-focus';
 
@@ -83,6 +84,7 @@ export default function SearchScreen() {
   const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
   const { width: viewportW, height: viewportH } = useWindowDimensions();
   const compact = viewportW > 0 && viewportW < 480;
+  const mobileSearchBack = viewportW > 0 && viewportW < 768;
   const compactToast = viewportW > 0 && viewportW < 768;
   const shortMobileViewport = viewportW > 0 && viewportW < 768 && viewportH > 0 && viewportH < 680;
   const edgeScrollSurface = Platform.OS === 'web' && viewportW >= 768;
@@ -124,6 +126,17 @@ export default function SearchScreen() {
   const focusParam = Array.isArray(params.focus) ? params.focus[0] : params.focus;
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const focusToken = searchFocusToken(focusParam, scrollTopParam);
+
+  const goBackFromMobileSearch = useCallback(() => {
+    navigateBackOrFallback(
+      {
+        canGoBack: () => router.canGoBack(),
+        back: () => router.back(),
+        push: (href) => router.push(href as never),
+      },
+      searchFallbackHref(),
+    );
+  }, [router]);
 
   /* FastScroller wiring — mobile (compact) only. Latest scroll
      metrics live in a ref so the high-frequency onScroll callback
@@ -432,7 +445,19 @@ export default function SearchScreen() {
         <View
           style={[styles.headerWrap, shortMobileViewport && styles.headerWrapShortMobile]}
           {...(edgeScrollSurface ? ({ onWheel: forwardHeaderWheelToList } as any) : {})}>
-          <ThemedText type="title" style={shortMobileViewport && styles.searchTitleShortMobile}>Search</ThemedText>
+          <View style={styles.searchTitleRow}>
+            {mobileSearchBack && (
+              <Pressable
+                onPress={goBackFromMobileSearch}
+                accessibilityRole="button"
+                accessibilityLabel="กลับไปหน้า Browse"
+                hitSlop={8}
+                style={({ pressed }) => [styles.mobileSearchBack, pressed && styles.headerPressed]}>
+                <FiArrowLeft size={20} color={c.textSecondary} strokeWidth={2} />
+              </Pressable>
+            )}
+            <ThemedText type="title" style={shortMobileViewport && styles.searchTitleShortMobile}>Search</ThemedText>
+          </View>
 
           <View
             style={[
@@ -1144,6 +1169,21 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.three,
     paddingBottom: Spacing.two,
     gap: Spacing.two,
+  },
+  searchTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  mobileSearchBack: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radii.sm,
+  },
+  headerPressed: {
+    opacity: 0.68,
   },
   searchTitleShortMobile: {
     fontSize: 38,

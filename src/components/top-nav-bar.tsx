@@ -287,7 +287,6 @@ export function MobileBottomNav() {
                 style={[
                   styles.mobileNavLabel,
                   { color: labelColor },
-                  isActive && styles.mobileNavLabelActive,
                 ]}
               >
                 {tab.label}
@@ -452,8 +451,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     fontWeight: '500',
-  },
-  mobileNavLabelActive: {
-    fontWeight: '700',
   },
 });

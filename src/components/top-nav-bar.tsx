@@ -1,5 +1,5 @@
 import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiArrowLeft, FiSearch } from 'react-icons/fi';
 import { PiBookOpenText, PiGearSix, PiShoppingBagOpen } from 'react-icons/pi';
@@ -16,6 +16,7 @@ type Tab = { href: string; label: string };
 type MobileTab = Tab & { Icon: typeof PiBookOpenText };
 
 const MOBILE_NAV_BREAKPOINT = 768;
+const SEARCH_PILL_NAV_DELAY_MS = 180;
 
 function withScrollTopParam(href: string, extraParams?: Record<string, string>) {
   const params = { ...extraParams, scrollTop: String(Date.now()) };
@@ -123,12 +124,27 @@ function BrandLink({
 function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
   const [focused, setFocused] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const active = focused || pressed;
+  const [navigating, setNavigating] = useState(false);
+  const navigationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const active = focused || pressed || navigating;
   const activeColor = active ? Accent.base : colors.textSecondary;
+
+  useEffect(() => () => {
+    if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+  }, []);
+
+  function handlePress() {
+    if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+    setNavigating(true);
+    navigationTimerRef.current = setTimeout(() => {
+      onPress();
+      setNavigating(false);
+    }, SEARCH_PILL_NAV_DELAY_MS);
+  }
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       onPressIn={() => setPressed(true)}

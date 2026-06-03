@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildBrowseRows, filterBrowseDecks, normalizeGroupSearchQuery } from './browse-group-search';
+import {
+  buildBrowseRows,
+  filterBrowseDecks,
+  groupSearchHasQuery,
+  normalizeGroupSearchQuery,
+} from './browse-group-search';
 import type { Deck } from '@/data/types';
 
 const decks: Deck[] = [
@@ -42,6 +47,13 @@ const decks: Deck[] = [
 describe('normalizeGroupSearchQuery', () => {
   it('normalizes spacing and case for group search', () => {
     expect(normalizeGroupSearchQuery('  N5   vocab  ')).toBe('n5 vocab');
+  });
+});
+
+describe('groupSearchHasQuery', () => {
+  it('only treats non-empty normalized text as an active query', () => {
+    expect(groupSearchHasQuery('   ')).toBe(false);
+    expect(groupSearchHasQuery(' n5 ')).toBe(true);
   });
 });
 

@@ -30,6 +30,10 @@ export function normalizeGroupSearchQuery(query: string) {
   return query.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+export function groupSearchHasQuery(query: string) {
+  return normalizeGroupSearchQuery(query).length > 0;
+}
+
 export function filterBrowseDecks(decks: Deck[], query: string) {
   const normalized = normalizeGroupSearchQuery(query);
   if (!normalized) return decks;

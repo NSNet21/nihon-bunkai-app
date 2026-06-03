@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import {
   FiChevronDown,
   FiChevronsDown,
@@ -36,6 +36,7 @@ import type { Deck } from '@/data/types';
 import {
   buildBrowseRows,
   filterBrowseDecks,
+  groupSearchHasQuery,
   type BrowseRow,
 } from '@/lib/browse-group-search';
 import type { LastSession } from '@/lib/last-session';
@@ -49,6 +50,7 @@ export default function BrowseScreen() {
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
+  const [librarySearchOpen, setLibrarySearchOpen] = useState(false);
   const listRef = useRef<FlashListRef<BrowseRow>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
@@ -135,14 +137,18 @@ export default function BrowseScreen() {
     });
   }, []);
 
-  const hasGroupSearch = groupSearchQuery.trim().length > 0;
+  const hasGroupSearch = groupSearchHasQuery(groupSearchQuery);
   const filteredDecks = useMemo(
     () => filterBrowseDecks(decks, groupSearchQuery),
     [decks, groupSearchQuery],
   );
+  const librarySearchRows = useMemo(
+    () => buildBrowseRows(filteredDecks, new Set(), new Set(), true),
+    [filteredDecks],
+  );
   const rows = useMemo(
-    () => buildBrowseRows(filteredDecks, closedLevels, closedCategories, hasGroupSearch),
-    [filteredDecks, closedLevels, closedCategories, hasGroupSearch],
+    () => buildBrowseRows(decks, closedLevels, closedCategories),
+    [decks, closedLevels, closedCategories],
   );
   const groupSearchEmpty = hasGroupSearch && filteredDecks.length === 0;
 
@@ -294,11 +300,7 @@ export default function BrowseScreen() {
                 </ThemedText>
               </View>
               <Toolbar
-                groupSearchQuery={groupSearchQuery}
-                onGroupSearchChange={setGroupSearchQuery}
-                groupSearchCount={filteredDecks.length}
-                groupSearchActive={hasGroupSearch}
-                groupSearchEmpty={groupSearchEmpty}
+                onOpenLibrarySearch={() => setLibrarySearchOpen(true)}
                 onExpandAll={expandAll}
                 onCollapseAll={collapseAll}
                 subsOnly={subsOnly}
@@ -316,6 +318,15 @@ export default function BrowseScreen() {
         decks={decks}
         onClose={() => setLibraryActionsOpen(false)}
         onImported={refresh}
+      />
+      <LibrarySearchModal
+        visible={librarySearchOpen}
+        query={groupSearchQuery}
+        rows={librarySearchRows}
+        resultCount={filteredDecks.length}
+        empty={groupSearchEmpty}
+        onChangeQuery={setGroupSearchQuery}
+        onClose={() => setLibrarySearchOpen(false)}
       />
       <ScrollToTop
         visible={showScrollTop}
@@ -358,22 +369,14 @@ function ScaleButton({
 }
 
 function Toolbar({
-  groupSearchQuery,
-  onGroupSearchChange,
-  groupSearchCount,
-  groupSearchActive,
-  groupSearchEmpty,
+  onOpenLibrarySearch,
   onExpandAll,
   onCollapseAll,
   subsOnly,
   onToggleSubsOnly,
   onOpenLibraryActions,
 }: {
-  groupSearchQuery: string;
-  onGroupSearchChange: (query: string) => void;
-  groupSearchCount: number;
-  groupSearchActive: boolean;
-  groupSearchEmpty: boolean;
+  onOpenLibrarySearch: () => void;
   onExpandAll: () => void;
   onCollapseAll: () => void;
   subsOnly: boolean;
@@ -391,47 +394,23 @@ function Toolbar({
   const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
   return (
     <View style={styles.toolbarStack}>
-      <View
-        style={[
-          styles.groupSearch,
-          {
-            borderColor: groupSearchActive ? Accent.base : colors.border,
-            backgroundColor: colors.surface,
-          },
+      <Pressable
+        onPress={onOpenLibrarySearch}
+        accessibilityRole="button"
+        accessibilityLabel="เปิด Library Search"
+        style={({ pressed }) => [
+          styles.librarySearchDock,
+          { borderColor: pressed ? Accent.base : colors.border, backgroundColor: colors.surface },
+          pressed && styles.headerPressed,
         ]}>
-        <FiSearch size={15} color={groupSearchActive ? Accent.base : colors.textMuted} />
-        <TextInput
-          value={groupSearchQuery}
-          onChangeText={onGroupSearchChange}
-          placeholder="Group Search · N5 / vocab / owned"
-          placeholderTextColor={colors.textMuted}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-          accessibilityLabel="Group Search"
-          style={[styles.groupSearchInput, { color: colors.text }]}
-        />
-        {groupSearchActive && (
-          <ThemedText type="small" style={[styles.groupSearchCount, { color: groupSearchEmpty ? Accent.base : colors.textMuted }]}>
-            {groupSearchCount}
-          </ThemedText>
-        )}
-        {groupSearchActive && (
-          <Pressable
-            onPress={() => onGroupSearchChange('')}
-            accessibilityRole="button"
-            accessibilityLabel="Clear Group Search"
-            hitSlop={8}
-            style={({ pressed }) => [styles.groupSearchClear, pressed && styles.pressed]}>
-            <FiX size={14} color={Accent.base} />
-          </Pressable>
-        )}
-      </View>
-      {groupSearchEmpty && (
-        <ThemedText type="small" style={[styles.groupSearchHint, { color: colors.textMuted }]}>
-          ไม่พบ group หรือ deck ที่ตรงกัน · ลอง N5, vocab, owned, import
+        <FiSearch size={15} color={Accent.base} />
+        <ThemedText type="small" style={[styles.librarySearchDockText, { color: colors.textSecondary }]}>
+          ค้นในคลังคำ · level / group / deck
         </ThemedText>
-      )}
+        <ThemedText type="small" style={[styles.librarySearchDockHint, { color: colors.textHint }]}>
+          ⌕
+        </ThemedText>
+      </Pressable>
       <View style={styles.toolbar}>
         <ScaleButton
           onPress={onToggleSubsOnly}
@@ -478,6 +457,171 @@ function Toolbar({
         </ScaleButton>
       </View>
     </View>
+  );
+}
+
+function LibrarySearchModal({
+  visible,
+  query,
+  rows,
+  resultCount,
+  empty,
+  onChangeQuery,
+  onClose,
+}: {
+  visible: boolean;
+  query: string;
+  rows: BrowseRow[];
+  resultCount: number;
+  empty: boolean;
+  onChangeQuery: (query: string) => void;
+  onClose: () => void;
+}) {
+  const colors = useThemePalette();
+  const router = useRouter();
+  const inputRef = useRef<TextInput>(null);
+  const active = groupSearchHasQuery(query);
+
+  useEffect(() => {
+    if (!visible) return;
+    const id = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(id);
+  }, [visible]);
+
+  const openDeck = useCallback((deckId: string) => {
+    onClose();
+    router.push(`/deck/${deckId}` as never);
+  }, [onClose, router]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.librarySearchOverlay}>
+        <Pressable accessibilityLabel="ปิด Library Search" style={styles.librarySearchBackdrop} onPress={onClose} />
+        <View style={[styles.librarySearchPanel, { backgroundColor: colors.bg, borderColor: colors.borderStrong }]}>
+          <View style={styles.librarySearchHead}>
+            <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
+            <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
+              // LIBRARY SEARCH · ค้นในคลังคำ
+            </ThemedText>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ปิด Library Search"
+              hitSlop={8}
+              style={({ pressed }) => [styles.librarySearchClose, pressed && styles.pressed]}>
+              <FiX size={16} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+          <View style={[styles.librarySearchInputShell, { backgroundColor: colors.surface, borderColor: active ? Accent.base : colors.border }]}>
+            <FiSearch size={17} color={active ? Accent.base : colors.textMuted} />
+            <TextInput
+              ref={inputRef}
+              value={query}
+              onChangeText={onChangeQuery}
+              placeholder="N5 / kanji / pack 02 / vocab"
+              placeholderTextColor={colors.textMuted}
+              autoCorrect={false}
+              autoCapitalize="none"
+              returnKeyType="search"
+              accessibilityLabel="Library Search"
+              style={[styles.librarySearchInput, { color: colors.text }]}
+            />
+            {active && (
+              <Pressable
+                onPress={() => onChangeQuery('')}
+                accessibilityRole="button"
+                accessibilityLabel="ล้าง Library Search"
+                hitSlop={8}
+                style={({ pressed }) => [styles.groupSearchClear, pressed && styles.pressed]}>
+                <FiX size={14} color={Accent.base} />
+              </Pressable>
+            )}
+          </View>
+          <ThemedText type="small" style={[styles.librarySearchSubcopy, { color: colors.textMuted }]}>
+            หา level, group หรือ deck แล้วเลือกเข้า flow เรียนต่อ
+          </ThemedText>
+
+          {!active ? (
+            <View style={[styles.librarySearchEmptyState, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+              <ThemedText type="defaultSemiBold">ลองพิมพ์สิ่งที่จำได้</ThemedText>
+              <ThemedText type="small" style={{ color: colors.textMuted }}>
+                เช่น N5, kanji, vocab, pack 02, owned หรือ import
+              </ThemedText>
+            </View>
+          ) : empty ? (
+            <View style={[styles.librarySearchEmptyState, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+              <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>ไม่พบผลลัพธ์</ThemedText>
+              <ThemedText type="small" style={{ color: colors.textMuted }}>
+                ลองค้นด้วย level, group, deck title หรือ pack number
+              </ThemedText>
+            </View>
+          ) : (
+            <>
+              <View style={styles.librarySearchResultHead}>
+                <ThemedText type="smallBold" style={{ color: Accent.base }}>ผลลัพธ์ใน Library</ThemedText>
+                <ThemedText type="small" style={{ color: colors.textMuted }}>{resultCount} decks</ThemedText>
+              </View>
+              <ScrollView style={styles.librarySearchResults} contentContainerStyle={styles.librarySearchResultsInner} keyboardShouldPersistTaps="handled">
+                {rows.map((row) => (
+                  <LibrarySearchResultRow key={row.key} row={row} colors={colors} onOpenDeck={openDeck} />
+                ))}
+              </ScrollView>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function LibrarySearchResultRow({
+  row,
+  colors,
+  onOpenDeck,
+}: {
+  row: BrowseRow;
+  colors: ReturnType<typeof useThemePalette>;
+  onOpenDeck: (deckId: string) => void;
+}) {
+  if (row.kind === 'levelHeader') {
+    return (
+      <View style={styles.librarySearchLevelRow}>
+        <View style={styles.levelRule} />
+        <ThemedText type="defaultSemiBold" style={[styles.levelTitle, { color: Accent.base }]}>
+          {row.title}
+        </ThemedText>
+        <ThemedText type="small" style={{ color: colors.textMuted }}>{row.childCount}</ThemedText>
+      </View>
+    );
+  }
+
+  if (row.kind === 'categoryHeader') {
+    return (
+      <View style={styles.librarySearchCategoryRow}>
+        <ThemedText type="smallBold" style={[styles.categoryTitle, { color: colors.textSecondary }]}>
+          {row.title}
+        </ThemedText>
+        <ThemedText type="small" style={{ color: colors.textHint }}>{row.childCount}</ThemedText>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={() => onOpenDeck(row.deck.id)}
+      accessibilityRole="link"
+      accessibilityLabel={`เปิด ${row.deck.title}`}
+      style={({ pressed }) => [
+        styles.librarySearchDeckRow,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        pressed && { borderColor: Accent.base, backgroundColor: colors.surface2 },
+      ]}>
+      <View style={styles.deckStripe} />
+      <ThemedText type="defaultSemiBold" style={styles.librarySearchDeckTitle}>
+        {row.deck.title}
+      </ThemedText>
+      <ThemedText type="small" style={{ color: colors.textMuted }}>{row.deck.entryCount}</ThemedText>
+    </Pressable>
   );
 }
 
@@ -759,7 +903,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
     marginBottom: Spacing.two,
   },
-  groupSearch: {
+  librarySearchDock: {
     minHeight: 44,
     borderWidth: 1,
     borderRadius: Radii.sm,
@@ -768,28 +912,126 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  groupSearchInput: {
+  librarySearchDockText: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 9,
     fontSize: 14,
+  },
+  librarySearchDockHint: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 14,
+  },
+  librarySearchOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.four,
+  },
+  librarySearchBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(10, 8, 6, 0.62)',
+    backdropFilter: Platform.select({ web: 'blur(3px)', default: undefined }) as never,
+  },
+  librarySearchPanel: {
+    width: '100%',
+    maxWidth: 620,
+    maxHeight: '82%',
+    borderWidth: 1,
+    borderTopWidth: 3,
+    borderTopColor: Accent.base,
+    borderRadius: Radii.md,
+    padding: Spacing.four,
+    gap: Spacing.two,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  librarySearchHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  librarySearchClose: {
+    marginLeft: 'auto',
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  librarySearchInputShell: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  librarySearchInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 10,
+    fontSize: 16,
     fontFamily: Platform.select({ web: 'Sarabun, Inter, sans-serif', default: undefined }),
     outlineStyle: 'none' as never,
   },
-  groupSearchCount: {
-    minWidth: 22,
-    textAlign: 'right',
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 11,
+  librarySearchSubcopy: {
+    fontSize: 12,
+  },
+  librarySearchEmptyState: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.four,
+    gap: Spacing.one,
+    marginTop: Spacing.two,
+  },
+  librarySearchResultHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.one,
+  },
+  librarySearchResults: {
+    maxHeight: 360,
+  },
+  librarySearchResultsInner: {
+    paddingBottom: Spacing.two,
+  },
+  librarySearchLevelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.one,
+  },
+  librarySearchCategoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.one,
+    paddingLeft: Spacing.three,
+  },
+  librarySearchDeckRow: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginBottom: Spacing.one,
+  },
+  librarySearchDeckTitle: {
+    flex: 1,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
   },
   groupSearchClear: {
     width: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  groupSearchHint: {
-    fontSize: 11,
   },
   toolbar: {
     flexDirection: 'row',

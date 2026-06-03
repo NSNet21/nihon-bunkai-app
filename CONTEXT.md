@@ -43,8 +43,8 @@ A compact, input-like navigation control that opens the real Search route. On mo
 _Avoid_: Search button, search nav button, inline search field
 
 **Group Search**:
-A lightweight Browse filter for narrowing visible groups and decks by metadata such as level, content type, deck title, source, pack/id, or tags. Group Search does not search individual terms/entries and should stay separate from Term Search.
-_Avoid_: Section Search, Term Search, Search Pill, global search
+A Browse/Library modal search for finding groups, sub-groups, and decks by metadata such as level, content type, deck title, source, pack/id, or tags. Group Search shows hierarchy-aware results and opens the selected deck's learning hub. It does not search individual terms/entries and stays separate from Term Search.
+_Avoid_: Section Search, inline Browse filter, Term Search, Search Pill, global search
 
 **Term Search**:
 The current search surface for finding ready-to-learn terms across available entries, decks, content types, and levels by query.

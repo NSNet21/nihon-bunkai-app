@@ -287,6 +287,12 @@ export default function BrowseScreen() {
               {showContinue && lastSession && (
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
+              <View style={styles.libraryGroupHead}>
+                <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
+                <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
+                  // LIBRARY · คลังคำ
+                </ThemedText>
+              </View>
               <Toolbar
                 groupSearchQuery={groupSearchQuery}
                 onGroupSearchChange={setGroupSearchQuery}
@@ -731,19 +737,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  /* Toolbar visual weight reduced ~15% via opacity per GPT polish round
-     2026-05-27. The 3 view-mode buttons were drawing the eye as if they
-     were primary actions; lowered opacity keeps them discoverable but
-     drops them down the visual hierarchy below the Continue cards.
-
-     Round-2 verdict (2026-05-27): opacity alone made it read as a
-     "footer of Continue cards" rather than its own utility row. Added
-     marginTop: Spacing.six (~32) so toolbar sits in its own rhythm slot
-     between Continue and the deck list below. */
+  libraryGroupHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.five,
+  },
+  libraryPip: { width: 14, height: 2 },
+  libraryKicker: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+  },
+  /* Browse list tools. Keep these visually attached to the Library
+     section below; large margins make the controls read as part of the
+     Continue area instead of the deck/group list. */
   toolbarStack: {
     gap: Spacing.two,
-    marginTop: Spacing.six,
-    marginBottom: Spacing.five,
+    marginTop: Spacing.one,
+    marginBottom: Spacing.two,
   },
   groupSearch: {
     minHeight: 44,
@@ -833,7 +847,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    paddingTop: Spacing.five,
+    paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
   },
   levelTitle: { fontSize: 18, letterSpacing: 1.5 },

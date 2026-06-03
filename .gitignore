@@ -21,6 +21,10 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# local visual QA artifacts
+.visual-qa/
+.codex-visual-qa-expo*.log
+
 # debug
 npm-debug.*
 yarn-debug.*

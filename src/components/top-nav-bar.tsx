@@ -117,19 +117,31 @@ function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel="ไปหน้า Search"
-      style={({ pressed }) => [
-        styles.mobileTopSearch,
-        {
-          backgroundColor: colors.surface2,
-          borderColor: colors.border,
-        },
-        pressed && { opacity: 0.72 },
-      ]}
+      style={({ pressed, hovered }: any) => {
+        const active = pressed || hovered;
+        return [
+          styles.mobileTopSearch,
+          {
+            backgroundColor: colors.surface2,
+            borderColor: active ? Accent.base : colors.border,
+          },
+          pressed && { opacity: 0.78 },
+        ];
+      }}
     >
-      <FiSearch size={16} color={colors.textSecondary} />
-      <ThemedText style={[styles.mobileTopSearchText, { color: colors.textHint }]}>
-        ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
-      </ThemedText>
+      {({ pressed, hovered }: any) => {
+        const active = pressed || hovered;
+        const color = active ? Accent.base : colors.textSecondary;
+        return (
+          <>
+            <FiSearch size={16} color={color} />
+            <ThemedText style={[styles.mobileTopSearchText, { color: active ? colors.text : colors.textHint }]}>
+              ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
+            </ThemedText>
+            <View style={[styles.mobileTopSearchFocusMark, { backgroundColor: Accent.base, opacity: active ? 1 : 0.55 }]} />
+          </>
+        );
+      }}
     </Pressable>
   );
 }
@@ -347,6 +359,10 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontSize: 12,
     lineHeight: 16,
+  },
+  mobileTopSearchFocusMark: {
+    width: 2,
+    height: 18,
   },
   tabs: {
     flexDirection: 'row',

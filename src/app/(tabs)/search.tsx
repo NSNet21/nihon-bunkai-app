@@ -346,11 +346,11 @@ export default function SearchScreen() {
   useEffect(() => {
     if (!scrollTopParam) return;
     const id = setTimeout(() => {
-      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
       fastScrollMetrics.current.offset = 0;
       syncFastThumbFromScroll();
       setShowScrollTop(false);
-    }, 80);
+    }, 0);
     return () => clearTimeout(id);
   }, [scrollTopParam, syncFastThumbFromScroll]);
 

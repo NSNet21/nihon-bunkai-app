@@ -34,9 +34,9 @@ export default function SettingsScreen() {
   useEffect(() => {
     if (!scrollTopParam) return;
     const id = setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
       setShowScrollTop(false);
-    }, 80);
+    }, 0);
     return () => clearTimeout(id);
   }, [scrollTopParam]);
 

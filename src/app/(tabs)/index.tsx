@@ -194,9 +194,9 @@ export default function BrowseScreen() {
   useEffect(() => {
     if (!scrollTopParam) return;
     const id = setTimeout(() => {
-      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
       setShowScrollTop(false);
-    }, 80);
+    }, 0);
     return () => clearTimeout(id);
   }, [scrollTopParam]);
 

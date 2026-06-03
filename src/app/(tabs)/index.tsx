@@ -620,7 +620,9 @@ function LibrarySearchResultRow({
       <ThemedText type="defaultSemiBold" style={styles.librarySearchDeckTitle}>
         {row.deck.title}
       </ThemedText>
-      <ThemedText type="small" style={{ color: colors.textMuted }}>{row.deck.entryCount}</ThemedText>
+      <ThemedText type="small" style={[styles.librarySearchDeckCount, { color: colors.textMuted }]}>
+        {row.deck.entryCount}
+      </ThemedText>
     </Pressable>
   );
 }
@@ -994,9 +996,12 @@ const styles = StyleSheet.create({
   },
   librarySearchResults: {
     maxHeight: 360,
+    marginRight: -Spacing.one,
+    paddingRight: Spacing.one,
   },
   librarySearchResultsInner: {
     paddingBottom: Spacing.two,
+    paddingRight: Spacing.two,
   },
   librarySearchLevelRow: {
     flexDirection: 'row',
@@ -1026,6 +1031,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.three,
+  },
+  librarySearchDeckCount: {
+    minWidth: 42,
+    paddingRight: Spacing.three,
+    textAlign: 'right',
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 12,
   },
   groupSearchClear: {
     width: 24,

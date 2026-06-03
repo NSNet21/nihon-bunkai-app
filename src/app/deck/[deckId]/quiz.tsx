@@ -33,6 +33,7 @@ import { useAuth } from '@/context/auth';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
+import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
@@ -42,9 +43,11 @@ import { usePersistedState } from '@/hooks/use-persisted-state';
 import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
 import type { LastSession } from '@/lib/last-session';
+import { studyFallbackHref } from '@/lib/navigation-back';
 
 export default function StudyScreen() {
   const { deckId, entryId, count: countParam } = useLocalSearchParams<{ deckId?: string; entryId?: string; count?: string }>();
+  const backFallbackHref = studyFallbackHref(deckId);
   /* count search param (10/20/30/50) limits this session to first N
      entries. Set by Hub Quiz CTA or Config "เริ่มทดสอบ". Resume mode
      (entryId present) overrides count — user explicitly came to finish
@@ -323,6 +326,7 @@ export default function StudyScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <StudyMobileBackButton fallbackHref={backFallbackHref} />
         <View style={styles.content}>
           {!deck ? (
             <EmptyState

@@ -31,6 +31,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { type ColumnVisibility, VisibilityPopup } from '@/components/flashcard';
 import { OverlayRailButton } from '@/components/overlay-rail-button';
 import { SpeakButton } from '@/components/speak-button';
+import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -40,6 +41,7 @@ import { usePersistedState } from '@/hooks/use-persisted-state';
 import type { Entry } from '@/data/types';
 import { loadGroupEntriesAsync, parseGroupIds } from '@/lib/group-entries';
 import type { LastSession } from '@/lib/last-session';
+import { studyFallbackHref } from '@/lib/navigation-back';
 
 export default function MemorizeScreen() {
   const { deckId, entryId, ids } = useLocalSearchParams<{ deckId?: string; entryId?: string; ids?: string }>();
@@ -49,6 +51,7 @@ export default function MemorizeScreen() {
      12/120" semantics for v1). */
   const groupIds = useMemo(() => parseGroupIds(ids), [ids]);
   const isGroupMode = groupIds.length > 0;
+  const backFallbackHref = studyFallbackHref(deckId);
   const { scheme, colors } = useThemeColors();
   const { width: screenW } = useWindowDimensions();
 
@@ -258,7 +261,7 @@ export default function MemorizeScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <Header />
+          <Header backFallbackHref={backFallbackHref} />
           <View style={styles.centerFill}>
             <ThemedText type="title">{isEmpty ? 'ยังไม่มีคำในชุดนี้' : 'ไม่พบ Deck'}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center', maxWidth: 320 }}>
@@ -276,7 +279,7 @@ export default function MemorizeScreen() {
         {/* In-page header now empty — counter moved to bottom row
             (user request 2026-05-27). Sliders icon sits on the card
             top-right via absolute positioning (see configBtnFloat). */}
-        <Header />
+        <Header backFallbackHref={backFallbackHref} />
 
         {/* Card-as-scroll-container restructure 2026-05-27 (user request):
             page no longer scrolls — the card frame fills available space and
@@ -568,12 +571,16 @@ export default function MemorizeScreen() {
 
 /* ─── Subcomponents ─────────────────────────────────────────────────── */
 
-function Header() {
+function Header({ backFallbackHref }: { backFallbackHref: string }) {
   /* In-page header — thin spacer only. Counter moved to bottomCounter.
      Kept so the card doesn't crash into the TopNavBar. Sliders icon
      lives ON the card via absolute positioning (configBtnFloat) so it
      sits in-context with the content instead of stealing header space. */
-  return <View style={styles.headerBar} />;
+  return (
+    <View style={styles.headerBar}>
+      <StudyMobileBackButton fallbackHref={backFallbackHref} floating={false} />
+    </View>
+  );
 }
 
 /** Side rail button — always-visible chevron beside the card on wide

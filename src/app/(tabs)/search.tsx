@@ -16,6 +16,7 @@ import { useSearchIndex } from '@/hooks/use-search-index';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { ContentType, JlptLevel } from '@/data/types';
 import type { SearchResult } from '@/lib/search-index';
+import { searchFocusToken } from '@/lib/search-route-focus';
 
 const TYPE_LABEL: Record<ContentType, string> = {
   vocab: 'VOCAB',
@@ -122,6 +123,7 @@ export default function SearchScreen() {
   const listRef = useRef<FlashListRef<ListItem>>(null);
   const focusParam = Array.isArray(params.focus) ? params.focus[0] : params.focus;
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
+  const focusToken = searchFocusToken(focusParam, scrollTopParam);
 
   /* FastScroller wiring — mobile (compact) only. Latest scroll
      metrics live in a ref so the high-frequency onScroll callback
@@ -338,10 +340,10 @@ export default function SearchScreen() {
   }, []);
 
   useEffect(() => {
-    if (focusParam !== '1') return;
+    if (!focusToken) return;
     const id = setTimeout(() => inputRef.current?.focus(), 80);
     return () => clearTimeout(id);
-  }, [focusParam]);
+  }, [focusToken]);
 
   useEffect(() => {
     if (!scrollTopParam) return;
@@ -410,7 +412,6 @@ export default function SearchScreen() {
       </ThemedText>
       {edgeScrollSurface && headerHeight > 0 ? (
         <View
-          pointerEvents="none"
           style={[
             styles.desktopHeaderScrim,
             tabletRailStyle,
@@ -418,6 +419,7 @@ export default function SearchScreen() {
               height: headerHeight,
               backgroundColor: withHexAlpha(c.background, Platform.OS === 'web' ? 'c7' : 'ec'),
               borderBottomColor: c.border,
+              pointerEvents: 'none',
             },
           ]}
         />
@@ -599,11 +601,11 @@ export default function SearchScreen() {
       </View>
       {touchSeek && fastToast.visible && (fastToast.group || fastToast.term || fastToast.reading) ? (
         <View
-          pointerEvents="none"
           style={[
             styles.fastScrollerToastLayer,
             tabletSearchRail && styles.fastScrollerToastLayerTablet,
             compactToast && styles.fastScrollerToastLayerCompact,
+            { pointerEvents: 'none' },
           ]}>
           <View style={[
             styles.fastScrollerToast,

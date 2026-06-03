@@ -743,10 +743,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   hierarchyHeaderNoCheck: {
-    paddingLeft: Spacing.three,
+    paddingLeft: 0,
   },
   hierarchyHeaderCompactNoCheck: {
-    paddingLeft: Spacing.four,
+    paddingLeft: Spacing.one,
   },
   hierarchyCheck: {
     width: 56,

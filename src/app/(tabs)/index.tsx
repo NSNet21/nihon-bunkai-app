@@ -1,8 +1,16 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { FiChevronDown, FiChevronsDown, FiChevronsUp, FiLayers, FiLock } from 'react-icons/fi';
+import { Linking, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  FiChevronDown,
+  FiChevronsDown,
+  FiChevronsUp,
+  FiLayers,
+  FiLock,
+  FiMinusSquare,
+  FiPlusSquare,
+} from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -168,6 +176,14 @@ export default function BrowseScreen() {
     setClosedCategories(new Set(allCategoryKeys));
   }
 
+  const toggleToolbarScope = useCallback(() => {
+    setSubsOnly((prev) => {
+      const next = !prev;
+      if (next) setClosedLevels(new Set());
+      return next;
+    });
+  }, []);
+
   const rows = useMemo(
     () => buildRows(decks, closedLevels, closedCategories),
     [decks, closedLevels, closedCategories],
@@ -308,7 +324,7 @@ export default function BrowseScreen() {
                 onExpandAll={expandAll}
                 onCollapseAll={collapseAll}
                 subsOnly={subsOnly}
-                onToggleSubsOnly={() => setSubsOnly((v) => !v)}
+                onToggleSubsOnly={toggleToolbarScope}
                 onOpenLibraryActions={() => setLibraryActionsOpen(true)}
               />
             </View>
@@ -377,31 +393,21 @@ function Toolbar({
   onOpenLibraryActions: () => void;
 }) {
   const colors = useThemePalette();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 520;
+  const useTouchIcons = width < 900;
+  const expandLabel = isCompact ? 'Open' : 'Expand';
+  const collapseLabel = isCompact ? 'Fold' : 'Collapse';
+  const scopeLabel = subsOnly ? 'Group' : 'All';
+  const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
+  const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
   return (
     <View style={styles.toolbar}>
       <ScaleButton
-        onPress={onExpandAll}
-        accessibilityLabel="ขยายทั้งหมด"
-        style={[styles.toolBtn, { borderColor: colors.border }]}>
-        <View style={styles.toolBtnContent}>
-          <FiChevronsDown size={14} color={colors.text} />
-          <ThemedText type="small" themeColor="textSecondary">ขยาย</ThemedText>
-        </View>
-      </ScaleButton>
-      <ScaleButton
-        onPress={onCollapseAll}
-        accessibilityLabel="ย่อทั้งหมด"
-        style={[styles.toolBtn, { borderColor: colors.border }]}>
-        <View style={styles.toolBtnContent}>
-          <FiChevronsUp size={14} color={colors.text} />
-          <ThemedText type="small" themeColor="textSecondary">ย่อ</ThemedText>
-        </View>
-      </ScaleButton>
-      <ScaleButton
         onPress={onToggleSubsOnly}
-        accessibilityLabel="สลับโหมดเฉพาะหมวด"
+        accessibilityLabel={subsOnly ? 'Switch toolbar scope to all groups' : 'Switch toolbar scope to group only'}
         style={[
-          styles.toolBtn,
+          styles.scopeBtn,
           {
             borderColor: subsOnly ? Accent.base : colors.border,
             backgroundColor: subsOnly ? Accent.bg : 'transparent',
@@ -409,8 +415,26 @@ function Toolbar({
         ]}>
         <View style={styles.toolBtnContent}>
           <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
-            เฉพาะหมวด
+            {scopeLabel}
           </ThemedText>
+        </View>
+      </ScaleButton>
+      <ScaleButton
+        onPress={onExpandAll}
+        accessibilityLabel={subsOnly ? 'Expand groups' : 'Expand all'}
+        style={[styles.toolBtn, { borderColor: colors.border }]}>
+        <View style={styles.toolBtnContent}>
+          <ExpandIcon size={14} color={colors.text} />
+          <ThemedText type="small" themeColor="textSecondary">{expandLabel}</ThemedText>
+        </View>
+      </ScaleButton>
+      <ScaleButton
+        onPress={onCollapseAll}
+        accessibilityLabel={subsOnly ? 'Collapse groups' : 'Collapse all'}
+        style={[styles.toolBtn, { borderColor: colors.border }]}>
+        <View style={styles.toolBtnContent}>
+          <CollapseIcon size={14} color={colors.text} />
+          <ThemedText type="small" themeColor="textSecondary">{collapseLabel}</ThemedText>
         </View>
       </ScaleButton>
       <ScaleButton
@@ -419,7 +443,7 @@ function Toolbar({
         style={[styles.toolBtn, { borderColor: colors.border }]}>
         <View style={styles.toolBtnContent}>
           <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">Library</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
         </View>
       </ScaleButton>
     </View>
@@ -697,7 +721,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.six,
     marginBottom: Spacing.five,
     flexWrap: 'wrap',
-    opacity: 0.85,
+    alignItems: 'center',
   },
   /* Continue group head — kicker that gives parent meaning to the 2
      QUIZ/LEARN Continue cards. Mirrors the Hub TEST section pip+mono
@@ -719,7 +743,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   toolBtn: {
-    paddingVertical: 4,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingVertical: 5,
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
     borderWidth: 1,
@@ -728,6 +754,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  scopeBtn: {
+    minHeight: 36,
+    minWidth: 82,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
   },
   listContent: {
     paddingHorizontal: Spacing.four,

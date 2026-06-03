@@ -1,7 +1,8 @@
 import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
 import { useRef } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiArrowLeft, FiBookOpen, FiSearch, FiSettings, FiShoppingBag } from 'react-icons/fi';
+import { FiArrowLeft, FiSearch } from 'react-icons/fi';
+import { PiBookOpenText, PiGearSix, PiShoppingBagOpen } from 'react-icons/pi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -12,7 +13,7 @@ import { useThemePalette } from '@/context/theme';
 import { useHasHydrated } from '@/hooks/use-has-hydrated';
 
 type Tab = { href: string; label: string };
-type MobileTab = Tab & { Icon: typeof FiBookOpen };
+type MobileTab = Tab & { Icon: typeof PiBookOpenText };
 
 const MOBILE_NAV_BREAKPOINT = 768;
 
@@ -162,9 +163,9 @@ const TABS: Tab[] = [
 ];
 
 const MOBILE_TABS: MobileTab[] = [
-  { href: '/',          label: 'Browse',   Icon: FiBookOpen },
-  { href: '/shop',      label: 'Shop',     Icon: FiShoppingBag },
-  { href: '/settings',  label: 'Settings', Icon: FiSettings },
+  { href: '/',          label: 'Browse',   Icon: PiBookOpenText },
+  { href: '/shop',      label: 'Shop',     Icon: PiShoppingBagOpen },
+  { href: '/settings',  label: 'Settings', Icon: PiGearSix },
 ];
 
 /* Routes that enter focus mode — nav links hide, only Back button shows.
@@ -441,7 +442,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 1,
     borderRadius: Radii.sm,
     overflow: 'hidden',
   },

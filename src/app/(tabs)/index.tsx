@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import {
   FiChevronDown,
   FiChevronsDown,
@@ -10,6 +10,8 @@ import {
   FiLock,
   FiMinusSquare,
   FiPlusSquare,
+  FiSearch,
+  FiX,
 } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -31,68 +33,14 @@ import { useAllDecks } from '@/hooks/use-decks';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { Deck } from '@/data/types';
+import {
+  buildBrowseRows,
+  filterBrowseDecks,
+  type BrowseRow,
+} from '@/lib/browse-group-search';
 import type { LastSession } from '@/lib/last-session';
 
 const SCROLL_TOP_THRESHOLD = 400;
-
-type Row =
-  | { kind: 'levelHeader';    title: string; key: string; level: string; isOpen: boolean; childCount: number }
-  | { kind: 'categoryHeader'; title: string; key: string; level: string; category: Deck['type']; isOpen: boolean; childCount: number }
-  | { kind: 'deck';           deck: Deck;    key: string; isLast: boolean };
-
-const CATEGORY_ORDER: Deck['type'][] = ['kanji', 'grammar', 'vocab', 'glossary'];
-const CATEGORY_LABEL: Record<Deck['type'], string> = {
-  kanji:    'KANJI',
-  grammar:  'GRAMMAR',
-  vocab:    'VOCAB',
-  glossary: 'GLOSSARY',
-};
-
-function buildRows(
-  allDecks: Deck[],
-  closedLevels: Set<string>,
-  closedCategories: Set<string>,
-): Row[] {
-  /* level → category → decks[] */
-  const byLevel = new Map<string, Map<Deck['type'], Deck[]>>();
-  for (const d of allDecks) {
-    const lvl = d.level ?? 'GLOSSARY';
-    if (!byLevel.has(lvl)) byLevel.set(lvl, new Map());
-    const cat = byLevel.get(lvl)!;
-    if (!cat.has(d.type)) cat.set(d.type, []);
-    cat.get(d.type)!.push(d);
-  }
-
-  const rows: Row[] = [];
-  const levelOrder = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
-  for (const lvl of levelOrder) {
-    const cats = byLevel.get(lvl);
-    if (!cats) continue;
-    const levelOpen = !closedLevels.has(lvl);
-    const totalChildren = Array.from(cats.values()).reduce((s, arr) => s + arr.length, 0);
-    rows.push({ kind: 'levelHeader', title: lvl, key: `lvl-${lvl}`, level: lvl, isOpen: levelOpen, childCount: totalChildren });
-    if (!levelOpen) continue;
-
-    for (const cat of CATEGORY_ORDER) {
-      const catDecks = cats.get(cat);
-      if (!catDecks?.length) continue;
-      const catKey = `${lvl}/${cat}`;
-      const showCategoryHeader = cats.size > 1;
-      const categoryOpen = !closedCategories.has(catKey);
-
-      if (showCategoryHeader) {
-        rows.push({ kind: 'categoryHeader', title: CATEGORY_LABEL[cat], key: `cat-${catKey}`, level: lvl, category: cat, isOpen: categoryOpen, childCount: catDecks.length });
-        if (!categoryOpen) continue;
-      }
-
-      catDecks.forEach((d, i) => {
-        rows.push({ kind: 'deck', deck: d, key: d.id, isLast: i === catDecks.length - 1 });
-      });
-    }
-  }
-
-  return rows;
-}
 
 export default function BrowseScreen() {
   const router = useRouter();
@@ -100,7 +48,8 @@ export default function BrowseScreen() {
   const [closedLevels, setClosedLevels] = useState<Set<string>>(new Set());
   const [closedCategories, setClosedCategories] = useState<Set<string>>(new Set());
   const [subsOnly, setSubsOnly] = useState(false);
-  const listRef = useRef<FlashListRef<Row>>(null);
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
+  const listRef = useRef<FlashListRef<BrowseRow>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
   const colors = useThemePalette();
@@ -186,10 +135,16 @@ export default function BrowseScreen() {
     });
   }, []);
 
-  const rows = useMemo(
-    () => buildRows(decks, closedLevels, closedCategories),
-    [decks, closedLevels, closedCategories],
+  const hasGroupSearch = groupSearchQuery.trim().length > 0;
+  const filteredDecks = useMemo(
+    () => filterBrowseDecks(decks, groupSearchQuery),
+    [decks, groupSearchQuery],
   );
+  const rows = useMemo(
+    () => buildBrowseRows(filteredDecks, closedLevels, closedCategories, hasGroupSearch),
+    [filteredDecks, closedLevels, closedCategories, hasGroupSearch],
+  );
+  const groupSearchEmpty = hasGroupSearch && filteredDecks.length === 0;
 
   useEffect(() => {
     if (!scrollTopParam) return;
@@ -221,7 +176,7 @@ export default function BrowseScreen() {
      toggle callbacks. Together with React.memo'd row components, this
      lets FlashList skip re-rendering rows when only unrelated state
      (e.g. showScrollTop) changes in the parent. */
-  const renderItem = useCallback(({ item }: { item: Row }) => {
+  const renderItem = useCallback(({ item }: { item: BrowseRow }) => {
     let inner;
     if (item.kind === 'levelHeader')
       inner = (
@@ -255,7 +210,7 @@ export default function BrowseScreen() {
       {/* Ghost kanji 学 — faint editorial decoration, behind all content. */}
       <ThemedText style={styles.ghostKanji}>学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <FlashList<Row>
+        <FlashList<BrowseRow>
           ref={listRef}
           data={rows}
           keyExtractor={(item) => item.key}
@@ -333,6 +288,11 @@ export default function BrowseScreen() {
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
               <Toolbar
+                groupSearchQuery={groupSearchQuery}
+                onGroupSearchChange={setGroupSearchQuery}
+                groupSearchCount={filteredDecks.length}
+                groupSearchActive={hasGroupSearch}
+                groupSearchEmpty={groupSearchEmpty}
                 onExpandAll={expandAll}
                 onCollapseAll={collapseAll}
                 subsOnly={subsOnly}
@@ -392,12 +352,22 @@ function ScaleButton({
 }
 
 function Toolbar({
+  groupSearchQuery,
+  onGroupSearchChange,
+  groupSearchCount,
+  groupSearchActive,
+  groupSearchEmpty,
   onExpandAll,
   onCollapseAll,
   subsOnly,
   onToggleSubsOnly,
   onOpenLibraryActions,
 }: {
+  groupSearchQuery: string;
+  onGroupSearchChange: (query: string) => void;
+  groupSearchCount: number;
+  groupSearchActive: boolean;
+  groupSearchEmpty: boolean;
   onExpandAll: () => void;
   onCollapseAll: () => void;
   subsOnly: boolean;
@@ -414,50 +384,93 @@ function Toolbar({
   const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
   const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
   return (
-    <View style={styles.toolbar}>
-      <ScaleButton
-        onPress={onToggleSubsOnly}
-        accessibilityLabel={subsOnly ? 'Switch toolbar scope to all groups' : 'Switch toolbar scope to group only'}
+    <View style={styles.toolbarStack}>
+      <View
         style={[
-          styles.scopeBtn,
+          styles.groupSearch,
           {
-            borderColor: subsOnly ? Accent.base : colors.border,
-            backgroundColor: subsOnly ? Accent.bg : 'transparent',
+            borderColor: groupSearchActive ? Accent.base : colors.border,
+            backgroundColor: colors.surface,
           },
         ]}>
-        <View style={styles.toolBtnContent}>
-          <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
-            {scopeLabel}
+        <FiSearch size={15} color={groupSearchActive ? Accent.base : colors.textMuted} />
+        <TextInput
+          value={groupSearchQuery}
+          onChangeText={onGroupSearchChange}
+          placeholder="Group Search · N5 / vocab / owned"
+          placeholderTextColor={colors.textMuted}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+          accessibilityLabel="Group Search"
+          style={[styles.groupSearchInput, { color: colors.text }]}
+        />
+        {groupSearchActive && (
+          <ThemedText type="small" style={[styles.groupSearchCount, { color: groupSearchEmpty ? Accent.base : colors.textMuted }]}>
+            {groupSearchCount}
           </ThemedText>
-        </View>
-      </ScaleButton>
-      <ScaleButton
-        onPress={onExpandAll}
-        accessibilityLabel={subsOnly ? 'Expand groups' : 'Expand all'}
-        style={[styles.toolBtn, { borderColor: colors.border }]}>
-        <View style={styles.toolBtnContent}>
-          <ExpandIcon size={14} color={colors.text} />
-          <ThemedText type="small" themeColor="textSecondary">{expandLabel}</ThemedText>
-        </View>
-      </ScaleButton>
-      <ScaleButton
-        onPress={onCollapseAll}
-        accessibilityLabel={subsOnly ? 'Collapse groups' : 'Collapse all'}
-        style={[styles.toolBtn, { borderColor: colors.border }]}>
-        <View style={styles.toolBtnContent}>
-          <CollapseIcon size={14} color={colors.text} />
-          <ThemedText type="small" themeColor="textSecondary">{collapseLabel}</ThemedText>
-        </View>
-      </ScaleButton>
-      <ScaleButton
-        onPress={onOpenLibraryActions}
-        accessibilityLabel="เปิด Import / Export"
-        style={[styles.toolBtn, { borderColor: colors.border }]}>
-        <View style={styles.toolBtnContent}>
-          <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
-        </View>
-      </ScaleButton>
+        )}
+        {groupSearchActive && (
+          <Pressable
+            onPress={() => onGroupSearchChange('')}
+            accessibilityRole="button"
+            accessibilityLabel="Clear Group Search"
+            hitSlop={8}
+            style={({ pressed }) => [styles.groupSearchClear, pressed && styles.pressed]}>
+            <FiX size={14} color={Accent.base} />
+          </Pressable>
+        )}
+      </View>
+      {groupSearchEmpty && (
+        <ThemedText type="small" style={[styles.groupSearchHint, { color: colors.textMuted }]}>
+          ไม่พบ group หรือ deck ที่ตรงกัน · ลอง N5, vocab, owned, import
+        </ThemedText>
+      )}
+      <View style={styles.toolbar}>
+        <ScaleButton
+          onPress={onToggleSubsOnly}
+          accessibilityLabel={subsOnly ? 'Switch toolbar scope to all groups' : 'Switch toolbar scope to group only'}
+          style={[
+            styles.scopeBtn,
+            {
+              borderColor: subsOnly ? Accent.base : colors.border,
+              backgroundColor: subsOnly ? Accent.bg : 'transparent',
+            },
+          ]}>
+          <View style={styles.toolBtnContent}>
+            <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
+              {scopeLabel}
+            </ThemedText>
+          </View>
+        </ScaleButton>
+        <ScaleButton
+          onPress={onExpandAll}
+          accessibilityLabel={subsOnly ? 'Expand groups' : 'Expand all'}
+          style={[styles.toolBtn, { borderColor: colors.border }]}>
+          <View style={styles.toolBtnContent}>
+            <ExpandIcon size={14} color={colors.text} />
+            <ThemedText type="small" themeColor="textSecondary">{expandLabel}</ThemedText>
+          </View>
+        </ScaleButton>
+        <ScaleButton
+          onPress={onCollapseAll}
+          accessibilityLabel={subsOnly ? 'Collapse groups' : 'Collapse all'}
+          style={[styles.toolBtn, { borderColor: colors.border }]}>
+          <View style={styles.toolBtnContent}>
+            <CollapseIcon size={14} color={colors.text} />
+            <ThemedText type="small" themeColor="textSecondary">{collapseLabel}</ThemedText>
+          </View>
+        </ScaleButton>
+        <ScaleButton
+          onPress={onOpenLibraryActions}
+          accessibilityLabel="เปิด Import / Export"
+          style={[styles.toolBtn, { borderColor: colors.border }]}>
+          <View style={styles.toolBtnContent}>
+            <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
+          </View>
+        </ScaleButton>
+      </View>
     </View>
   );
 }
@@ -727,11 +740,46 @@ const styles = StyleSheet.create({
      "footer of Continue cards" rather than its own utility row. Added
      marginTop: Spacing.six (~32) so toolbar sits in its own rhythm slot
      between Continue and the deck list below. */
-  toolbar: {
-    flexDirection: 'row',
+  toolbarStack: {
     gap: Spacing.two,
     marginTop: Spacing.six,
     marginBottom: Spacing.five,
+  },
+  groupSearch: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  groupSearchInput: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 9,
+    fontSize: 14,
+    fontFamily: Platform.select({ web: 'Sarabun, Inter, sans-serif', default: undefined }),
+    outlineStyle: 'none' as never,
+  },
+  groupSearchCount: {
+    minWidth: 22,
+    textAlign: 'right',
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 11,
+  },
+  groupSearchClear: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupSearchHint: {
+    fontSize: 11,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    gap: Spacing.two,
     flexWrap: 'wrap',
     alignItems: 'center',
   },

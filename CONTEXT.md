@@ -42,6 +42,10 @@ _Avoid_: Term Search only, Browse hierarchy
 A compact, input-like navigation control that opens the real Search route. On mobile Browse, the Search Pill sits in the top bar beside the wordmark, uses a search-bar surface, shows crimson active/focus feedback, briefly lingers before navigation, and then focuses the Search route input. It is not an inline Browse filter.
 _Avoid_: Search button, search nav button, inline search field
 
+**Group Search**:
+A lightweight Browse filter for narrowing visible groups and decks by metadata such as level, content type, deck title, source, pack/id, or tags. Group Search does not search individual terms/entries and should stay separate from Term Search.
+_Avoid_: Section Search, Term Search, Search Pill, global search
+
 **Term Search**:
 The current search surface for finding ready-to-learn terms across available entries, decks, content types, and levels by query.
 _Avoid_: All future search features, locked catalog search

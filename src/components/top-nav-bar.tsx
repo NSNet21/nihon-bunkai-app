@@ -1,5 +1,5 @@
 import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiArrowLeft, FiSearch } from 'react-icons/fi';
 import { PiBookOpenText, PiGearSix, PiShoppingBagOpen } from 'react-icons/pi';
@@ -121,36 +121,34 @@ function BrandLink({
 }
 
 function MobileTopSearchEntry({ onPress, colors }: { onPress: () => void; colors: typeof Colors.light }) {
+  const [focused, setFocused] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const active = focused || pressed;
+  const activeColor = active ? Accent.base : colors.textSecondary;
+
   return (
     <Pressable
       onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       accessibilityRole="button"
       accessibilityLabel="ไปหน้า Search"
-      style={({ pressed, focused }: any) => {
-        const active = pressed || focused;
-        return [
-          styles.mobileTopSearch,
-          {
-            backgroundColor: colors.surface2,
-            borderColor: active ? Accent.base : colors.border,
-          },
-          pressed && { opacity: 0.78 },
-        ];
-      }}
+      style={[
+        styles.mobileTopSearch,
+        {
+          backgroundColor: colors.surface2,
+          borderColor: active ? Accent.base : colors.border,
+        },
+        pressed && { opacity: 0.78 },
+      ]}
     >
-      {({ pressed, focused }: any) => {
-        const active = pressed || focused;
-        const color = active ? Accent.base : colors.textSecondary;
-        return (
-          <>
-            <FiSearch size={16} color={color} />
-            <ThemedText style={[styles.mobileTopSearchText, { color: active ? colors.text : colors.textHint }]}>
-              ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
-            </ThemedText>
-            <View style={[styles.mobileTopSearchFocusMark, { backgroundColor: Accent.base, opacity: active ? 1 : 0.55 }]} />
-          </>
-        );
-      }}
+      <FiSearch size={16} color={activeColor} />
+      <ThemedText style={[styles.mobileTopSearchText, { color: active ? colors.text : colors.textHint }]}>
+        ค้นหาคำศัพท์ / ไวยากรณ์ / คันจิ
+      </ThemedText>
+      <View style={[styles.mobileTopSearchFocusMark, { backgroundColor: Accent.base, opacity: active ? 1 : 0.18 }]} />
     </Pressable>
   );
 }

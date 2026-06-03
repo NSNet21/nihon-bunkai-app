@@ -38,6 +38,10 @@ _Avoid_: Shop, search-only page, raw catalog
 The app capability for finding something the user needs, such as terms, decks, or future searchable objects.
 _Avoid_: Term Search only, Browse hierarchy
 
+**Search Pill**:
+A compact, input-like navigation control that opens the real Search route. On mobile Browse, the Search Pill sits in the top bar beside the wordmark, uses a search-bar surface, shows crimson active/focus feedback, briefly lingers before navigation, and then focuses the Search route input. It is not an inline Browse filter.
+_Avoid_: Search button, search nav button, inline search field
+
 **Term Search**:
 The current search surface for finding ready-to-learn terms across available entries, decks, content types, and levels by query.
 _Avoid_: All future search features, locked catalog search
@@ -548,6 +552,7 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Term** usually maps to one **Entry**, while **Card** is how that entry/term appears in the UI.
 - **Pack** can unlock or deliver content that appears as one or more **Decks**, but it is not itself a **Deck** in app domain language.
 - **Browse** shows **Ready** content as terms and decks for use.
+- **Search Pill** is a navigation affordance into **Search**. It can look like an input, but it should not perform inline Browse filtering.
 - **Term Search** queries the **Search Scope**, which should primarily contain ready-to-learn content.
 - **Search Corpus** is an implementation-facing alias for **Search Scope**.
 - **Search** can expand beyond **Term Search** in future features.

@@ -9,7 +9,7 @@ import { useThemePalette } from '@/context/theme';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
-import { buildExportHierarchy, type ExportHierarchyGroup } from '@/lib/import-export/export-hierarchy';
+import { buildExportHierarchy, getExportSelectionSummary, type ExportHierarchyGroup, type ExportSelectionSummary } from '@/lib/import-export/export-hierarchy';
 import { buildDeckCsv, buildDeckZip, downloadBlob, selectExportableDecks } from '@/lib/import-export/export-library';
 import { parseManualImportFiles, saveManualImport, type ManualImportParseResult } from '@/lib/import-export/manual-import';
 
@@ -390,8 +390,9 @@ function HierarchyDeckList({
     setOpenGroups(new Set());
     setOpenSections(new Set());
   }
-  function jumpTo(group: ExportHierarchyGroup) {
-    setOpenGroups((prev) => new Set(prev).add(group.key));
+  function showGroupsOnly() {
+    setOpenGroups(new Set(allGroupKeys));
+    setOpenSections(new Set());
   }
   function toggleGroup(group: ExportHierarchyGroup) {
     setOpenGroups((prev) => toggleSet(prev, group.key));
@@ -406,53 +407,63 @@ function HierarchyDeckList({
     }
   }
 
+  const allExpanded = openGroups.size === allGroupKeys.length && openSections.size === allSectionKeys.length;
+  const groupsOnly = openGroups.size === allGroupKeys.length && openSections.size === 0;
+  const collapsed = openGroups.size === 0;
+  const controlStyle = { borderColor: colors.border, backgroundColor: colors.surface2 };
+  const activeControlStyle = { borderColor: Accent.base, backgroundColor: colors.surface2 };
+
   return (
     <View style={styles.hierarchyWrap}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.indexRail}>
-        <Pressable onPress={expandAll} style={[styles.indexChip, { borderColor: colors.border }]}>
-          <ThemedText type="small" style={{ color: Accent.base }}>ขยาย</ThemedText>
-        </Pressable>
-        <Pressable onPress={collapseAll} style={[styles.indexChip, { borderColor: colors.border }]}>
-          <ThemedText type="small" themeColor="textSecondary">ย่อ</ThemedText>
-        </Pressable>
-        {groups.map((group) => (
-          <Pressable key={group.key} onPress={() => jumpTo(group)} style={[styles.indexChip, { borderColor: colors.border }]}>
-            <ThemedText type="small" themeColor="textSecondary">{group.label}</ThemedText>
+      <View style={styles.hierarchyControlStack}>
+        <View style={styles.hierarchyControlRow}>
+          <Pressable onPress={expandAll} style={[styles.indexChip, controlStyle, allExpanded && activeControlStyle]}>
+            <ThemedText type="small" style={allExpanded ? { color: Accent.base } : undefined} themeColor={allExpanded ? undefined : 'textSecondary'}>
+              Expand all
+            </ThemedText>
           </Pressable>
-        ))}
-      </ScrollView>
-      <ScrollView style={styles.deckList} contentContainerStyle={styles.deckListInner}>
+          <Pressable onPress={showGroupsOnly} style={[styles.indexChip, controlStyle, groupsOnly && activeControlStyle]}>
+            <ThemedText type="small" style={groupsOnly ? { color: Accent.base } : undefined} themeColor={groupsOnly ? undefined : 'textSecondary'}>
+              Groups only
+            </ThemedText>
+          </Pressable>
+          <Pressable onPress={collapseAll} style={[styles.indexChip, controlStyle, collapsed && activeControlStyle]}>
+            <ThemedText type="small" style={collapsed ? { color: Accent.base } : undefined} themeColor={collapsed ? undefined : 'textSecondary'}>
+              Collapse
+            </ThemedText>
+          </Pressable>
+        </View>
+      </View>
+      <ScrollView style={[styles.deckList, { borderTopColor: colors.border }]} contentContainerStyle={styles.deckListInner}>
         {groups.map((group) => {
           const groupOpen = openGroups.has(group.key);
           const groupDecks = group.sections.flatMap((section) => section.decks);
-          const groupChecked = groupDecks.length > 0 && groupDecks.every((deck) => selected.has(deck.id));
+          const groupSummary = getExportSelectionSummary(groupDecks, selected);
           return (
-            <View key={group.key} style={styles.hierarchyGroup}>
+            <View key={group.key} style={[styles.hierarchyGroup, { borderBottomColor: colors.border }]}>
               <HierarchyHeader
                 label={group.label}
-                meta={`${groupDecks.length} decks`}
-                checked={groupChecked}
+                summary={groupSummary}
                 checkable={mode === 'batch'}
                 open={groupOpen}
                 disabled={busy}
                 onToggleOpen={() => toggleGroup(group)}
-                onToggleChecked={() => setDecks(groupDecks.map((deck) => deck.id), !groupChecked)}
+                onToggleChecked={() => setDecks(groupDecks.map((deck) => deck.id), groupSummary.state !== 'all')}
               />
               {groupOpen && group.sections.map((section) => {
                 const sectionOpen = openSections.has(section.key);
-                const sectionChecked = section.decks.length > 0 && section.decks.every((deck) => selected.has(deck.id));
+                const sectionSummary = getExportSelectionSummary(section.decks, selected);
                 return (
                   <View key={section.key} style={styles.hierarchySection}>
                     <HierarchyHeader
                       label={section.label}
-                      meta={`${section.decks.length} decks`}
-                      checked={sectionChecked}
+                      summary={sectionSummary}
                       checkable={mode === 'batch'}
                       open={sectionOpen}
                       disabled={busy}
                       compact
                       onToggleOpen={() => toggleSection(section.key)}
-                      onToggleChecked={() => setDecks(section.decks.map((deck) => deck.id), !sectionChecked)}
+                      onToggleChecked={() => setDecks(section.decks.map((deck) => deck.id), sectionSummary.state !== 'all')}
                     />
                     {sectionOpen && section.decks.map((deck) => (
                       <DeckChoiceRow
@@ -478,8 +489,7 @@ function HierarchyDeckList({
 
 function HierarchyHeader({
   label,
-  meta,
-  checked,
+  summary,
   checkable,
   open,
   disabled,
@@ -488,8 +498,7 @@ function HierarchyHeader({
   onToggleChecked,
 }: {
   label: string;
-  meta: string;
-  checked: boolean;
+  summary: ExportSelectionSummary;
   checkable: boolean;
   open: boolean;
   disabled: boolean;
@@ -498,6 +507,8 @@ function HierarchyHeader({
   onToggleChecked: () => void;
 }) {
   const colors = useThemePalette();
+  const checked = summary.state === 'all';
+  const partial = summary.state === 'partial';
   const Icon = checked ? FiCheckSquare : FiSquare;
   return (
     <View
@@ -506,7 +517,7 @@ function HierarchyHeader({
         webNoTextSelect,
         !checkable && styles.hierarchyHeaderNoCheck,
         !checkable && compact && styles.hierarchyHeaderCompactNoCheck,
-        { borderBottomColor: colors.border },
+        { borderBottomColor: colors.border, backgroundColor: colors.surface2 },
       ]}>
       {checkable ? (
         <Pressable
@@ -514,14 +525,18 @@ function HierarchyHeader({
           disabled={disabled}
           accessibilityRole="checkbox"
           accessibilityLabel={`เลือก ${label}`}
-          accessibilityState={{ checked }}
+          accessibilityState={{ checked: partial ? ('mixed' as any) : checked }}
           style={({ pressed }) => [
             styles.hierarchyCheck,
             webNoTextSelect,
             compact && styles.hierarchyCheckCompact,
             pressed && { opacity: 0.72 },
           ]}>
-          <Icon size={16} color={checked ? Accent.base : colors.textHint} />
+          {partial ? (
+            <FiMinus size={16} color={Accent.base} />
+          ) : (
+            <Icon size={16} color={checked ? Accent.base : colors.textHint} />
+          )}
           <View
             pointerEvents="none"
             style={[
@@ -553,7 +568,12 @@ function HierarchyHeader({
         />}
         <View style={styles.hierarchyTitleText}>
           <ThemedText type={compact ? 'smallBold' : 'defaultSemiBold'}>{label}</ThemedText>
-          <ThemedText type="small" themeColor="textHint">{meta}</ThemedText>
+          <ThemedText
+            type="small"
+            themeColor={summary.state === 'partial' ? undefined : 'textHint'}
+            style={summary.state === 'partial' ? { color: Accent.base } : undefined}>
+            {summary.meta}
+          </ThemedText>
         </View>
       </Pressable>
     </View>
@@ -721,9 +741,13 @@ const styles = StyleSheet.create({
   },
   deckListInner: { paddingBottom: Spacing.two },
   hierarchyWrap: { gap: Spacing.two },
-  indexRail: {
+  hierarchyControlStack: {
     gap: Spacing.two,
-    paddingBottom: Spacing.one,
+  },
+  hierarchyControlRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
   indexChip: {
     borderWidth: 1,

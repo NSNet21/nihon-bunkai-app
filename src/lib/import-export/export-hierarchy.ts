@@ -12,6 +12,13 @@ export type ExportHierarchyGroup = {
   sections: ExportHierarchySection[];
 };
 
+export type ExportSelectionSummary = {
+  total: number;
+  selected: number;
+  state: 'none' | 'partial' | 'all';
+  meta: string;
+};
+
 const LEVEL_ORDER: Array<JlptLevel | 'GLOSSARY'> = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
 const TYPE_LABELS: Record<string, string> = {
   vocab: 'Vocab',
@@ -60,6 +67,21 @@ export function buildExportHierarchy(decks: readonly Deck[]): ExportHierarchyGro
           decks: [...section.decks].sort((a, b) => a.title.localeCompare(b.title, 'en')),
         })),
     }));
+}
+
+export function getExportSelectionSummary(
+  decks: readonly Pick<Deck, 'id'>[],
+  selectedDeckIds: ReadonlySet<string>,
+): ExportSelectionSummary {
+  const total = decks.length;
+  const selected = decks.filter((deck) => selectedDeckIds.has(deck.id)).length;
+  const state = selected === 0 ? 'none' : selected === total ? 'all' : 'partial';
+  return {
+    total,
+    selected,
+    state,
+    meta: state === 'all' ? 'เลือกแล้วทั้งหมด' : state === 'partial' ? `เลือกแล้ว ${selected}/${total}` : `${total} decks`,
+  };
 }
 
 function getDeckPlacement(deck: Deck) {

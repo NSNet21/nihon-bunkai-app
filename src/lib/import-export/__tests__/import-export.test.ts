@@ -7,7 +7,7 @@ import { parseManualCsv } from '../manual-csv';
 import { parseManualImportFiles } from '../manual-import';
 import { serializeDeckCsv } from '../export-csv';
 import { selectExportableDecks } from '../export-library';
-import { buildExportHierarchy } from '../export-hierarchy';
+import { buildExportHierarchy, getExportSelectionSummary } from '../export-hierarchy';
 import { IMPORT_HOW_TO_STEPS, IMPORT_SCHEMA_HEADERS } from '../import-how-to';
 
 describe('library source metadata', () => {
@@ -160,6 +160,33 @@ describe('export hierarchy', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('my-card-set');
     expect(groups[0].sections.map((section) => section.label)).toEqual(['N5', 'N1']);
+  });
+
+  it('summarizes none, partial, and all selection states for hierarchy rows', () => {
+    const decks = [
+      { id: 'deck-1' },
+      { id: 'deck-2' },
+      { id: 'deck-3' },
+    ] as any[];
+
+    expect(getExportSelectionSummary(decks, new Set())).toEqual({
+      total: 3,
+      selected: 0,
+      state: 'none',
+      meta: '3 decks',
+    });
+    expect(getExportSelectionSummary(decks, new Set(['deck-1']))).toEqual({
+      total: 3,
+      selected: 1,
+      state: 'partial',
+      meta: 'เลือกแล้ว 1/3',
+    });
+    expect(getExportSelectionSummary(decks, new Set(['deck-1', 'deck-2', 'deck-3']))).toEqual({
+      total: 3,
+      selected: 3,
+      state: 'all',
+      meta: 'เลือกแล้วทั้งหมด',
+    });
   });
 });
 

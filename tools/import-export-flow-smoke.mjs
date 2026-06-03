@@ -206,6 +206,7 @@ try {
   await openLibraryActions(page);
   await clickText(page, 'Export one deck');
   await page.getByText('เลือก deck ที่จะ export', { exact: false }).waitFor({ timeout: 15_000 });
+  await waitForTextOrDump(page, 'Groups only', 'Single export hierarchy controls');
   const csvDownloadPromise = page.waitForEvent('download');
   await clickLastText(page, importedDeckTitle);
   const csvDownload = await waitForDownloadOrDump(page, csvDownloadPromise, 'CSV export');
@@ -216,7 +217,9 @@ try {
   await openLibraryActions(page);
   await clickText(page, 'Batch export');
   await page.getByText('Batch export', { exact: false }).last().waitFor({ timeout: 15_000 });
+  await waitForTextOrDump(page, 'Groups only', 'Batch export hierarchy controls');
   await clickLastText(page, importedDeckTitle);
+  await waitForTextOrDump(page, 'เลือกแล้ว 1/', 'Batch export partial selection');
   const zipDownloadPromise = page.waitForEvent('download');
   await clickText(page, 'Export ZIP');
   const zipDownload = await waitForDownloadOrDump(page, zipDownloadPromise, 'ZIP export');

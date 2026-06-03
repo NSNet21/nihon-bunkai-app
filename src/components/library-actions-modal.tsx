@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiMinus, FiPlus, FiSquare, FiUpload, FiX } from 'react-icons/fi';
 
 import { ImportHowToContent } from '@/components/import-how-to-content';
@@ -29,6 +29,8 @@ const ACTIONS = {
   exportOne: 'Export one deck',
   exportBatch: 'Batch export',
 } as const;
+
+const webNoTextSelect = Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null;
 
 export function LibraryActionsModal({ visible, decks, onClose, onImported }: LibraryActionsModalProps) {
   const colors = useThemePalette();
@@ -498,18 +500,48 @@ function HierarchyHeader({
   const colors = useThemePalette();
   const Icon = checked ? FiCheckSquare : FiSquare;
   return (
-    <View style={[styles.hierarchyHeader, compact && styles.hierarchyHeaderCompact, { borderBottomColor: colors.border }]}>
+    <View
+      style={[
+        styles.hierarchyHeader,
+        webNoTextSelect,
+        !checkable && styles.hierarchyHeaderNoCheck,
+        !checkable && compact && styles.hierarchyHeaderCompactNoCheck,
+        { borderBottomColor: colors.border },
+      ]}>
       {checkable ? (
         <Pressable
           onPress={onToggleChecked}
           disabled={disabled}
           accessibilityRole="checkbox"
+          accessibilityLabel={`เลือก ${label}`}
           accessibilityState={{ checked }}
-          style={({ pressed }) => [styles.hierarchyCheck, pressed && { opacity: 0.7 }]}>
+          style={({ pressed }) => [
+            styles.hierarchyCheck,
+            webNoTextSelect,
+            compact && styles.hierarchyCheckCompact,
+            pressed && { opacity: 0.72 },
+          ]}>
           <Icon size={16} color={checked ? Accent.base : colors.textHint} />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.hierarchyCheckDivider,
+              compact && styles.hierarchyCheckDividerCompact,
+              { backgroundColor: colors.border },
+            ]}
+          />
         </Pressable>
       ) : null}
-      <Pressable onPress={onToggleOpen} style={({ pressed }) => [styles.hierarchyTitleButton, pressed && { opacity: 0.7 }]}>
+      <Pressable
+        onPress={onToggleOpen}
+        accessibilityRole="button"
+        accessibilityLabel={`${open ? 'ย่อ' : 'ขยาย'} ${label}`}
+        style={({ pressed }) => [
+          styles.hierarchyTitleButton,
+          webNoTextSelect,
+          compact && styles.hierarchyTitleButtonCompact,
+          pressed && { opacity: 0.7 },
+        ]}>
         {open ? <FiMinus
           size={compact ? 15 : 17}
           color={colors.textHint}
@@ -554,6 +586,7 @@ function DeckChoiceRow({
       style={({ pressed, hovered }: any) => [
         styles.actionRow,
         styles.hierarchyDeckRow,
+        webNoTextSelect,
         {
           borderBottomColor: colors.border,
           backgroundColor: checked && mode === 'batch'
@@ -706,28 +739,52 @@ const styles = StyleSheet.create({
   },
   hierarchyHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingLeft: Spacing.three,
+    alignItems: 'stretch',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  hierarchyHeaderCompact: {
+  hierarchyHeaderNoCheck: {
+    paddingLeft: Spacing.three,
+  },
+  hierarchyHeaderCompactNoCheck: {
     paddingLeft: Spacing.four,
   },
   hierarchyCheck: {
-    width: 32,
-    height: 28,
+    width: 56,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  hierarchyCheckCompact: {
+    width: 52,
+    minHeight: 48,
+  },
+  hierarchyCheckDivider: {
+    position: 'absolute',
+    right: 0,
+    width: 2,
+    height: 24,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    borderRadius: 1,
+  },
+  hierarchyCheckDividerCompact: {
+    height: 20,
+    transform: [{ translateY: -10 }],
   },
   hierarchyTitleButton: {
     flex: 1,
-    minHeight: 36,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  hierarchyTitleButtonCompact: {
+    minHeight: 48,
+    paddingLeft: Spacing.two,
   },
   hierarchyTitleText: {
     flex: 1,

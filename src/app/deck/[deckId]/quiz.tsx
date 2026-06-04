@@ -50,6 +50,15 @@ import {
   studyModeConfigKey,
 } from '@/lib/study-mode-config';
 import { buildStudySessionEntries } from '@/lib/study-session';
+import {
+  CARD_VISIBILITY_STORAGE_KEY,
+  DEFAULT_CARD_VISIBILITY,
+  DEFAULT_FRONT_HERO,
+  FRONT_HERO_STORAGE_KEY,
+  applyCardVisibilityToggle,
+  visibleBackCount,
+  visibleFrontCount,
+} from '@/lib/card-display-config';
 
 export default function StudyScreen() {
   const { deckId, entryId, count: countParam } = useLocalSearchParams<{ deckId?: string; entryId?: string; count?: string }>();
@@ -163,34 +172,22 @@ export default function StudyScreen() {
      the same source). Pf / Pb are independent: user might want P shown on
      back (as confirmation) while hidden on front (force recall). */
   const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
-    'visibility',
-    { t: true, pf: true, pb: true, d: true, e: true },
+    CARD_VISIBILITY_STORAGE_KEY,
+    DEFAULT_CARD_VISIBILITY,
   );
-  const [frontHero, setFrontHero] = usePersistedState<FrontHero>('front-hero', 't');
+  const [frontHero, setFrontHero] = usePersistedState<FrontHero>(FRONT_HERO_STORAGE_KEY, DEFAULT_FRONT_HERO);
   const [, setLastSession] = usePersistedState<LastSession | null>('last-session', null);
   /* Card columns config — popup lifted out of the Flashcard 2026-05-26.
      Trigger now lives in the header (FiSliders button) so it's clear of
      the overlay-rail hit zone on mobile. Auto-swap hero when hiding the
      active hero column happens here too. */
   const [configOpen, setConfigOpen] = useState(false);
-  const visibleFrontCount = (visibility.t ? 1 : 0) + (visibility.pf ? 1 : 0);
-  const visibleBackCount = (visibility.d ? 1 : 0) + (visibility.pb ? 1 : 0) + (visibility.e ? 1 : 0);
+  const visibleFrontColumns = visibleFrontCount(visibility);
+  const visibleBackColumns = visibleBackCount(visibility);
   const toggleColumn = (key: keyof ColumnVisibility) => {
-    const next = { ...visibility, [key]: !visibility[key] };
-    /* Front face must keep at least one of T or Pf */
-    if (!next.t && !next.pf) return;
-    /* Back face must keep at least one of D, Pb, or E */
-    if (!next.d && !next.pb && !next.e) return;
-    /* Auto-swap hero if the column it points at just got hidden */
-    if (key === 't' && !next.t && frontHero === 't' && next.pf) setFrontHero('p');
-    if (key === 'pf' && !next.pf && frontHero === 'p' && next.t) setFrontHero('t');
-    /* Auto-restore hero when the hidden column comes back. T is the
-       natural hero (kanji/term) — its hiding always forces auto-swap to
-       P (front face needs one column). Re-enabling T should reverse the
-       swap so user returns to the T-as-hero default; without this, P
-       stays stuck as hero + TTS reads P instead of the term. */
-    if (key === 't' && next.t && frontHero === 'p' && !visibility.t) setFrontHero('t');
-    setVisibility(next);
+    const next = applyCardVisibilityToggle(visibility, key, frontHero);
+    setVisibility(next.visibility);
+    setFrontHero(next.frontHero);
   };
 
   const { scheme, colors } = useThemeColors();
@@ -474,8 +471,8 @@ export default function StudyScreen() {
                 visibility={visibility}
                 onToggle={toggleColumn}
                 colors={colors}
-                visibleFrontCount={visibleFrontCount}
-                visibleBackCount={visibleBackCount}
+                visibleFrontCount={visibleFrontColumns}
+                visibleBackCount={visibleBackColumns}
               />
             </>
           )}

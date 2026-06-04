@@ -235,8 +235,8 @@ function TermRow({
         (pressed || hovered) && { backgroundColor: colors.backgroundSelected },
         pressed && { opacity: 0.82 },
       ]}>
-      <View style={[styles.termNo, { borderColor: colors.border, backgroundColor: colors.background }]}>
-        <ThemedText style={[styles.termNoText, { color: colors.textHint }]}>
+      <View style={[styles.termNo, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+        <ThemedText style={[styles.termNoText, { color: Accent.base }]}>
           {String(entry.no).padStart(2, '0')}
         </ThemedText>
       </View>

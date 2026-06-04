@@ -24,6 +24,8 @@ expo-env.d.ts
 # local visual QA artifacts
 .visual-qa/
 .codex-visual-qa-expo*.log
+.codex-*-expo-*.log
+.codex-*-expo-*.err.log
 
 # debug
 npm-debug.*

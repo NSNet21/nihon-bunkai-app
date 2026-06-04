@@ -1,5 +1,5 @@
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { freeDeckParams } from '@/data/static-params';
 
@@ -44,6 +44,12 @@ import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
 import type { Entry } from '@/data/types';
 import type { LastSession } from '@/lib/last-session';
 import { studyFallbackHref } from '@/lib/navigation-back';
+import {
+  DEFAULT_STUDY_MODE_CONFIGS,
+  sanitizeStudyModeConfig,
+  studyModeConfigKey,
+} from '@/lib/study-mode-config';
+import { buildStudySessionEntries } from '@/lib/study-session';
 
 export default function StudyScreen() {
   const { deckId, entryId, count: countParam } = useLocalSearchParams<{ deckId?: string; entryId?: string; count?: string }>();
@@ -61,6 +67,14 @@ export default function StudyScreen() {
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [flashcardConfig] = usePersistedState(
+    studyModeConfigKey('flashcard'),
+    DEFAULT_STUDY_MODE_CONFIGS.flashcard,
+  );
+  const safeFlashcardConfig = useMemo(
+    () => sanitizeStudyModeConfig(flashcardConfig, 'flashcard'),
+    [flashcardConfig],
+  );
   const { showToast } = useToast();
   /* Sync layer (Phase C.4) — schedulePush coalesces local writes into a
      debounced batch upload to Supabase. Guest mode (no user) skips push
@@ -107,10 +121,16 @@ export default function StudyScreen() {
     }
     void entriesForDeckAsync(deckId).then((rows) => {
       if (cancelled) return;
-      /* Slice to sessionCount when set + no entryId resume. Resume wins
-         (user wants that specific card, not "first N"). */
-      const sliced = sessionCount ? rows.slice(0, sessionCount) : rows;
-      setEntries(sliced);
+      /* Legacy ?count= links keep their first-N behavior. Direct resume
+         links keep the full deck so the requested entry is never lost to
+         config count/order. Fresh flashcard sessions use the saved mode
+         config from the new Mode Picker flow. */
+      const nextRows = entryId
+        ? rows
+        : sessionCount
+          ? rows.slice(0, sessionCount)
+          : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
+      setEntries(nextRows);
       // Jump to entryId if provided (from Search tap-through OR Continue card
       // restoring a prior session). If the entry no longer exists in this
       // deck (deleted, deck reordered, deep link expired), tell the user
@@ -127,7 +147,7 @@ export default function StudyScreen() {
     return () => {
       cancelled = true;
     };
-  }, [deckId, entryId, sessionCount, showToast]);
+  }, [deckId, entryId, safeFlashcardConfig, sessionCount, showToast]);
 
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);

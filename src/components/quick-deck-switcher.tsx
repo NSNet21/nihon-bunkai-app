@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronDown, FiChevronRight, FiX } from 'react-icons/fi';
+import { FiChevronDown, FiChevronRight, FiMinusSquare, FiPlusSquare, FiX } from 'react-icons/fi';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
 import type { Deck } from '@/data/types';
@@ -33,10 +33,13 @@ export function QuickDeckSwitcher({
   const compact = width < 640;
   const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set());
   const [closedSections, setClosedSections] = useState<Set<string>>(() => new Set());
+  const [sectionsOnly, setSectionsOnly] = useState(false);
   const groups = buildExportHierarchy(decks).map((group) => ({
     ...group,
     sections: [...group.sections].sort((a, b) => compareLearningSections(a.label, b.label)),
   }));
+  const allGroupKeys = groups.map((group) => group.key);
+  const allSectionKeys = groups.flatMap((group) => group.sections.map((section) => section.key));
   const toggleGroup = (groupKey: string) => {
     setClosedGroups((current) => {
       const next = new Set(current);
@@ -54,21 +57,23 @@ export function QuickDeckSwitcher({
     });
   };
   const expandAll = () => {
-    setClosedGroups(new Set());
+    if (!sectionsOnly) setClosedGroups(new Set());
     setClosedSections(new Set());
   };
-  const openGroups = () => {
-    setClosedGroups(new Set());
+  const collapseAll = () => {
+    if (!sectionsOnly) setClosedGroups(new Set(allGroupKeys));
+    setClosedSections(new Set(allSectionKeys));
   };
-  const foldGroups = () => {
-    setClosedGroups(new Set(groups.map((group) => group.key)));
+  const toggleScope = () => {
+    setSectionsOnly((current) => {
+      const next = !current;
+      if (next) setClosedGroups(new Set());
+      return next;
+    });
   };
-  const openSections = () => {
-    setClosedSections(new Set());
-  };
-  const foldSections = () => {
-    setClosedSections(new Set(groups.flatMap((group) => group.sections.map((section) => section.key))));
-  };
+  const scopeLabel = sectionsOnly ? 'Group' : 'All';
+  const expandLabel = compact ? 'Open' : 'Expand';
+  const collapseLabel = compact ? 'Fold' : 'Collapse';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -111,74 +116,55 @@ export function QuickDeckSwitcher({
 
           <View style={styles.controlRow}>
             <Pressable
+              onPress={toggleScope}
+              accessibilityRole="button"
+              accessibilityLabel={sectionsOnly ? 'ใช้ Open Fold กับทุกชั้น' : 'ใช้ Open Fold กับ sub-group'}
+              style={({ pressed, hovered }: any) => [
+                styles.controlBtn,
+                {
+                  borderColor: sectionsOnly ? Accent.base : colors.border,
+                  backgroundColor: sectionsOnly ? Accent.bg : colors.backgroundElement,
+                },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: sectionsOnly ? Accent.base : colors.text }}>
+                {scopeLabel}
+              </ThemedText>
+            </Pressable>
+            <Pressable
               onPress={expandAll}
               accessibilityRole="button"
-              accessibilityLabel="เปิดรายการ deck ทั้งหมด"
+              accessibilityLabel={sectionsOnly ? 'เปิด sub-group ทั้งหมด' : 'เปิดรายการ deck ทั้งหมด'}
               style={({ pressed, hovered }: any) => [
                 styles.controlBtn,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
                 (pressed || hovered) && { borderColor: Accent.soft },
                 pressed && { opacity: 0.75 },
               ]}>
-              <ThemedText type="small" style={{ color: colors.text }}>
-                All
-              </ThemedText>
+              <View style={styles.controlContent}>
+                <FiPlusSquare size={14} color={colors.text} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: colors.text }}>
+                  {expandLabel}
+                </ThemedText>
+              </View>
             </Pressable>
             <Pressable
-              onPress={openGroups}
+              onPress={collapseAll}
               accessibilityRole="button"
-              accessibilityLabel="เปิด group ทั้งหมด"
+              accessibilityLabel={sectionsOnly ? 'พับ sub-group ทั้งหมด' : 'พับรายการ deck ทั้งหมด'}
               style={({ pressed, hovered }: any) => [
                 styles.controlBtn,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
                 (pressed || hovered) && { borderColor: Accent.soft },
                 pressed && { opacity: 0.75 },
               ]}>
-              <ThemedText type="small" style={{ color: colors.text }}>
-                Group Open
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={foldGroups}
-              accessibilityRole="button"
-              accessibilityLabel="พับ group ทั้งหมด"
-              style={({ pressed, hovered }: any) => [
-                styles.controlBtn,
-                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                (pressed || hovered) && { borderColor: Accent.soft },
-                pressed && { opacity: 0.75 },
-              ]}>
-              <ThemedText type="small" style={{ color: colors.text }}>
-                Group Fold
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={openSections}
-              accessibilityRole="button"
-              accessibilityLabel="เปิด sub-group ทั้งหมด"
-              style={({ pressed, hovered }: any) => [
-                styles.controlBtn,
-                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                (pressed || hovered) && { borderColor: Accent.soft },
-                pressed && { opacity: 0.75 },
-              ]}>
-              <ThemedText type="small" style={{ color: colors.text }}>
-                Sub Open
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={foldSections}
-              accessibilityRole="button"
-              accessibilityLabel="พับ sub-group ทั้งหมด"
-              style={({ pressed, hovered }: any) => [
-                styles.controlBtn,
-                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                (pressed || hovered) && { borderColor: Accent.soft },
-                pressed && { opacity: 0.75 },
-              ]}>
-              <ThemedText type="small" style={{ color: colors.text }}>
-                Sub Fold
-              </ThemedText>
+              <View style={styles.controlContent}>
+                <FiMinusSquare size={14} color={colors.text} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: colors.text }}>
+                  {collapseLabel}
+                </ThemedText>
+              </View>
             </Pressable>
           </View>
 
@@ -381,8 +367,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.three,
   },
+  controlContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+  },
   list: {
     gap: Spacing.three,
+    paddingRight: Spacing.three,
     paddingBottom: Spacing.two,
   },
   group: {
@@ -392,6 +385,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    paddingRight: Spacing.two,
   },
   groupTitle: {
     flex: 1,

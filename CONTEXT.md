@@ -226,6 +226,10 @@ _Avoid_: Bundle, sales pack, permanent deck merge
 
 ## Study Modes
 
+**Mode Picker**:
+The deck-level surface where a learner chooses Flashcard, Multiple Choice, or Dictation after opening a deck and reviewing its term list.
+_Avoid_: Deck Hub, game launcher
+
 **Memorize**:
 The study mode for learning or self-reviewing entries by revealing and recalling answers. It is the canonical product term for the app's memorization-oriented flow.
 _Avoid_: Quiz, test

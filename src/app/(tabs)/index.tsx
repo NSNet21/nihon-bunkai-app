@@ -422,8 +422,8 @@ function Toolbar({
   const openLibrarySearchWithFeedback = useCallback(() => {
     if (searchOpenTimerRef.current) clearTimeout(searchOpenTimerRef.current);
     setSearchTriggerActive(true);
+    onOpenLibrarySearch();
     searchOpenTimerRef.current = setTimeout(() => {
-      onOpenLibrarySearch();
       setSearchTriggerActive(false);
       searchOpenTimerRef.current = null;
     }, 210);

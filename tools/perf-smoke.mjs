@@ -74,9 +74,16 @@ async function measureSearch(page) {
   const inputReadyMs = now() - started;
 
   const typeStarted = now();
+  await page.waitForFunction(() => !document.body.innerText.includes('กำลังสร้าง index'), null, {
+    timeout: 30_000,
+  });
   await page.click('input[placeholder*="คำญี่ปุ่น"]');
   await page.keyboard.type(searchQuery);
-  await page.waitForTimeout(500);
+  await page.waitForFunction(
+    (expected) => expected.some((text) => document.body.innerText.includes(text)),
+    searchExpectedText,
+    { timeout: 15_000 },
+  ).catch(() => null);
   const bodyText = await page.locator('body').innerText({ timeout: 10_000 });
   const searchState = await page.evaluate(() => {
     const input = document.querySelector('input[placeholder*="คำญี่ปุ่น"]');

@@ -179,21 +179,6 @@ export default function TermCardDisplayScreen() {
                 <FiSliders size={16} color={colors.text} strokeWidth={2} />
               </Pressable>
               <Pressable
-                onPress={() => {
-                  setSwitcherMessage(null);
-                  setSwitcherOpen(true);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="สลับ deck"
-                style={({ pressed, hovered }: any) => [
-                  styles.iconBtn,
-                  { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                  (pressed || hovered) && { borderColor: Accent.soft },
-                  pressed && { opacity: 0.75 },
-                ]}>
-                <FiLayers size={16} color={colors.text} strokeWidth={2} />
-              </Pressable>
-              <Pressable
                 onPress={() => setActionsOpen(true)}
                 accessibilityRole="button"
                 accessibilityLabel="เปิดเมนูคำนี้"
@@ -239,6 +224,11 @@ export default function TermCardDisplayScreen() {
           onClose={() => setActionsOpen(false)}
           colors={colors}
           deleteState={deleteState}
+          onOpenSwitcher={() => {
+            setActionsOpen(false);
+            setSwitcherMessage(null);
+            setSwitcherOpen(true);
+          }}
           onDelete={handleDeleteDeck}
         />
         <QuickDeckSwitcher
@@ -330,12 +320,14 @@ function ActionsModal({
   onClose,
   colors,
   deleteState,
+  onOpenSwitcher,
   onDelete,
 }: {
   visible: boolean;
   onClose: () => void;
   colors: typeof Colors.light;
   deleteState: { enabled: boolean; reason: string };
+  onOpenSwitcher: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -358,6 +350,26 @@ function ActionsModal({
           </View>
 
           <View style={styles.actionStack}>
+            <Pressable
+              onPress={onOpenSwitcher}
+              accessibilityRole="button"
+              accessibilityLabel="สลับ deck"
+              style={({ pressed }) => [
+                styles.actionRow,
+                { borderColor: colors.border },
+                pressed && { borderColor: Accent.soft, opacity: 0.78 },
+              ]}>
+              <FiLayers size={18} color={Accent.base} strokeWidth={2} />
+              <View style={styles.actionText}>
+                <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>
+                  สลับ deck
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  เลือก deck แล้วเปิด term แรก
+                </ThemedText>
+              </View>
+            </Pressable>
+
             <View style={[styles.actionRow, { borderColor: colors.border, opacity: 0.48 }]}>
               <FiEdit3 size={18} color={colors.textHint} strokeWidth={2} />
               <View style={styles.actionText}>

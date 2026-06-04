@@ -83,11 +83,14 @@ export function QuickDeckSwitcher({
           style={[
             styles.panel,
             compact && styles.panelCompact,
-            { borderColor: colors.border, backgroundColor: colors.background },
+            { borderColor: colors.border, borderTopColor: Accent.base, backgroundColor: colors.background },
           ]}>
           <View style={styles.header}>
             <View style={styles.titleBlock}>
-              <ThemedText style={[styles.mono, { color: colors.textHint }]}>// สลับ Deck</ThemedText>
+              <View style={styles.titleRow}>
+                <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+                <ThemedText style={[styles.mono, { color: colors.textHint }]}>// สลับ Deck</ThemedText>
+              </View>
               <ThemedText type="small" themeColor="textSecondary">
                 เลือก deck แล้วเปิด term แรกทันที
               </ThemedText>
@@ -102,7 +105,9 @@ export function QuickDeckSwitcher({
                 (pressed || hovered) && { borderColor: Accent.soft },
                 pressed && { opacity: 0.75 },
               ]}>
-              <FiX size={16} color={colors.text} strokeWidth={2} />
+              {({ pressed, hovered }: any) => (
+                <FiX size={16} color={pressed || hovered ? Accent.base : colors.text} strokeWidth={2} />
+              )}
             </Pressable>
           </View>
 
@@ -308,6 +313,7 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     maxHeight: '82%',
     borderWidth: 1,
+    borderTopWidth: 3,
     borderRadius: Radii.md,
     padding: Spacing.four,
     gap: Spacing.four,
@@ -328,6 +334,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 2,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  pip: {
+    width: 5,
+    height: 5,
   },
   mono: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),

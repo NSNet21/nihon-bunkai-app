@@ -335,17 +335,29 @@ function ActionsModal({
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable
           onPress={(event: any) => event.stopPropagation?.()}
-          style={[styles.modalCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
+          style={[
+            styles.modalCard,
+            { borderColor: colors.border, borderTopColor: Accent.base, backgroundColor: colors.background },
+          ]}>
           <View style={styles.modalHeader}>
-            <ThemedText style={[styles.mono, { color: colors.textHint }]}>
-              // TERM ACTIONS
-            </ThemedText>
+            <View style={styles.modalTitleRow}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+                // TERM ACTIONS
+              </ThemedText>
+            </View>
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
               accessibilityLabel="ปิดเมนู"
-              style={[styles.iconBtn, { borderColor: colors.border }]}>
-              <FiX size={16} color={colors.text} strokeWidth={2} />
+              style={({ pressed, hovered }: any) => [
+                styles.iconBtn,
+                { borderColor: pressed || hovered ? Accent.soft : colors.border },
+                pressed && { opacity: 0.75 },
+              ]}>
+              {({ pressed, hovered }: any) => (
+                <FiX size={16} color={pressed || hovered ? Accent.base : colors.text} strokeWidth={2} />
+              )}
             </Pressable>
           </View>
 
@@ -541,6 +553,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     borderWidth: 1,
+    borderTopWidth: 3,
     borderRadius: Radii.md,
     padding: Spacing.four,
     gap: Spacing.four,
@@ -550,6 +563,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.three,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   actionStack: {
     gap: Spacing.two,

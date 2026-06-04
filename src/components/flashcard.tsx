@@ -231,8 +231,8 @@ export function Flashcard({
     .onEnd((e) => {
       if (animating.value) return;
       const fire = Math.abs(e.translationX) > COMMIT || Math.abs(e.velocityX) > 600;
-      const goNext = fire && e.translationX < 0 && canSwipeNext;
-      const goPrev = fire && e.translationX > 0 && canSwipePrev;
+      const goNext = fire && e.translationX < 0 && canNextSV.value;
+      const goPrev = fire && e.translationX > 0 && canPrevSV.value;
       if (goNext) {
         animating.value = true;
         tx.value = withTiming(
@@ -249,6 +249,12 @@ export function Flashcard({
                  culling and bleed the back face's badge through). */
               rotation.value = 0;
               scheduleOnRN(fireNext);
+            } else {
+              tx.value = withTiming(0, {
+                duration: 160,
+                easing: Easing.bezier(0.2, 0, 0, 1),
+              });
+              animating.value = false;
             }
           },
         );
@@ -261,6 +267,12 @@ export function Flashcard({
             if (finished) {
               rotation.value = 0;
               scheduleOnRN(firePrev);
+            } else {
+              tx.value = withTiming(0, {
+                duration: 160,
+                easing: Easing.bezier(0.2, 0, 0, 1),
+              });
+              animating.value = false;
             }
           },
         );

@@ -65,6 +65,7 @@
     "smoke:perf": "node tools/perf-smoke.mjs",
     "smoke:full-corpus": "node tools/app-perf-testing-only/full-corpus-browser-smoke.mjs",
     "smoke:settings-restore": "node tools/settings-restore-smoke.mjs",
+    "smoke:term-card": "node tools/term-card-regression-smoke.mjs",
     "smoke:import-export": "node tools/import-export-flow-smoke.mjs"
   },
   "private": true

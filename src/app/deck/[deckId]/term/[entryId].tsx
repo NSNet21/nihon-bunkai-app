@@ -51,6 +51,7 @@ export default function TermCardDisplayScreen() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherMessage, setSwitcherMessage] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [cardMotionKind, setCardMotionKind] = useState<'prev' | 'next' | 'deck' | 'initial'>('initial');
   const cardOpacity = useSharedValue(0.82);
   const cardY = useSharedValue(8);
   const cardScale = useSharedValue(0.985);
@@ -103,27 +104,32 @@ export default function TermCardDisplayScreen() {
   }));
 
   useEffect(() => {
-    cardOpacity.value = withTiming(1, {
-      duration: 170,
-      easing: Easing.bezier(0.2, 0, 0, 1),
-    });
-    cardY.value = withTiming(0, {
-      duration: 170,
-      easing: Easing.bezier(0.2, 0, 0, 1),
-    });
-    cardScale.value = withSequence(
-      withTiming(1.012, {
-        duration: 90,
+    const delay = cardMotionKind === 'deck' ? 120 : 0;
+    const timeout = setTimeout(() => {
+      cardOpacity.value = withTiming(1, {
+        duration: 190,
         easing: Easing.bezier(0.2, 0, 0, 1),
-      }),
-      withTiming(1, {
-        duration: 150,
+      });
+      cardY.value = withTiming(0, {
+        duration: 190,
         easing: Easing.bezier(0.2, 0, 0, 1),
-      }),
-    );
-  }, [activeDeckId, activeEntryId, cardOpacity, cardY, cardScale]);
+      });
+      cardScale.value = withSequence(
+        withTiming(1.018, {
+          duration: 110,
+          easing: Easing.bezier(0.2, 0, 0, 1),
+        }),
+        withTiming(1, {
+          duration: 170,
+          easing: Easing.bezier(0.2, 0, 0, 1),
+        }),
+      );
+    }, delay);
+    return () => clearTimeout(timeout);
+  }, [activeDeckId, activeEntryId, cardMotionKind, cardOpacity, cardY, cardScale]);
 
   function prepareCardTransition(kind: 'prev' | 'next' | 'deck') {
+    setCardMotionKind(kind);
     cardOpacity.value = kind === 'deck' ? 0.78 : 0.84;
     cardY.value = kind === 'deck' ? 10 : kind === 'next' ? 6 : -6;
     cardScale.value = 0.985;
@@ -254,7 +260,9 @@ export default function TermCardDisplayScreen() {
             </View>
           </View>
 
-          <Animated.View style={[styles.cardSlot, { height: cardSlotHeight }, cardTransitionStyle]}>
+          <Animated.View
+            testID="term-card-motion-slot"
+            style={[styles.cardSlot, { height: cardSlotHeight }, cardTransitionStyle]}>
             <Flashcard
               entry={current}
               isFlipped={isFlipped}

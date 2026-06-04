@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import {
   FiChevronDown,
   FiChevronsDown,
@@ -42,6 +42,24 @@ import {
 import type { LastSession } from '@/lib/last-session';
 
 const SCROLL_TOP_THRESHOLD = 400;
+const librarySearchDockActiveShadow = Platform.select({
+  web: { boxShadow: '0 2px 6px rgba(224, 32, 44, 0.14)' } as unknown as ViewStyle,
+  default: {
+    shadowColor: Accent.base,
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+}) as ViewStyle;
+const librarySearchPanelShadow = Platform.select({
+  web: { boxShadow: '0 10px 28px rgba(0, 0, 0, 0.22)' } as unknown as ViewStyle,
+  default: {
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 10 },
+  },
+}) as ViewStyle;
 
 export default function BrowseScreen() {
   const router = useRouter();
@@ -929,10 +947,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   librarySearchDockActive: {
-    shadowColor: Accent.base,
-    shadowOpacity: 0.14,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    ...librarySearchDockActiveShadow,
   },
   librarySearchDockText: {
     flex: 1,
@@ -960,10 +975,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.md,
     padding: Spacing.four,
     gap: Spacing.two,
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
+    ...librarySearchPanelShadow,
   },
   librarySearchHead: {
     flexDirection: 'row',

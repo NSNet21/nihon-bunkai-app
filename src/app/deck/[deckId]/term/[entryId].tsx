@@ -130,8 +130,7 @@ export default function TermCardDisplayScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <MobileHomeButton colors={colors} />
-        <StudyMobileBackButton fallbackHref={backFallbackHref} side="right" inset={mobileTopButtonInset} />
+        <StudyMobileBackButton fallbackHref={backFallbackHref} inset={mobileTopButtonInset} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -151,6 +150,22 @@ export default function TermCardDisplayScreen() {
               </ThemedText>
             </View>
             <View style={styles.toolbarActions}>
+              {isMobileLayout ? (
+                <Pressable
+                  onPress={() => router.push('/' as never)}
+                  accessibilityRole="link"
+                  accessibilityLabel="กลับ Browse"
+                  style={({ pressed, hovered }: any) => [
+                    styles.iconBtn,
+                    { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                    (pressed || hovered) && { borderColor: Accent.soft },
+                    pressed && { opacity: 0.75 },
+                  ]}>
+                  {({ pressed, hovered }: any) => (
+                    <FiHome size={16} color={pressed || hovered ? Accent.base : colors.text} strokeWidth={2} />
+                  )}
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => setConfigOpen(true)}
                 accessibilityRole="button"
@@ -268,46 +283,6 @@ function Header({ backFallbackHref, colors }: { backFallbackHref: string; colors
         </Pressable>
       </Link>
     </View>
-  );
-}
-
-function MobileHomeButton({ colors }: { colors: typeof Colors.light }) {
-  const router = useRouter();
-  const { width } = useWindowDimensions();
-  const hasHydrated = useHasHydrated();
-  const isMobile = hasHydrated && width < 768;
-
-  if (!isMobile) return null;
-
-  return (
-    <Pressable
-      onPress={() => router.push('/' as never)}
-      accessibilityRole="link"
-      accessibilityLabel="กลับ Browse"
-      style={({ pressed, hovered }: any) => [
-        styles.mobileHomeBtn,
-        {
-          backgroundColor: colors.background,
-          borderColor: pressed || hovered ? Accent.base : colors.border,
-        },
-        pressed && { opacity: 0.78 },
-      ]}>
-      {({ pressed, hovered }: any) => {
-        const active = pressed || hovered;
-        const fg = active ? Accent.base : colors.textSecondary;
-        return (
-          <>
-            <View style={[styles.mobileHomeStripe, { opacity: active ? 1 : 0.58 }]} />
-            <View style={styles.mobileHomeInner}>
-              <FiHome size={14} color={fg} strokeWidth={2} />
-              <ThemedText style={[styles.mobileHomeLabel, { color: active ? Accent.base : colors.text }]}>
-                BROWSE
-              </ThemedText>
-            </View>
-          </>
-        );
-      }}
-    </Pressable>
   );
 }
 
@@ -456,38 +431,6 @@ const styles = StyleSheet.create({
   },
   mobileBackSpacer: {
     height: 70,
-  },
-  mobileHomeBtn: {
-    position: 'absolute',
-    top: Spacing.four,
-    left: Spacing.four,
-    zIndex: 50,
-    minHeight: 34,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    borderWidth: 1,
-    borderColor: Accent.soft,
-    borderRadius: Radii.sm,
-    overflow: 'hidden',
-    ...(Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null),
-  },
-  mobileHomeStripe: {
-    width: 3,
-    alignSelf: 'stretch',
-    backgroundColor: Accent.base,
-  },
-  mobileHomeInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  mobileHomeLabel: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1.4,
   },
   centerFill: {
     flex: 1,

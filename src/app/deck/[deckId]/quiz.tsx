@@ -1,4 +1,4 @@
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { freeDeckParams } from '@/data/static-params';
@@ -7,7 +7,7 @@ import { freeDeckParams } from '@/data/static-params';
 export function generateStaticParams() {
   return freeDeckParams();
 }
-import { FiChevronLeft, FiChevronRight, FiSliders } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiHome, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -62,6 +62,7 @@ import {
 
 export default function StudyScreen() {
   const { deckId, entryId, count: countParam } = useLocalSearchParams<{ deckId?: string; entryId?: string; count?: string }>();
+  const router = useRouter();
   const backFallbackHref = studyFallbackHref(deckId);
   /* count search param (10/20/30/50) limits this session to first N
      entries. Set by Hub Quiz CTA or Config "เริ่มทดสอบ". Resume mode
@@ -105,6 +106,7 @@ export default function StudyScreen() {
   const railWidth = Math.round(64 * railScale);   // 52 → 64
   const railIcon = Math.round(56 * railScale);    // 46 → 56
   const overlayRails = viewportW < 600;
+  const showMobileHome = viewportW < 768;
   /* On mobile, stretch the gradient OVERLAY wider than the Pressable's
      tap column so the fade range is generous. Tap area stays railWidth.
      GPT verdict 2026-05-26: 0.35×W (~136px on 390px viewport, 272 across
@@ -377,6 +379,19 @@ export default function StudyScreen() {
                   <ThemedText type="small" themeColor="textSecondary">
                     {index + 1} / {entries.length}
                   </ThemedText>
+                  {showMobileHome ? (
+                    <Pressable
+                      onPress={() => router.push('/' as never)}
+                      accessibilityRole="link"
+                      accessibilityLabel="กลับ Browse"
+                      style={({ pressed }) => [
+                        styles.headerConfigBtn,
+                        { borderColor: colors.border, backgroundColor: colors.background },
+                        pressed && { opacity: 0.7 },
+                      ]}>
+                      <FiHome size={16} color={colors.text} strokeWidth={2} />
+                    </Pressable>
+                  ) : null}
                   <Pressable
                     onPress={() => setConfigOpen(true)}
                     accessibilityRole="button"

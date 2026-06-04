@@ -76,8 +76,8 @@ export default function TermCardDisplayScreen() {
   const next = index >= 0 && index < entries.length - 1 ? entries[index + 1] : undefined;
   const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
   const cardSlotHeight = isMobileLayout
-    ? Math.max(340, Math.min(460, height - 258))
-    : Math.max(320, Math.min(420, height - (showHeaderBack ? 320 : 308)));
+    ? Math.max(340, Math.min(520, height - 258))
+    : Math.max(320, Math.min(620, height - (showHeaderBack ? 320 : 308)));
 
   function goEntry(entry: Entry) {
     if (!deckId) return;

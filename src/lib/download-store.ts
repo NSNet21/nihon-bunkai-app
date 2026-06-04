@@ -147,6 +147,18 @@ export async function getLibraryEntries(pack: string): Promise<CsvRow[] | undefi
   return rec?.rows;
 }
 
+export async function deleteManualLibraryDeck(deckId: string): Promise<boolean> {
+  const d = getDB();
+  if (!d) return false;
+  const deck = await d.paidDecks.get(deckId);
+  if (!deck || deck.source !== 'manual') return false;
+  await Promise.all([
+    d.paidDecks.delete(deckId),
+    d.paidEntries.delete(deck.pack),
+  ]);
+  return true;
+}
+
 export const savePaidDecks = saveLibraryDecks;
 export const savePaidEntries = saveLibraryEntries;
 export const listPaidDecks = listLibraryDecks;

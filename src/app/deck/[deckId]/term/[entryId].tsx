@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiShuffle, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEdit3, FiHome, FiLayers, FiMoreVertical, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
@@ -32,7 +32,7 @@ export default function TermCardDisplayScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
   const router = useRouter();
   const { colors } = useThemeColors();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const hasHydrated = useHasHydrated();
   const backFallbackHref = studyFallbackHref(deckId);
   const showHeaderBack = !hasHydrated || width >= 768;
@@ -74,6 +74,7 @@ export default function TermCardDisplayScreen() {
   const prev = index > 0 ? entries[index - 1] : undefined;
   const next = index >= 0 && index < entries.length - 1 ? entries[index + 1] : undefined;
   const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
+  const cardSlotHeight = Math.max(320, Math.min(420, height - (showHeaderBack ? 320 : 308)));
 
   function goEntry(entry: Entry) {
     if (!deckId) return;
@@ -122,7 +123,8 @@ export default function TermCardDisplayScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StudyMobileBackButton fallbackHref={backFallbackHref} />
+        <MobileHomeButton colors={colors} />
+        <StudyMobileBackButton fallbackHref={backFallbackHref} side="right" />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -163,7 +165,7 @@ export default function TermCardDisplayScreen() {
                   (pressed || hovered) && { borderColor: Accent.soft },
                   pressed && { opacity: 0.75 },
                 ]}>
-                <FiShuffle size={16} color={colors.text} strokeWidth={2} />
+                <FiLayers size={16} color={colors.text} strokeWidth={2} />
               </Pressable>
               <Pressable
                 onPress={() => setActionsOpen(true)}
@@ -180,7 +182,7 @@ export default function TermCardDisplayScreen() {
             </View>
           </View>
 
-          <View style={styles.cardSlot}>
+          <View style={[styles.cardSlot, { height: cardSlotHeight }]}>
             <Flashcard
               entry={current}
               isFlipped={isFlipped}
@@ -196,15 +198,15 @@ export default function TermCardDisplayScreen() {
               canSwipePrev={Boolean(prev)}
             />
           </View>
-        </ScrollView>
 
-        <View style={[styles.stickyNav, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
-          <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
-          <ThemedText style={[styles.navCounter, { color: colors.textSecondary }]}>
-            {`${index + 1} / ${entries.length}`}
-          </ThemedText>
-          <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next)} />
-        </View>
+          <View style={[styles.stickyNav, { borderTopColor: colors.border }]}>
+            <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
+            <ThemedText style={[styles.navCounter, { color: colors.textSecondary }]}>
+              {`${index + 1} / ${entries.length}`}
+            </ThemedText>
+            <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next)} />
+          </View>
+        </ScrollView>
 
         <ActionsModal
           visible={actionsOpen}
@@ -255,6 +257,46 @@ function Header({ backFallbackHref, colors }: { backFallbackHref: string; colors
         </Pressable>
       </Link>
     </View>
+  );
+}
+
+function MobileHomeButton({ colors }: { colors: typeof Colors.light }) {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const hasHydrated = useHasHydrated();
+  const isMobile = hasHydrated && width < 768;
+
+  if (!isMobile) return null;
+
+  return (
+    <Pressable
+      onPress={() => router.push('/' as never)}
+      accessibilityRole="link"
+      accessibilityLabel="กลับ Browse"
+      style={({ pressed, hovered }: any) => [
+        styles.mobileHomeBtn,
+        {
+          backgroundColor: colors.background,
+          borderColor: pressed || hovered ? Accent.base : colors.border,
+        },
+        pressed && { opacity: 0.78 },
+      ]}>
+      {({ pressed, hovered }: any) => {
+        const active = pressed || hovered;
+        const fg = active ? Accent.base : colors.textSecondary;
+        return (
+          <>
+            <View style={[styles.mobileHomeStripe, { opacity: active ? 1 : 0.58 }]} />
+            <View style={styles.mobileHomeInner}>
+              <FiHome size={14} color={fg} strokeWidth={2} />
+              <ThemedText style={[styles.mobileHomeLabel, { color: active ? Accent.base : colors.text }]}>
+                BROWSE
+              </ThemedText>
+            </View>
+          </>
+        );
+      }}
+    </Pressable>
   );
 }
 
@@ -378,7 +420,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingBottom: 104,
+    paddingBottom: Spacing.four,
     gap: Spacing.four,
   },
   headerBar: {
@@ -396,6 +438,38 @@ const styles = StyleSheet.create({
   },
   mobileBackSpacer: {
     height: 58,
+  },
+  mobileHomeBtn: {
+    position: 'absolute',
+    top: Spacing.two,
+    left: Spacing.two,
+    zIndex: 50,
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    borderWidth: 1,
+    borderColor: Accent.soft,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null),
+  },
+  mobileHomeStripe: {
+    width: 3,
+    alignSelf: 'stretch',
+    backgroundColor: Accent.base,
+  },
+  mobileHomeInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+  },
+  mobileHomeLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.4,
   },
   centerFill: {
     flex: 1,
@@ -445,7 +519,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   cardSlot: {
-    minHeight: 420,
+    minHeight: 320,
   },
   stickyNav: {
     flexDirection: 'row',
@@ -453,8 +527,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    zIndex: 10,
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.three,
   },
   navCounter: {
     minWidth: 56,

@@ -14,9 +14,11 @@ const MOBILE_NAV_BREAKPOINT = 768;
 export function StudyMobileBackButton({
   fallbackHref,
   floating = true,
+  side = 'left',
 }: {
   fallbackHref: string;
   floating?: boolean;
+  side?: 'left' | 'right';
 }) {
   const router = useRouter();
   const colors = useThemePalette();
@@ -42,7 +44,7 @@ export function StudyMobileBackButton({
         const active = pressed || hovered;
         return [
           styles.button,
-          floating ? styles.floating : styles.inline,
+          floating ? [styles.floating, side === 'right' ? styles.floatingRight : styles.floatingLeft] : styles.inline,
           {
             backgroundColor: colors.background,
             borderColor: active ? Accent.base : colors.border,
@@ -83,8 +85,13 @@ const styles = StyleSheet.create({
   floating: {
     position: 'absolute',
     top: Spacing.two,
-    left: Spacing.two,
     zIndex: 50,
+  },
+  floatingLeft: {
+    left: Spacing.two,
+  },
+  floatingRight: {
+    right: Spacing.two,
   },
   inline: {
     alignSelf: 'flex-start',

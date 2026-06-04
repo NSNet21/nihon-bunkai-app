@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiChevronDown, FiChevronRight, FiX } from 'react-icons/fi';
 
@@ -6,6 +7,8 @@ import type { Deck } from '@/data/types';
 import { getDeckJumpRowState } from '@/lib/deck-jump';
 import { buildExportHierarchy, type ExportHierarchyGroup } from '@/lib/import-export/export-hierarchy';
 import { ThemedText } from './themed-text';
+
+const LEARNING_SECTION_ORDER = ['Kanji', 'Grammar', 'Vocab', 'Glossary', 'Decks'];
 
 type Props = {
   visible: boolean;
@@ -28,7 +31,44 @@ export function QuickDeckSwitcher({
 }: Props) {
   const { width } = useWindowDimensions();
   const compact = width < 640;
-  const groups = buildExportHierarchy(decks);
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(() => new Set());
+  const [closedSections, setClosedSections] = useState<Set<string>>(() => new Set());
+  const groups = buildExportHierarchy(decks).map((group) => ({
+    ...group,
+    sections: [...group.sections].sort((a, b) => compareLearningSections(a.label, b.label)),
+  }));
+  const toggleGroup = (groupKey: string) => {
+    setClosedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  };
+  const toggleSection = (sectionKey: string) => {
+    setClosedSections((current) => {
+      const next = new Set(current);
+      if (next.has(sectionKey)) next.delete(sectionKey);
+      else next.add(sectionKey);
+      return next;
+    });
+  };
+  const expandAll = () => {
+    setClosedGroups(new Set());
+    setClosedSections(new Set());
+  };
+  const openGroups = () => {
+    setClosedGroups(new Set());
+  };
+  const foldGroups = () => {
+    setClosedGroups(new Set(groups.map((group) => group.key)));
+  };
+  const openSections = () => {
+    setClosedSections(new Set());
+  };
+  const foldSections = () => {
+    setClosedSections(new Set(groups.flatMap((group) => group.sections.map((section) => section.key))));
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -69,6 +109,79 @@ export function QuickDeckSwitcher({
             </View>
           ) : null}
 
+          <View style={styles.controlRow}>
+            <Pressable
+              onPress={expandAll}
+              accessibilityRole="button"
+              accessibilityLabel="เปิดรายการ deck ทั้งหมด"
+              style={({ pressed, hovered }: any) => [
+                styles.controlBtn,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: colors.text }}>
+                All
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={openGroups}
+              accessibilityRole="button"
+              accessibilityLabel="เปิด group ทั้งหมด"
+              style={({ pressed, hovered }: any) => [
+                styles.controlBtn,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: colors.text }}>
+                Group Open
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={foldGroups}
+              accessibilityRole="button"
+              accessibilityLabel="พับ group ทั้งหมด"
+              style={({ pressed, hovered }: any) => [
+                styles.controlBtn,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: colors.text }}>
+                Group Fold
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={openSections}
+              accessibilityRole="button"
+              accessibilityLabel="เปิด sub-group ทั้งหมด"
+              style={({ pressed, hovered }: any) => [
+                styles.controlBtn,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: colors.text }}>
+                Sub Open
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={foldSections}
+              accessibilityRole="button"
+              accessibilityLabel="พับ sub-group ทั้งหมด"
+              style={({ pressed, hovered }: any) => [
+                styles.controlBtn,
+                { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: colors.text }}>
+                Sub Fold
+              </ThemedText>
+            </Pressable>
+          </View>
+
           <ScrollView style={styles.scroll} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
             {groups.map((group) => (
               <SwitcherGroup
@@ -76,6 +189,10 @@ export function QuickDeckSwitcher({
                 group={group}
                 currentDeckId={currentDeckId}
                 colors={colors}
+                isClosed={closedGroups.has(group.key)}
+                onToggleGroup={toggleGroup}
+                closedSections={closedSections}
+                onToggleSection={toggleSection}
                 onSelectDeck={onSelectDeck}
               />
             ))}
@@ -86,32 +203,70 @@ export function QuickDeckSwitcher({
   );
 }
 
+function compareLearningSections(a: string, b: string) {
+  const ai = LEARNING_SECTION_ORDER.indexOf(a);
+  const bi = LEARNING_SECTION_ORDER.indexOf(b);
+  if (ai >= 0 || bi >= 0) return (ai >= 0 ? ai : 999) - (bi >= 0 ? bi : 999);
+  return a.localeCompare(b, 'en');
+}
+
 function SwitcherGroup({
   group,
   currentDeckId,
   colors,
+  isClosed,
+  onToggleGroup,
+  closedSections,
+  onToggleSection,
   onSelectDeck,
 }: {
   group: ExportHierarchyGroup;
   currentDeckId?: string;
   colors: typeof Colors.light;
+  isClosed: boolean;
+  onToggleGroup: (groupKey: string) => void;
+  closedSections: ReadonlySet<string>;
+  onToggleSection: (sectionKey: string) => void;
   onSelectDeck: (deck: Deck) => void;
 }) {
   return (
     <View style={styles.group}>
-      <View style={styles.groupHeader}>
+      <Pressable
+        onPress={() => onToggleGroup(group.key)}
+        accessibilityRole="button"
+        accessibilityLabel={`${isClosed ? 'เปิด' : 'พับ'} ${group.label}`}
+        style={({ pressed, hovered }: any) => [
+          styles.groupHeader,
+          (pressed || hovered) && { opacity: 0.72 },
+        ]}>
         <View style={[styles.rule, { backgroundColor: Accent.base }]} />
-        <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>
+        <ThemedText type="defaultSemiBold" style={[styles.groupTitle, { color: Accent.base }]}>
           {group.label}
         </ThemedText>
-      </View>
-      {group.sections.map((section) => (
+        {isClosed ? (
+          <FiChevronRight size={16} color={colors.textHint} strokeWidth={2} />
+        ) : (
+          <FiChevronDown size={16} color={colors.textHint} strokeWidth={2} />
+        )}
+      </Pressable>
+      {isClosed ? null : group.sections.map((section) => (
         <View key={section.key} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <FiChevronDown size={14} color={colors.textHint} strokeWidth={2} />
+          <Pressable
+            onPress={() => onToggleSection(section.key)}
+            accessibilityRole="button"
+            accessibilityLabel={`${closedSections.has(section.key) ? 'เปิด' : 'พับ'} ${section.label}`}
+            style={({ pressed, hovered }: any) => [
+              styles.sectionHeader,
+              (pressed || hovered) && { opacity: 0.72 },
+            ]}>
+            {closedSections.has(section.key) ? (
+              <FiChevronRight size={14} color={colors.textHint} strokeWidth={2} />
+            ) : (
+              <FiChevronDown size={14} color={colors.textHint} strokeWidth={2} />
+            )}
             <ThemedText style={[styles.mono, { color: colors.textHint }]}>{section.label}</ThemedText>
-          </View>
-          {section.decks.map((deck) => {
+          </Pressable>
+          {closedSections.has(section.key) ? null : section.decks.map((deck) => {
             const state = getDeckJumpRowState(deck.id, currentDeckId);
             return (
               <Pressable
@@ -212,6 +367,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
+  controlRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  controlBtn: {
+    minHeight: 34,
+    minWidth: 88,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+  },
   list: {
     gap: Spacing.three,
     paddingBottom: Spacing.two,
@@ -223,6 +392,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  groupTitle: {
+    flex: 1,
+    minWidth: 0,
   },
   rule: {
     width: 18,

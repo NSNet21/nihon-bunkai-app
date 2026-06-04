@@ -1,0 +1,499 @@
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiTrash2, FiX } from 'react-icons/fi';
+import Markdown from 'react-native-markdown-display';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { SpeakButton } from '@/components/speak-button';
+import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/context/theme';
+import type { Entry } from '@/data/types';
+import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
+import { studyFallbackHref } from '@/lib/navigation-back';
+
+export default function TermCardDisplayScreen() {
+  const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
+  const router = useRouter();
+  const { colors } = useThemeColors();
+  const backFallbackHref = studyFallbackHref(deckId);
+
+  const { decks: allDecks } = useAllDecks();
+  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [actionsOpen, setActionsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!deckId) return;
+    let cancelled = false;
+    void entriesForDeckAsync(deckId).then((rows) => {
+      if (!cancelled) setEntries(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [deckId]);
+
+  const index = useMemo(() => entries.findIndex((entry) => entry.id === entryId), [entries, entryId]);
+  const current = index >= 0 ? entries[index] : undefined;
+  const prev = index > 0 ? entries[index - 1] : undefined;
+  const next = index >= 0 && index < entries.length - 1 ? entries[index + 1] : undefined;
+  const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
+
+  function goEntry(entry: Entry) {
+    if (!deckId) return;
+    router.replace(`/deck/${deckId}/term/${entry.id}` as never);
+  }
+
+  async function handleDeleteDeck() {
+    if (!deck || !deleteState.enabled) return;
+    const deleted = await deleteUserDeck(deck);
+    if (deleted) router.replace('/');
+  }
+
+  if (!deck || !current) {
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <Header backFallbackHref={backFallbackHref} colors={colors} />
+          <View style={styles.centerFill}>
+            <ThemedText type="title" style={styles.emptyTitle}>
+              {!deck ? 'ไม่พบ Deck' : 'ไม่พบคำนี้'}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyBody}>
+              อาจถูกลบหรือ entry ID ไม่ถูกต้อง · ลองกลับไปหน้า deck แล้วเลือกใหม่
+            </ThemedText>
+          </View>
+        </SafeAreaView>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <StudyMobileBackButton fallbackHref={backFallbackHref} />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator>
+          <Header backFallbackHref={backFallbackHref} colors={colors} />
+
+          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+            <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
+            <View style={styles.cardMetaRow}>
+              <View style={styles.metaLeft}>
+                <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+                <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+                  {`// TERM ${String(index + 1).padStart(2, '0')} / ${entries.length}`}
+                </ThemedText>
+              </View>
+              <Pressable
+                onPress={() => setActionsOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="เปิดเมนูคำนี้"
+                style={({ pressed, hovered }: any) => [
+                  styles.iconBtn,
+                  { borderColor: colors.border, backgroundColor: colors.background },
+                  (pressed || hovered) && { borderColor: Accent.soft },
+                  pressed && { opacity: 0.75 },
+                ]}>
+                <FiMoreVertical size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
+            </View>
+
+            <View style={styles.termHero}>
+              <View style={styles.termLine}>
+                <ThemedText style={[styles.termText, { color: colors.text }]}>{current.t}</ThemedText>
+                {current.t ? <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" /> : null}
+              </View>
+              {current.p ? (
+                <View style={styles.readingLine}>
+                  <ThemedText style={[styles.readingText, { color: colors.textSecondary }]}>{current.p}</ThemedText>
+                  <SpeakButton text={current.p} language="ja-JP" colors={colors} />
+                </View>
+              ) : null}
+            </View>
+
+            {current.d ? (
+              <View style={[styles.meaningBox, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+                <ThemedText style={[styles.meaningText, { color: Accent.base }]}>{current.d}</ThemedText>
+              </View>
+            ) : null}
+
+            {current.e ? (
+              <View style={styles.markdownWrap}>
+                <Markdown style={markdownStyles(colors)}>{current.e}</Markdown>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.navRow}>
+            <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
+            <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next)} />
+          </View>
+        </ScrollView>
+
+        <ActionsModal
+          visible={actionsOpen}
+          onClose={() => setActionsOpen(false)}
+          colors={colors}
+          deleteState={deleteState}
+          onDelete={handleDeleteDeck}
+        />
+      </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function Header({ backFallbackHref, colors }: { backFallbackHref: string; colors: typeof Colors.light }) {
+  return (
+    <View style={styles.headerBar}>
+      <Link href={backFallbackHref as never} asChild>
+        <Pressable accessibilityRole="link" accessibilityLabel="กลับหน้า deck" style={styles.backBtn}>
+          {({ pressed, hovered }: any) => {
+            const active = pressed || hovered;
+            return (
+              <>
+                <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>
+                  BACK
+                </ThemedText>
+              </>
+            );
+          }}
+        </Pressable>
+      </Link>
+    </View>
+  );
+}
+
+function NavButton({
+  direction,
+  entry,
+  colors,
+  onPress,
+}: {
+  direction: 'prev' | 'next';
+  entry?: Entry;
+  colors: typeof Colors.light;
+  onPress: () => void;
+}) {
+  const isPrev = direction === 'prev';
+  const Icon = isPrev ? FiChevronLeft : FiChevronRight;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!entry}
+      accessibilityRole="button"
+      accessibilityLabel={isPrev ? 'คำก่อนหน้า' : 'คำถัดไป'}
+      style={({ pressed, hovered }: any) => [
+        styles.navBtn,
+        { borderColor: colors.border, opacity: entry ? 1 : 0.35 },
+        (pressed || hovered) && entry && { borderColor: Accent.soft, backgroundColor: colors.backgroundSelected },
+        pressed && entry && { opacity: 0.78 },
+      ]}>
+      {isPrev ? <Icon size={16} color={colors.textSecondary} strokeWidth={2} /> : null}
+      <View style={styles.navTextBlock}>
+        <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+          {isPrev ? 'PREV' : 'NEXT'}
+        </ThemedText>
+        <ThemedText type="small" numberOfLines={1} style={{ color: colors.text }}>
+          {entry?.t ?? '—'}
+        </ThemedText>
+      </View>
+      {!isPrev ? <Icon size={16} color={colors.textSecondary} strokeWidth={2} /> : null}
+    </Pressable>
+  );
+}
+
+function ActionsModal({
+  visible,
+  onClose,
+  colors,
+  deleteState,
+  onDelete,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  colors: typeof Colors.light;
+  deleteState: { enabled: boolean; reason: string };
+  onDelete: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable
+          onPress={(event: any) => event.stopPropagation?.()}
+          style={[styles.modalCard, { borderColor: colors.border, backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+              // TERM ACTIONS
+            </ThemedText>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ปิดเมนู"
+              style={[styles.iconBtn, { borderColor: colors.border }]}>
+              <FiX size={16} color={colors.text} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          <View style={styles.actionStack}>
+            <View style={[styles.actionRow, { borderColor: colors.border, opacity: 0.48 }]}>
+              <FiEdit3 size={18} color={colors.textHint} strokeWidth={2} />
+              <View style={styles.actionText}>
+                <ThemedText type="defaultSemiBold" themeColor="textSecondary">
+                  แก้ไขคำนี้
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  จะเปิดพร้อม Personal Edit
+                </ThemedText>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={deleteState.enabled ? onDelete : undefined}
+              disabled={!deleteState.enabled}
+              accessibilityRole="button"
+              accessibilityLabel="ลบ deck"
+              style={({ pressed }) => [
+                styles.actionRow,
+                { borderColor: deleteState.enabled ? Accent.soft : colors.border },
+                !deleteState.enabled && { opacity: 0.52 },
+                pressed && deleteState.enabled && { opacity: 0.75 },
+              ]}>
+              <FiTrash2 size={18} color={deleteState.enabled ? Accent.base : colors.textHint} strokeWidth={2} />
+              <View style={styles.actionText}>
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={{ color: deleteState.enabled ? Accent.base : colors.textSecondary }}>
+                  ลบ deck
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {deleteState.reason}
+                </ThemedText>
+              </View>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function markdownStyles(colors: typeof Colors.light) {
+  return {
+    body: { color: colors.text, fontSize: 15, lineHeight: 24 },
+    heading3: {
+      color: colors.text,
+      fontSize: 17,
+      fontWeight: '700' as const,
+      marginTop: Spacing.four,
+      marginBottom: Spacing.one,
+    },
+    strong: { color: colors.text, fontWeight: '700' as const },
+    bullet_list: { marginVertical: Spacing.one },
+    ordered_list: { marginVertical: Spacing.one },
+    list_item: { color: colors.text, marginVertical: 2 },
+    blockquote: {
+      backgroundColor: colors.backgroundSelected,
+      borderLeftColor: Accent.base,
+      borderLeftWidth: 3,
+      paddingLeft: Spacing.three,
+      paddingVertical: Spacing.one,
+      marginVertical: Spacing.two,
+    },
+    hr: { backgroundColor: colors.textSecondary, height: 1, marginVertical: Spacing.three, opacity: 0.3 },
+  };
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center' },
+  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.six,
+    gap: Spacing.four,
+  },
+  headerBar: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: Spacing.three,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+  },
+  centerFill: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+    padding: Spacing.four,
+  },
+  emptyTitle: {
+    textAlign: 'center',
+  },
+  emptyBody: {
+    textAlign: 'center',
+    maxWidth: 340,
+  },
+  card: {
+    position: 'relative',
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    padding: Spacing.five,
+    gap: Spacing.four,
+    overflow: 'hidden',
+  },
+  cardStripe: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  metaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  pip: { width: 5, height: 5 },
+  mono: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  termHero: {
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.four,
+  },
+  termLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+    flexWrap: 'wrap',
+  },
+  termText: {
+    fontFamily: Platform.select({ web: '"Noto Serif JP", "Hiragino Mincho ProN", serif', default: undefined }),
+    fontSize: 64,
+    lineHeight: 72,
+    fontWeight: '300',
+    textAlign: 'center',
+  },
+  readingLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
+  },
+  readingText: {
+    fontFamily: Platform.select({ web: '"Noto Serif JP", "Hiragino Mincho ProN", serif', default: undefined }),
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  meaningBox: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  meaningText: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  markdownWrap: {
+    paddingTop: Spacing.two,
+  },
+  navRow: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
+  navBtn: {
+    flex: 1,
+    minHeight: 58,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  navTextBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.four,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: 1,
+    borderRadius: Radii.md,
+    padding: Spacing.four,
+    gap: Spacing.four,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  actionStack: {
+    gap: Spacing.two,
+  },
+  actionRow: {
+    minHeight: 68,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  actionText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+});

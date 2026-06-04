@@ -322,7 +322,9 @@ function Header({
   showMobileHome: boolean;
   colors: typeof Colors.light;
 }) {
-  const settingsHref = deckId ? `/deck/${deckId}/config?mode=${mode}&next=${mode}` : undefined;
+  const settingsHref = deckId
+    ? `/deck/${deckId}/config?mode=${mode}&next=${mode}&returnTo=${encodeURIComponent(`/deck/${deckId}/${mode}`)}`
+    : undefined;
 
   return (
     <View style={styles.headerBar}>

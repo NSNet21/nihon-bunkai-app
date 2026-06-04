@@ -64,10 +64,11 @@ const MODE_LABELS: Record<StudyMode, string> = {
 };
 
 export default function StudyConfigScreen() {
-  const { deckId, mode: modeParam, next } = useLocalSearchParams<{
+  const { deckId, mode: modeParam, next, returnTo } = useLocalSearchParams<{
     deckId?: string;
     mode?: string;
     next?: string;
+    returnTo?: string;
   }>();
   const router = useRouter();
   const { colors } = useThemeColors();
@@ -82,6 +83,13 @@ export default function StudyConfigScreen() {
     DEFAULT_STUDY_MODE_CONFIGS[mode],
   );
   const safeConfig = sanitizeStudyModeConfig(config, mode);
+  const returnHref =
+    deckId && typeof returnTo === 'string' && returnTo.startsWith(`/deck/${deckId}/`)
+      ? returnTo
+      : deckId
+        ? `/deck/${deckId}/modes`
+        : '/';
+  const backLabel = returnHref.endsWith('/modes') ? 'กลับไปเลือกวิธีเรียน' : 'กลับหน้ารอบเรียน';
 
   function updateConfig(nextConfig: StudyModeConfig) {
     setConfig(sanitizeStudyModeConfig(nextConfig, mode));
@@ -124,8 +132,8 @@ export default function StudyConfigScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator>
           <View style={styles.headerBar}>
-            <Link href={deckId ? (`/deck/${deckId}/modes` as never) : '/'} asChild>
-              <Pressable accessibilityRole="link" accessibilityLabel="กลับไปเลือกวิธีเรียน" style={styles.backBtn}>
+            <Link href={returnHref as never} asChild>
+              <Pressable accessibilityRole="link" accessibilityLabel={backLabel} style={styles.backBtn}>
                 {({ pressed, hovered }: any) => {
                   const active = pressed || hovered;
                   return (

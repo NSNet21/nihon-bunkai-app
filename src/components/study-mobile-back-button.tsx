@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiArrowLeft } from 'react-icons/fi';
+import { FiArrowLeft, FiChevronLeft } from 'react-icons/fi';
 
 import { ThemedText } from './themed-text';
 
@@ -14,12 +14,14 @@ const MOBILE_NAV_BREAKPOINT = 768;
 export function StudyMobileBackButton({
   fallbackHref,
   preferFallback = false,
+  variant = 'boxed',
   floating = true,
   side = 'left',
   inset,
 }: {
   fallbackHref: string;
   preferFallback?: boolean;
+  variant?: 'boxed' | 'plain';
   floating?: boolean;
   side?: 'left' | 'right';
   inset?: { top?: number; horizontal?: number };
@@ -53,8 +55,10 @@ export function StudyMobileBackButton({
       accessibilityLabel="กลับไปหน้าก่อนหน้า"
       style={({ pressed, hovered }: any) => {
         const active = pressed || hovered;
+        const plain = variant === 'plain';
         return [
           styles.button,
+          plain ? styles.plainButton : null,
           floating ? [styles.floating, side === 'right' ? styles.floatingRight : styles.floatingLeft] : styles.inline,
           floating && inset?.top !== undefined ? { top: inset.top } : null,
           floating && inset?.horizontal !== undefined
@@ -62,7 +66,9 @@ export function StudyMobileBackButton({
               ? { right: inset.horizontal }
               : { left: inset.horizontal }
             : null,
-          {
+          plain
+            ? null
+            : {
             backgroundColor: colors.background,
             borderColor: active ? Accent.base : colors.border,
           },
@@ -73,12 +79,13 @@ export function StudyMobileBackButton({
       {({ pressed, hovered }: any) => {
         const active = pressed || hovered;
         const fg = active ? Accent.base : colors.textSecondary;
+        const Icon = variant === 'plain' ? FiChevronLeft : FiArrowLeft;
         return (
           <>
-            <View style={[styles.stripe, { opacity: active ? 1 : 0.58 }]} />
-            <View style={styles.inner}>
-              <FiArrowLeft size={14} color={fg} strokeWidth={2} />
-              <ThemedText style={[styles.label, { color: active ? Accent.base : colors.text }]}>
+            {variant === 'boxed' ? <View style={[styles.stripe, { opacity: active ? 1 : 0.58 }]} /> : null}
+            <View style={[styles.inner, variant === 'plain' ? styles.plainInner : null]}>
+              <Icon size={variant === 'plain' ? 18 : 14} color={fg} strokeWidth={2} />
+              <ThemedText style={[styles.label, variant === 'plain' ? styles.plainLabel : null, { color: active ? Accent.base : colors.textSecondary }]}>
                 BACK
               </ThemedText>
             </View>
@@ -98,6 +105,12 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     overflow: 'hidden',
     ...(Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null),
+  },
+  plainButton: {
+    borderWidth: 0,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
   },
   floating: {
     position: 'absolute',
@@ -125,10 +138,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
   },
+  plainInner: {
+    gap: Spacing.one,
+    paddingHorizontal: 0,
+    paddingVertical: Spacing.one,
+  },
   label: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 1.4,
+  },
+  plainLabel: {
+    fontSize: 14,
+    letterSpacing: 0,
   },
 });

@@ -345,7 +345,7 @@ export default function StudyScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StudyMobileBackButton fallbackHref={backFallbackHref} preferFallback />
+        <StudyMobileBackButton fallbackHref={backFallbackHref} preferFallback variant="plain" />
         <View style={styles.content}>
           {!deck ? (
             <EmptyState
@@ -393,7 +393,10 @@ export default function StudyScreen() {
                     </Pressable>
                   ) : null}
                   <Pressable
-                    onPress={() => router.push(`/deck/${deckId}/config?mode=flashcard&next=quiz` as never)}
+                    onPress={() => {
+                      if (!deckId) return;
+                      router.push(`/deck/${deckId}/config?mode=flashcard&next=quiz&returnTo=${encodeURIComponent(`/deck/${deckId}/quiz`)}` as never);
+                    }}
                     accessibilityRole="link"
                     accessibilityLabel="ตั้งค่ารอบเรียน"
                     style={({ pressed }) => [

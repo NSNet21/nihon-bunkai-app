@@ -37,7 +37,7 @@ export default function TermCardDisplayScreen() {
   const backFallbackHref = studyFallbackHref(deckId);
   const showHeaderBack = !hasHydrated || width >= 768;
   const isMobileLayout = hasHydrated && width < 768;
-  const isTabletLayout = hasHydrated && width >= 768 && width < 1024;
+  const isTabletLayout = hasHydrated && width >= 768 && width < 1180;
   const mobileTopButtonInset = { top: Spacing.four, horizontal: Spacing.four };
 
   const { decks: allDecks } = useAllDecks();
@@ -80,7 +80,7 @@ export default function TermCardDisplayScreen() {
   const cardSlotHeight = isMobileLayout
     ? Math.max(340, Math.min(520, height - 258))
     : isTabletLayout
-      ? Math.max(460, Math.min(700, height - 250))
+      ? Math.max(420, Math.min(640, height - 310))
       : Math.max(320, Math.min(620, height - (showHeaderBack ? 320 : 308)));
 
   function goEntry(entry: Entry) {

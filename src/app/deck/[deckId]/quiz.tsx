@@ -7,7 +7,7 @@ import { freeDeckParams } from '@/data/static-params';
 export function generateStaticParams() {
   return freeDeckParams();
 }
-import { FiChevronLeft, FiChevronRight, FiHome, FiSliders } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiHome, FiSettings, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -345,7 +345,7 @@ export default function StudyScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StudyMobileBackButton fallbackHref={backFallbackHref} />
+        <StudyMobileBackButton fallbackHref={backFallbackHref} preferFallback />
         <View style={styles.content}>
           {!deck ? (
             <EmptyState
@@ -392,6 +392,17 @@ export default function StudyScreen() {
                       <FiHome size={16} color={colors.text} strokeWidth={2} />
                     </Pressable>
                   ) : null}
+                  <Pressable
+                    onPress={() => router.push(`/deck/${deckId}/config?mode=flashcard&next=quiz` as never)}
+                    accessibilityRole="link"
+                    accessibilityLabel="ตั้งค่ารอบเรียน"
+                    style={({ pressed }) => [
+                      styles.headerConfigBtn,
+                      { borderColor: colors.border, backgroundColor: colors.background },
+                      pressed && { opacity: 0.7 },
+                    ]}>
+                    <FiSettings size={16} color={colors.text} strokeWidth={2} />
+                  </Pressable>
                   <Pressable
                     onPress={() => setConfigOpen(true)}
                     accessibilityRole="button"

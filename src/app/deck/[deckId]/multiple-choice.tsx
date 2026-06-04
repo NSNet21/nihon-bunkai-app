@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiChevronLeft, FiRefreshCw } from 'react-icons/fi';
+import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FiChevronLeft, FiHome, FiRefreshCw, FiSettings } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -32,8 +32,10 @@ export default function MultipleChoiceScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
   const router = useRouter();
   const { scheme, colors } = useThemeColors();
+  const { width: viewportW } = useWindowDimensions();
   const rateColors = RateColors[scheme];
   const backFallbackHref = studyFallbackHref(deckId);
+  const showMobileHome = viewportW < 768;
 
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
@@ -121,7 +123,13 @@ export default function MultipleChoiceScreen() {
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            <Header backHref={backFallbackHref} colors={colors} />
+            <Header
+              backHref={backFallbackHref}
+              deckId={deckId}
+              mode="multiple-choice"
+              showMobileHome={showMobileHome}
+              colors={colors}
+            />
             <View style={[styles.completeCard, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
               <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
               <ThemedText style={[styles.mono, { color: colors.textHint }]}>
@@ -191,7 +199,13 @@ export default function MultipleChoiceScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator>
-          <Header backHref={backFallbackHref} colors={colors} />
+          <Header
+            backHref={backFallbackHref}
+            deckId={deckId}
+            mode="multiple-choice"
+            showMobileHome={showMobileHome}
+            colors={colors}
+          />
 
           <View style={styles.titleBlock}>
             <View style={styles.sectionLabel}>
@@ -283,7 +297,21 @@ export default function MultipleChoiceScreen() {
   );
 }
 
-function Header({ backHref, colors }: { backHref: string; colors: typeof Colors.light }) {
+function Header({
+  backHref,
+  deckId,
+  mode,
+  showMobileHome,
+  colors,
+}: {
+  backHref: string;
+  deckId?: string;
+  mode: 'multiple-choice';
+  showMobileHome: boolean;
+  colors: typeof Colors.light;
+}) {
+  const settingsHref = deckId ? `/deck/${deckId}/config?mode=${mode}&next=${mode}` : undefined;
+
   return (
     <View style={styles.headerBar}>
       <Link href={backHref as never} asChild>
@@ -301,6 +329,42 @@ function Header({ backHref, colors }: { backHref: string; colors: typeof Colors.
           }}
         </Pressable>
       </Link>
+      <View style={styles.headerActions}>
+        {showMobileHome ? (
+          <Link href="/" asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="กลับ Browse"
+              style={({ pressed, hovered }: any) => [
+                styles.iconBtn,
+                { borderColor: (pressed || hovered) ? Accent.soft : colors.border, backgroundColor: colors.background },
+                pressed && { opacity: 0.72 },
+              ]}>
+              {({ pressed, hovered }: any) => {
+                const active = pressed || hovered;
+                return <FiHome size={16} color={active ? Accent.base : colors.text} strokeWidth={2} />;
+              }}
+            </Pressable>
+          </Link>
+        ) : null}
+        {settingsHref ? (
+          <Link href={settingsHref as never} asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="ตั้งค่ารอบเรียน"
+              style={({ pressed, hovered }: any) => [
+                styles.iconBtn,
+                { borderColor: (pressed || hovered) ? Accent.soft : colors.border, backgroundColor: colors.background },
+                pressed && { opacity: 0.72 },
+              ]}>
+              {({ pressed, hovered }: any) => {
+                const active = pressed || hovered;
+                return <FiSettings size={16} color={active ? Accent.base : colors.text} strokeWidth={2} />;
+              }}
+            </Pressable>
+          </Link>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -318,7 +382,12 @@ function EmptyState({
 }) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Header backHref={backHref} colors={colors} />
+      <Header
+        backHref={backHref}
+        mode="multiple-choice"
+        showMobileHome={false}
+        colors={colors}
+      />
       <View style={styles.centerFill}>
         <ThemedText type="title" style={{ color: colors.text }}>
           {title}
@@ -384,6 +453,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
     paddingRight: Spacing.three,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleBlock: { gap: Spacing.two },
   sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

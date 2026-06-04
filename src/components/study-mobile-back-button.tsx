@@ -13,11 +13,13 @@ const MOBILE_NAV_BREAKPOINT = 768;
 
 export function StudyMobileBackButton({
   fallbackHref,
+  preferFallback = false,
   floating = true,
   side = 'left',
   inset,
 }: {
   fallbackHref: string;
+  preferFallback?: boolean;
   floating?: boolean;
   side?: 'left' | 'right';
   inset?: { top?: number; horizontal?: number };
@@ -32,14 +34,21 @@ export function StudyMobileBackButton({
 
   return (
     <Pressable
-      onPress={() => navigateBackOrFallback(
-        {
-          canGoBack: () => router.canGoBack(),
-          back: () => router.back(),
-          push: (href) => router.push(href as never),
-        },
-        fallbackHref,
-      )}
+      onPress={() => {
+        if (preferFallback) {
+          router.replace(fallbackHref as never);
+          return;
+        }
+
+        navigateBackOrFallback(
+          {
+            canGoBack: () => router.canGoBack(),
+            back: () => router.back(),
+            push: (href) => router.push(href as never),
+          },
+          fallbackHref,
+        );
+      }}
       accessibilityRole="button"
       accessibilityLabel="กลับไปหน้าก่อนหน้า"
       style={({ pressed, hovered }: any) => {

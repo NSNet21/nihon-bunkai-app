@@ -193,7 +193,7 @@ function NavButton({
       accessibilityLabel={isPrev ? 'คำก่อนหน้า' : 'คำถัดไป'}
       style={({ pressed, hovered }: any) => [
         styles.navBtn,
-        { borderColor: colors.border, opacity: entry ? 1 : 0.35 },
+        { borderColor: colors.border, backgroundColor: colors.backgroundElement, opacity: entry ? 1 : 0.35 },
         (pressed || hovered) && entry && { borderColor: Accent.soft, backgroundColor: colors.backgroundSelected },
         pressed && entry && { opacity: 0.78 },
       ]}>

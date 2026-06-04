@@ -149,7 +149,7 @@ export default function DeckTermListScreen() {
           </View>
 
           {filteredEntries.length > 0 ? (
-            <View style={[styles.termList, { borderColor: colors.border }]}>
+            <View style={[styles.termList, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
               {filteredEntries.map((entry, index) => (
                 <TermRow
                   key={entry.id}
@@ -235,7 +235,7 @@ function TermRow({
         (pressed || hovered) && { backgroundColor: colors.backgroundSelected },
         pressed && { opacity: 0.82 },
       ]}>
-      <View style={[styles.termNo, { borderColor: colors.border }]}>
+      <View style={[styles.termNo, { borderColor: colors.border, backgroundColor: colors.background }]}>
         <ThemedText style={[styles.termNoText, { color: colors.textHint }]}>
           {String(entry.no).padStart(2, '0')}
         </ThemedText>

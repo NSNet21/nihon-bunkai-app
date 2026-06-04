@@ -1,16 +1,17 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiShuffle, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
+import { QuickDeckSwitcher } from '@/components/quick-deck-switcher';
 import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
-import type { Entry } from '@/data/types';
+import type { Deck, Entry } from '@/data/types';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
@@ -24,6 +25,7 @@ import {
   visibleFrontCount,
 } from '@/lib/card-display-config';
 import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
+import { resolveFirstEntryJump } from '@/lib/deck-jump';
 import { studyFallbackHref } from '@/lib/navigation-back';
 
 export default function TermCardDisplayScreen() {
@@ -40,6 +42,8 @@ export default function TermCardDisplayScreen() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [switcherMessage, setSwitcherMessage] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
     CARD_VISIBILITY_STORAGE_KEY,
@@ -75,6 +79,20 @@ export default function TermCardDisplayScreen() {
     if (!deckId) return;
     setIsFlipped(false);
     router.replace(`/deck/${deckId}/term/${entry.id}` as never);
+  }
+
+  async function handleSelectDeck(nextDeck: Deck) {
+    if (nextDeck.id === deckId) return;
+    setSwitcherMessage(null);
+    const nextEntries = await entriesForDeckAsync(nextDeck.id);
+    const jump = resolveFirstEntryJump(nextDeck.id, nextEntries);
+    if (!jump.ok) {
+      setSwitcherMessage(jump.reason);
+      return;
+    }
+    setSwitcherOpen(false);
+    setIsFlipped(false);
+    router.replace(jump.href as never);
   }
 
   async function handleDeleteDeck() {
@@ -129,8 +147,23 @@ export default function TermCardDisplayScreen() {
                   { borderColor: colors.border, backgroundColor: colors.backgroundElement },
                   (pressed || hovered) && { borderColor: Accent.soft },
                   pressed && { opacity: 0.75 },
-                ]}>
+              ]}>
                 <FiSliders size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setSwitcherMessage(null);
+                  setSwitcherOpen(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="สลับ deck"
+                style={({ pressed, hovered }: any) => [
+                  styles.iconBtn,
+                  { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                  (pressed || hovered) && { borderColor: Accent.soft },
+                  pressed && { opacity: 0.75 },
+                ]}>
+                <FiShuffle size={16} color={colors.text} strokeWidth={2} />
               </Pressable>
               <Pressable
                 onPress={() => setActionsOpen(true)}
@@ -179,6 +212,15 @@ export default function TermCardDisplayScreen() {
           colors={colors}
           deleteState={deleteState}
           onDelete={handleDeleteDeck}
+        />
+        <QuickDeckSwitcher
+          visible={switcherOpen}
+          decks={allDecks}
+          currentDeckId={deckId}
+          message={switcherMessage}
+          colors={colors}
+          onClose={() => setSwitcherOpen(false)}
+          onSelectDeck={handleSelectDeck}
         />
         <VisibilityPopup
           visible={configOpen}

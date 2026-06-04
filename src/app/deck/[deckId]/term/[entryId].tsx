@@ -37,6 +37,7 @@ export default function TermCardDisplayScreen() {
   const backFallbackHref = studyFallbackHref(deckId);
   const showHeaderBack = !hasHydrated || width >= 768;
   const isMobileLayout = hasHydrated && width < 768;
+  const isTabletLayout = hasHydrated && width >= 768 && width < 1024;
 
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
@@ -77,7 +78,9 @@ export default function TermCardDisplayScreen() {
   const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
   const cardSlotHeight = isMobileLayout
     ? Math.max(340, Math.min(520, height - 258))
-    : Math.max(320, Math.min(620, height - (showHeaderBack ? 320 : 308)));
+    : isTabletLayout
+      ? Math.max(460, Math.min(700, height - 250))
+      : Math.max(320, Math.min(620, height - (showHeaderBack ? 320 : 308)));
 
   function goEntry(entry: Entry) {
     if (!deckId) return;
@@ -130,7 +133,11 @@ export default function TermCardDisplayScreen() {
         <StudyMobileBackButton fallbackHref={backFallbackHref} side="right" />
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, isMobileLayout && styles.scrollContentMobile]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isMobileLayout && styles.scrollContentMobile,
+            isTabletLayout && styles.scrollContentTablet,
+          ]}
           showsVerticalScrollIndicator>
           {showHeaderBack ? <Header backFallbackHref={backFallbackHref} colors={colors} /> : null}
           {!showHeaderBack ? <View style={styles.mobileBackSpacer} /> : null}
@@ -202,7 +209,7 @@ export default function TermCardDisplayScreen() {
             />
           </View>
 
-          <View style={[styles.stickyNav, { borderTopColor: colors.border }]}>
+          <View style={[styles.stickyNav, isTabletLayout && styles.stickyNavTablet, { borderTopColor: colors.border }]}>
             <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
             <ThemedText style={[styles.navCounter, { color: colors.textSecondary }]}>
               {`${index + 1} / ${entries.length}`}
@@ -429,6 +436,10 @@ const styles = StyleSheet.create({
   scrollContentMobile: {
     paddingBottom: Spacing.two,
   },
+  scrollContentTablet: {
+    paddingBottom: Spacing.two,
+    gap: Spacing.three,
+  },
   headerBar: {
     minHeight: 54,
     flexDirection: 'row',
@@ -535,6 +546,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
     paddingBottom: Spacing.three,
+  },
+  stickyNavTablet: {
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
   },
   navCounter: {
     minWidth: 56,

@@ -197,11 +197,21 @@ export default function SettingsScreen() {
         onRequestClose={() => setImportHowToVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setImportHowToVisible(false)}>
           <Pressable
-            style={[styles.modalPanel, { backgroundColor: colors.background, borderColor: colors.border }]}
+            style={[
+              styles.modalPanel,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                borderTopColor: Accent.base,
+              },
+            ]}
             onPress={(event) => event.stopPropagation?.()}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1, gap: 2 }}>
-                <ThemedText type="defaultSemiBold">How to import</ThemedText>
+                <View style={styles.modalTitleRow}>
+                  <View style={styles.modalTitlePip} />
+                  <ThemedText type="defaultSemiBold">How to import</ThemedText>
+                </View>
                 <ThemedText type="small" themeColor="textSecondary">
                   เตรียมไฟล์ CSV/ZIP แล้วนำเข้า Library โดยตรง
                 </ThemedText>
@@ -211,8 +221,14 @@ export default function SettingsScreen() {
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="ปิดวิธีเตรียม CSV"
-                style={({ pressed }) => [styles.modalCloseButton, pressed && { opacity: 0.6 }]}>
-                <FiX size={20} color={colors.text} strokeWidth={2} />
+                style={({ pressed, hovered }: any) => [
+                  styles.modalCloseButton,
+                  (pressed || hovered) && { backgroundColor: Accent.bg },
+                  pressed && { opacity: 0.72 },
+                ]}>
+                {({ pressed, hovered }: any) => (
+                  <FiX size={20} color={(pressed || hovered) ? Accent.base : colors.text} strokeWidth={2} />
+                )}
               </Pressable>
             </View>
             <ImportHowToContent />
@@ -1305,6 +1321,7 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     maxHeight: '82%',
     borderWidth: 1,
+    borderTopWidth: 3,
     borderRadius: Radii.md,
     padding: Spacing.four,
     gap: Spacing.three,
@@ -1316,6 +1333,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: Spacing.three,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  modalTitlePip: {
+    width: 7,
+    height: 7,
+    backgroundColor: Accent.base,
   },
   modalCloseButton: {
     width: 32,

@@ -36,6 +36,7 @@ export default function TermCardDisplayScreen() {
   const hasHydrated = useHasHydrated();
   const backFallbackHref = studyFallbackHref(deckId);
   const showHeaderBack = !hasHydrated || width >= 768;
+  const isMobileLayout = hasHydrated && width < 768;
 
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
@@ -74,7 +75,9 @@ export default function TermCardDisplayScreen() {
   const prev = index > 0 ? entries[index - 1] : undefined;
   const next = index >= 0 && index < entries.length - 1 ? entries[index + 1] : undefined;
   const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
-  const cardSlotHeight = Math.max(320, Math.min(420, height - (showHeaderBack ? 320 : 308)));
+  const cardSlotHeight = isMobileLayout
+    ? Math.max(340, Math.min(460, height - 258))
+    : Math.max(320, Math.min(420, height - (showHeaderBack ? 320 : 308)));
 
   function goEntry(entry: Entry) {
     if (!deckId) return;
@@ -127,7 +130,7 @@ export default function TermCardDisplayScreen() {
         <StudyMobileBackButton fallbackHref={backFallbackHref} side="right" />
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, isMobileLayout && styles.scrollContentMobile]}
           showsVerticalScrollIndicator>
           {showHeaderBack ? <Header backFallbackHref={backFallbackHref} colors={colors} /> : null}
           {!showHeaderBack ? <View style={styles.mobileBackSpacer} /> : null}
@@ -422,6 +425,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.four,
     gap: Spacing.four,
+  },
+  scrollContentMobile: {
+    paddingBottom: Spacing.two,
   },
   headerBar: {
     minHeight: 54,

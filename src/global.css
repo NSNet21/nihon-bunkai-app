@@ -91,6 +91,12 @@
   border-left: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  [data-library-search-rail] {
+    transition: none !important;
+  }
+}
+
 /* Dark (Editorial warm-charcoal) — toggle */
 [data-theme="dark"] {
   --bg: #141210;

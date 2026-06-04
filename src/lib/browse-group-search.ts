@@ -34,6 +34,12 @@ export function groupSearchHasQuery(query: string) {
   return normalizeGroupSearchQuery(query).length > 0;
 }
 
+export type LibrarySearchFocusRailState = 'idle' | 'focused';
+
+export function getLibrarySearchFocusRailState(inputFocused: boolean): LibrarySearchFocusRailState {
+  return inputFocused ? 'focused' : 'idle';
+}
+
 export function filterBrowseDecks(decks: Deck[], query: string) {
   const normalized = normalizeGroupSearchQuery(query);
   if (!normalized) return decks;

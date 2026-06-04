@@ -1,12 +1,15 @@
 import { Stack } from 'expo-router';
+import { Platform } from 'react-native';
 
 export default function OnboardingLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: 'fade',
-        animationDuration: 180,
+        ...(Platform.OS === 'web' ? {} : {
+          animation: 'fade',
+          animationDuration: 180,
+        }),
       }}>
       <Stack.Screen name="welcome" />
       <Stack.Screen name="level" />

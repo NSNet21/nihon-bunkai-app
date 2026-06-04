@@ -538,11 +538,10 @@ function HierarchyHeader({
             <Icon size={16} color={checked ? Accent.base : colors.textHint} />
           )}
           <View
-            pointerEvents="none"
             style={[
               styles.hierarchyCheckDivider,
               compact && styles.hierarchyCheckDividerCompact,
-              { backgroundColor: colors.border },
+              { backgroundColor: colors.border, pointerEvents: 'none' },
             ]}
           />
         </Pressable>

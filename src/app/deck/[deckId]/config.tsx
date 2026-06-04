@@ -366,10 +366,18 @@ function ToggleRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center' },
-  safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
-  scroll: { flex: 1 },
+  container: { flex: 1 },
+  safeArea: { flex: 1, width: '100%' },
+  scroll: {
+    flex: 1,
+    alignSelf: 'stretch',
+    ...(Platform.OS === 'web' ? ({ scrollbarGutter: 'stable' } as object) : null),
+  } as any,
   scrollContent: {
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.six,
     gap: Spacing.five,

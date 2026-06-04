@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBrowseRows,
   filterBrowseDecks,
+  getLibrarySearchFocusRailState,
   groupSearchHasQuery,
   normalizeGroupSearchQuery,
 } from './browse-group-search';
@@ -54,6 +55,13 @@ describe('groupSearchHasQuery', () => {
   it('only treats non-empty normalized text as an active query', () => {
     expect(groupSearchHasQuery('   ')).toBe(false);
     expect(groupSearchHasQuery(' n5 ')).toBe(true);
+  });
+});
+
+describe('getLibrarySearchFocusRailState', () => {
+  it('activates the modal top rail only while the search input is focused', () => {
+    expect(getLibrarySearchFocusRailState(false)).toBe('idle');
+    expect(getLibrarySearchFocusRailState(true)).toBe('focused');
   });
 });
 

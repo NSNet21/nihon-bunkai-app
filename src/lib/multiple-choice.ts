@@ -6,6 +6,14 @@ export type MultipleChoiceQuestion = {
   choices: string[];
 };
 
+export type MultipleChoiceAttempt = {
+  selected: string;
+  correct: string;
+  isCorrect: boolean;
+};
+
+export type MultipleChoiceChoiceState = 'idle' | 'correct' | 'wrong';
+
 function valueForGoal(entry: Entry, goal: StudyGoal) {
   if (goal === 'term') return entry.t.trim();
   if (goal === 'meaning') return entry.d.trim();
@@ -42,4 +50,22 @@ export function buildMultipleChoiceQuestion(current: Entry, pool: Entry[], goal:
     .sort((a, b) => stableScore(a, seed) - stableScore(b, seed));
 
   return { correct, choices };
+}
+
+export function gradeMultipleChoiceAttempt(selected: string, correct: string): MultipleChoiceAttempt {
+  return {
+    selected,
+    correct,
+    isCorrect: selected === correct,
+  };
+}
+
+export function getMultipleChoiceChoiceState(
+  choice: string,
+  attempt: MultipleChoiceAttempt | null,
+): MultipleChoiceChoiceState {
+  if (!attempt) return 'idle';
+  if (choice === attempt.correct) return 'correct';
+  if (choice === attempt.selected && !attempt.isCorrect) return 'wrong';
+  return 'idle';
 }

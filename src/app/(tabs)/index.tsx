@@ -36,6 +36,7 @@ import type { Deck } from '@/data/types';
 import {
   buildBrowseRows,
   filterBrowseDecks,
+  getLibrarySearchFocusRailState,
   groupSearchHasQuery,
   type BrowseRow,
 } from '@/lib/browse-group-search';
@@ -519,7 +520,9 @@ function LibrarySearchModal({
   const inputRef = useRef<TextInput>(null);
   const [inputFocused, setInputFocused] = useState(false);
   const active = groupSearchHasQuery(query);
-  const searchActive = active || inputFocused;
+  const focusRailState = getLibrarySearchFocusRailState(inputFocused);
+  const focusRailDataProps =
+    Platform.OS === 'web' ? ({ dataSet: { librarySearchRail: focusRailState } } as any) : {};
 
   useEffect(() => {
     if (!visible) return;
@@ -537,6 +540,22 @@ function LibrarySearchModal({
       <View style={styles.librarySearchOverlay}>
         <Pressable accessibilityLabel="ปิด Library Search" style={styles.librarySearchBackdrop} onPress={onClose} />
         <View style={[styles.librarySearchPanel, { backgroundColor: colors.bg, borderColor: colors.borderStrong }]}>
+          <View style={[styles.librarySearchTopRail, { backgroundColor: colors.bg, pointerEvents: 'none' }]} />
+          <View
+            {...focusRailDataProps}
+            style={[
+              styles.librarySearchAccentBar,
+              { pointerEvents: 'none' },
+              Platform.OS === 'web'
+                ? ({
+                    transform: focusRailState === 'focused' ? 'scaleX(1)' : 'scaleX(0)',
+                    transformOrigin: 'left center',
+                    transition: 'transform 240ms cubic-bezier(0.4, 0, 0.2, 1)',
+                  } as unknown as object)
+                : { transform: [{ scaleX: focusRailState === 'focused' ? 1 : 0 }] },
+              focusRailState === 'focused' && styles.librarySearchFocusRailActive,
+            ]}
+          />
           <View style={styles.librarySearchHead}>
             <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
             <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
@@ -548,16 +567,18 @@ function LibrarySearchModal({
               accessibilityLabel="ปิด Library Search"
               hitSlop={8}
               style={({ pressed }) => [styles.librarySearchClose, pressed && styles.groupSearchPressActive]}>
-              <FiX size={18} color={Accent.base} strokeWidth={2.2} />
+              <FiX size={18} color={colors.textSecondary} strokeWidth={2.2} />
             </Pressable>
           </View>
           <View
             style={[
               styles.librarySearchInputShell,
-              searchActive && styles.librarySearchInputShellActive,
-              { backgroundColor: colors.surface, borderColor: searchActive ? Accent.base : colors.border },
+              {
+                backgroundColor: colors.surface,
+                borderColor: inputFocused ? colors.borderStrong : colors.border,
+              },
             ]}>
-            <FiSearch size={17} color={searchActive ? Accent.base : colors.textMuted} />
+            <FiSearch size={17} color={active || inputFocused ? colors.textSecondary : colors.textMuted} />
             <TextInput
               ref={inputRef}
               value={query}
@@ -578,8 +599,13 @@ function LibrarySearchModal({
                 accessibilityRole="button"
                 accessibilityLabel="ล้าง Library Search"
                 hitSlop={8}
-                style={({ pressed }) => [styles.groupSearchClear, pressed && styles.groupSearchClearActive]}>
-                {({ pressed }) => <FiX size={15} color={pressed ? colors.bg : Accent.base} strokeWidth={2.2} />}
+                style={({ pressed }) => [
+                  styles.groupSearchClear,
+                  pressed && { backgroundColor: colors.backgroundSelected, transform: [{ scale: 0.92 }] },
+                ]}>
+                {({ pressed }) => (
+                  <FiX size={15} color={pressed ? colors.text : colors.textMuted} strokeWidth={2.2} />
+                )}
               </Pressable>
             )}
           </View>
@@ -975,17 +1001,38 @@ const styles = StyleSheet.create({
     backdropFilter: Platform.select({ web: 'blur(3px)', default: undefined }) as never,
   },
   librarySearchPanel: {
+    position: 'relative',
     width: '100%',
     maxWidth: 620,
     maxHeight: '82%',
     borderWidth: 1,
-    borderTopWidth: 3,
-    borderTopColor: Accent.base,
     borderRadius: Radii.md,
     padding: Spacing.four,
     gap: Spacing.two,
+    overflow: 'hidden',
     ...librarySearchPanelShadow,
   },
+  librarySearchTopRail: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  librarySearchAccentBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: Accent.base,
+  },
+  librarySearchFocusRailActive: Platform.select({
+    web: {},
+    default: {
+      transform: [{ scaleX: 1 }],
+    },
+  }) as any,
   librarySearchHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1083,10 +1130,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  groupSearchClearActive: {
-    backgroundColor: Accent.base,
-    transform: [{ scale: 0.92 }],
   },
   toolbar: {
     flexDirection: 'row',

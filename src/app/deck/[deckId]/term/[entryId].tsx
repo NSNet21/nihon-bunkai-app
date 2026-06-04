@@ -1,7 +1,8 @@
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiChevronLeft, FiChevronRight, FiEdit3, FiHome, FiLayers, FiMoreVertical, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
@@ -33,21 +34,26 @@ export default function TermCardDisplayScreen() {
   const router = useRouter();
   const { colors } = useThemeColors();
   const { width, height } = useWindowDimensions();
+  const [activeDeckId, setActiveDeckId] = useState(deckId);
+  const [activeEntryId, setActiveEntryId] = useState(entryId);
   const hasHydrated = useHasHydrated();
-  const backFallbackHref = studyFallbackHref(deckId);
+  const backFallbackHref = studyFallbackHref(activeDeckId);
   const showHeaderBack = !hasHydrated || width >= 768;
   const isMobileLayout = hasHydrated && width < 768;
   const isTabletLayout = hasHydrated && width >= 768 && width < 1180;
   const mobileTopButtonInset = { top: Spacing.four, horizontal: Spacing.four };
 
   const { decks: allDecks } = useAllDecks();
-  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const deck = activeDeckId ? allDecks.find((d) => d.id === activeDeckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherMessage, setSwitcherMessage] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
+  const cardOpacity = useSharedValue(0.82);
+  const cardY = useSharedValue(8);
+  const cardScale = useSharedValue(0.985);
   const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
     CARD_VISIBILITY_STORAGE_KEY,
     DEFAULT_CARD_VISIBILITY,
@@ -62,17 +68,25 @@ export default function TermCardDisplayScreen() {
   };
 
   useEffect(() => {
-    if (!deckId) return;
+    if (deckId) setActiveDeckId(deckId);
+  }, [deckId]);
+
+  useEffect(() => {
+    if (entryId) setActiveEntryId(entryId);
+  }, [entryId]);
+
+  useEffect(() => {
+    if (!activeDeckId) return;
     let cancelled = false;
-    void entriesForDeckAsync(deckId).then((rows) => {
+    void entriesForDeckAsync(activeDeckId).then((rows) => {
       if (!cancelled) setEntries(rows);
     });
     return () => {
       cancelled = true;
     };
-  }, [deckId]);
+  }, [activeDeckId]);
 
-  const index = useMemo(() => entries.findIndex((entry) => entry.id === entryId), [entries, entryId]);
+  const index = useMemo(() => entries.findIndex((entry) => entry.id === activeEntryId), [entries, activeEntryId]);
   const current = index >= 0 ? entries[index] : undefined;
   const prev = index > 0 ? entries[index - 1] : undefined;
   const next = index >= 0 && index < entries.length - 1 ? entries[index + 1] : undefined;
@@ -83,14 +97,57 @@ export default function TermCardDisplayScreen() {
       ? Math.max(420, Math.min(640, height - 310))
       : Math.max(320, Math.min(620, height - (showHeaderBack ? 320 : 308)));
 
-  function goEntry(entry: Entry) {
-    if (!deckId) return;
+  const cardTransitionStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+    transform: [{ translateY: cardY.value }, { scale: cardScale.value }],
+  }));
+
+  useEffect(() => {
+    cardOpacity.value = withTiming(1, {
+      duration: 170,
+      easing: Easing.bezier(0.2, 0, 0, 1),
+    });
+    cardY.value = withTiming(0, {
+      duration: 170,
+      easing: Easing.bezier(0.2, 0, 0, 1),
+    });
+    cardScale.value = withSequence(
+      withTiming(1.012, {
+        duration: 90,
+        easing: Easing.bezier(0.2, 0, 0, 1),
+      }),
+      withTiming(1, {
+        duration: 150,
+        easing: Easing.bezier(0.2, 0, 0, 1),
+      }),
+    );
+  }, [activeDeckId, activeEntryId, cardOpacity, cardY, cardScale]);
+
+  function prepareCardTransition(kind: 'prev' | 'next' | 'deck') {
+    cardOpacity.value = kind === 'deck' ? 0.78 : 0.84;
+    cardY.value = kind === 'deck' ? 10 : kind === 'next' ? 6 : -6;
+    cardScale.value = 0.985;
+  }
+
+  function replaceTermUrl(nextDeckId: string, nextEntryId: string) {
+    const href = `/deck/${nextDeckId}/term/${nextEntryId}`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.history.replaceState(window.history.state, '', href);
+      return;
+    }
+    router.replace(href as never);
+  }
+
+  function goEntry(entry: Entry, direction: 'prev' | 'next') {
+    if (!activeDeckId) return;
+    prepareCardTransition(direction);
     setIsFlipped(false);
-    router.replace(`/deck/${deckId}/term/${entry.id}` as never);
+    setActiveEntryId(entry.id);
+    replaceTermUrl(activeDeckId, entry.id);
   }
 
   async function handleSelectDeck(nextDeck: Deck) {
-    if (nextDeck.id === deckId) return;
+    if (nextDeck.id === activeDeckId) return;
     setSwitcherMessage(null);
     const nextEntries = await entriesForDeckAsync(nextDeck.id);
     const jump = resolveFirstEntryJump(nextDeck.id, nextEntries);
@@ -99,8 +156,12 @@ export default function TermCardDisplayScreen() {
       return;
     }
     setSwitcherOpen(false);
+    prepareCardTransition('deck');
     setIsFlipped(false);
-    router.replace(jump.href as never);
+    setEntries(nextEntries);
+    setActiveDeckId(nextDeck.id);
+    setActiveEntryId(jump.entryId);
+    replaceTermUrl(nextDeck.id, jump.entryId);
   }
 
   async function handleDeleteDeck() {
@@ -113,7 +174,7 @@ export default function TermCardDisplayScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <Header backFallbackHref={backFallbackHref} colors={colors} />
+          <Header onBack={() => router.replace(backFallbackHref as never)} colors={colors} />
           <View style={styles.centerFill}>
             <ThemedText type="title" style={styles.emptyTitle}>
               {!deck ? 'ไม่พบ Deck' : 'ไม่พบคำนี้'}
@@ -130,7 +191,7 @@ export default function TermCardDisplayScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StudyMobileBackButton fallbackHref={backFallbackHref} inset={mobileTopButtonInset} />
+        <StudyMobileBackButton fallbackHref={backFallbackHref} preferFallback inset={mobileTopButtonInset} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -139,7 +200,7 @@ export default function TermCardDisplayScreen() {
             isTabletLayout && styles.scrollContentTablet,
           ]}
           showsVerticalScrollIndicator>
-          {showHeaderBack ? <Header backFallbackHref={backFallbackHref} colors={colors} /> : null}
+          {showHeaderBack ? <Header onBack={() => router.replace(backFallbackHref as never)} colors={colors} /> : null}
           {!showHeaderBack ? <View style={styles.mobileBackSpacer} /> : null}
 
           <View style={styles.termToolbar}>
@@ -193,7 +254,7 @@ export default function TermCardDisplayScreen() {
             </View>
           </View>
 
-          <View style={[styles.cardSlot, { height: cardSlotHeight }]}>
+          <Animated.View style={[styles.cardSlot, { height: cardSlotHeight }, cardTransitionStyle]}>
             <Flashcard
               entry={current}
               isFlipped={isFlipped}
@@ -203,19 +264,19 @@ export default function TermCardDisplayScreen() {
               index={index}
               total={entries.length}
               deckTitle={deck.title}
-              onSwipeNext={next ? () => goEntry(next) : undefined}
-              onSwipePrev={prev ? () => goEntry(prev) : undefined}
+              onSwipeNext={next ? () => goEntry(next, 'next') : undefined}
+              onSwipePrev={prev ? () => goEntry(prev, 'prev') : undefined}
               canSwipeNext={Boolean(next)}
               canSwipePrev={Boolean(prev)}
             />
-          </View>
+          </Animated.View>
 
           <View style={[styles.stickyNav, isTabletLayout && styles.stickyNavTablet, { borderTopColor: colors.border }]}>
-            <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
+            <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev, 'prev')} />
             <ThemedText style={[styles.navCounter, { color: colors.textSecondary }]}>
               {`${index + 1} / ${entries.length}`}
             </ThemedText>
-            <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next)} />
+            <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next, 'next')} />
           </View>
         </ScrollView>
 
@@ -234,7 +295,7 @@ export default function TermCardDisplayScreen() {
         <QuickDeckSwitcher
           visible={switcherOpen}
           decks={allDecks}
-          currentDeckId={deckId}
+          currentDeckId={activeDeckId}
           message={switcherMessage}
           colors={colors}
           onClose={() => setSwitcherOpen(false)}
@@ -254,24 +315,22 @@ export default function TermCardDisplayScreen() {
   );
 }
 
-function Header({ backFallbackHref, colors }: { backFallbackHref: string; colors: typeof Colors.light }) {
+function Header({ onBack, colors }: { onBack: () => void; colors: typeof Colors.light }) {
   return (
     <View style={styles.headerBar}>
-      <Link href={backFallbackHref as never} asChild>
-        <Pressable accessibilityRole="link" accessibilityLabel="กลับหน้า deck" style={styles.backBtn}>
-          {({ pressed, hovered }: any) => {
-            const active = pressed || hovered;
-            return (
-              <>
-                <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
-                <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>
-                  BACK
-                </ThemedText>
-              </>
-            );
-          }}
-        </Pressable>
-      </Link>
+      <Pressable accessibilityRole="button" accessibilityLabel="กลับหน้า deck" onPress={onBack} style={styles.backBtn}>
+        {({ pressed, hovered }: any) => {
+          const active = pressed || hovered;
+          return (
+            <>
+              <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+              <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>
+                BACK
+              </ThemedText>
+            </>
+          );
+        }}
+      </Pressable>
     </View>
   );
 }

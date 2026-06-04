@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronLeft, FiHome, FiRefreshCw, FiSettings } from 'react-icons/fi';
+import { FiCheck, FiChevronLeft, FiHome, FiRefreshCw, FiSettings, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -12,7 +12,12 @@ import type { Entry } from '@/data/types';
 import { freeDeckParams } from '@/data/static-params';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import { usePersistedState } from '@/hooks/use-persisted-state';
-import { buildMultipleChoiceQuestion } from '@/lib/multiple-choice';
+import {
+  buildMultipleChoiceQuestion,
+  getMultipleChoiceChoiceState,
+  gradeMultipleChoiceAttempt,
+  type MultipleChoiceAttempt,
+} from '@/lib/multiple-choice';
 import { studyFallbackHref } from '@/lib/navigation-back';
 import {
   DEFAULT_STUDY_MODE_CONFIGS,
@@ -41,8 +46,7 @@ export default function MultipleChoiceScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [index, setIndex] = useState(0);
-  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
-  const [answeredCorrect, setAnsweredCorrect] = useState(false);
+  const [attempt, setAttempt] = useState<MultipleChoiceAttempt | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
 
   const [config] = usePersistedState<StudyModeConfig>(
@@ -54,8 +58,7 @@ export default function MultipleChoiceScreen() {
 
   useEffect(() => {
     setIndex(0);
-    setSelectedChoice(null);
-    setAnsweredCorrect(false);
+    setAttempt(null);
     setCorrectCount(0);
 
     let cancelled = false;
@@ -82,24 +85,22 @@ export default function MultipleChoiceScreen() {
   }, [current, entries, safeConfig.goal]);
 
   function handleChoice(choice: string) {
-    if (!question || answeredCorrect) return;
-    setSelectedChoice(choice);
-    if (choice === question.correct) {
-      setAnsweredCorrect(true);
+    if (!question || attempt) return;
+    const result = gradeMultipleChoiceAttempt(choice, question.correct);
+    setAttempt(result);
+    if (result.isCorrect) {
       setCorrectCount((count) => count + 1);
     }
   }
 
   function handleNext() {
-    setSelectedChoice(null);
-    setAnsweredCorrect(false);
+    setAttempt(null);
     setIndex((value) => value + 1);
   }
 
   function handleRestart() {
     setIndex(0);
-    setSelectedChoice(null);
-    setAnsweredCorrect(false);
+    setAttempt(null);
     setCorrectCount(0);
   }
 
@@ -244,51 +245,64 @@ export default function MultipleChoiceScreen() {
 
           <View style={styles.choiceStack}>
             {question.choices.map((choice) => {
-              const isSelected = selectedChoice === choice;
-              const isCorrect = answeredCorrect && choice === question.correct;
-              const isWrong = isSelected && !answeredCorrect;
+              const choiceState = getMultipleChoiceChoiceState(choice, attempt);
+              const isSelected = attempt?.selected === choice;
+              const isSubmitted = attempt !== null;
+              const isCorrectChoice = choiceState === 'correct';
+              const isWrongChoice = choiceState === 'wrong';
+              const accessibilityLabel =
+                choiceState === 'correct'
+                  ? `ตัวเลือก ${choice} คำตอบที่ถูก`
+                  : choiceState === 'wrong'
+                    ? `ตัวเลือก ${choice} คำตอบที่เลือก ไม่ถูก`
+                    : `ตัวเลือก ${choice}`;
               return (
                 <Pressable
                   key={choice}
                   onPress={() => handleChoice(choice)}
+                  disabled={isSubmitted}
                   accessibilityRole="button"
-                  accessibilityLabel={`ตัวเลือก ${choice}`}
-                  accessibilityState={{ selected: isSelected }}
+                  accessibilityLabel={accessibilityLabel}
+                  accessibilityState={{ selected: isSelected, disabled: isSubmitted }}
                   style={({ pressed, hovered }: any) => [
                     styles.choiceBtn,
                     { borderColor: colors.border, backgroundColor: colors.backgroundElement },
-                    (pressed || hovered) && !answeredCorrect && { borderColor: Accent.soft },
-                    isCorrect && { borderColor: Accent.base, backgroundColor: Accent.bg },
-                    isWrong && { borderColor: rateColors.againFg, backgroundColor: rateColors.againBg },
-                    pressed && !answeredCorrect && { opacity: 0.8 },
+                    (pressed || hovered) && !isSubmitted && { borderColor: Accent.soft },
+                    isCorrectChoice && { borderColor: Accent.base, backgroundColor: Accent.bg },
+                    isWrongChoice && { borderColor: rateColors.againFg, backgroundColor: rateColors.againBg },
+                    pressed && !isSubmitted && { opacity: 0.8 },
                   ]}>
-                  <ThemedText style={[styles.choiceText, { color: colors.text }]}>{choice}</ThemedText>
+                  <View style={styles.choiceContent}>
+                    <View style={styles.choiceIconSlot}>
+                      {isCorrectChoice ? (
+                        <FiCheck size={18} color={Accent.base} strokeWidth={2.5} />
+                      ) : isWrongChoice ? (
+                        <FiX size={18} color={rateColors.againFg} strokeWidth={2.5} />
+                      ) : null}
+                    </View>
+                    <ThemedText style={[styles.choiceText, { color: colors.text }]}>{choice}</ThemedText>
+                  </View>
                 </Pressable>
               );
             })}
           </View>
 
-          {selectedChoice ? (
+          {attempt ? (
             <View style={styles.feedbackBlock}>
-              <ThemedText style={[styles.feedbackText, { color: answeredCorrect ? Accent.base : rateColors.againFg }]}>
-                {answeredCorrect ? 'ถูกต้อง' : 'ยังไม่ใช่'}
-              </ThemedText>
-              {answeredCorrect ? (
-                <Pressable
-                  onPress={handleNext}
-                  accessibilityRole="button"
-                  accessibilityLabel="ข้อถัดไป"
-                  style={({ pressed, hovered }: any) => [
-                    styles.primaryBtn,
-                    { backgroundColor: Accent.base, borderColor: Accent.base },
-                    (pressed || hovered) && { backgroundColor: Accent.strong, borderColor: Accent.strong },
-                    pressed && { opacity: 0.85 },
-                  ]}>
-                  <ThemedText style={styles.primaryText}>
-                    {index >= entries.length - 1 ? 'ดูผลลัพธ์' : 'ข้อต่อไป'}
-                  </ThemedText>
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={handleNext}
+                accessibilityRole="button"
+                accessibilityLabel="ข้อถัดไป"
+                style={({ pressed, hovered }: any) => [
+                  styles.primaryBtn,
+                  { backgroundColor: Accent.base, borderColor: Accent.base },
+                  (pressed || hovered) && { backgroundColor: Accent.strong, borderColor: Accent.strong },
+                  pressed && { opacity: 0.85 },
+                ]}>
+                <ThemedText style={styles.primaryText}>
+                  {index >= entries.length - 1 ? 'ดูผลลัพธ์' : 'ข้อต่อไป'}
+                </ThemedText>
+              </Pressable>
             </View>
           ) : null}
         </ScrollView>
@@ -531,13 +545,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     justifyContent: 'center',
   },
+  choiceContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  choiceIconSlot: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   choiceText: { fontSize: 17, lineHeight: 24, fontWeight: '700' },
   feedbackBlock: { gap: Spacing.three, alignItems: 'stretch' },
-  feedbackText: {
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
   primaryBtn: {
     minHeight: 46,
     borderWidth: 1,

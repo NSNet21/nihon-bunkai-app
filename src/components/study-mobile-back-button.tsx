@@ -15,10 +15,12 @@ export function StudyMobileBackButton({
   fallbackHref,
   floating = true,
   side = 'left',
+  inset,
 }: {
   fallbackHref: string;
   floating?: boolean;
   side?: 'left' | 'right';
+  inset?: { top?: number; horizontal?: number };
 }) {
   const router = useRouter();
   const colors = useThemePalette();
@@ -45,6 +47,12 @@ export function StudyMobileBackButton({
         return [
           styles.button,
           floating ? [styles.floating, side === 'right' ? styles.floatingRight : styles.floatingLeft] : styles.inline,
+          floating && inset?.top !== undefined ? { top: inset.top } : null,
+          floating && inset?.horizontal !== undefined
+            ? side === 'right'
+              ? { right: inset.horizontal }
+              : { left: inset.horizontal }
+            : null,
           {
             backgroundColor: colors.background,
             borderColor: active ? Accent.base : colors.border,

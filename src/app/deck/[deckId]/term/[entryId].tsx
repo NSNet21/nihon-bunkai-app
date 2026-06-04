@@ -38,6 +38,7 @@ export default function TermCardDisplayScreen() {
   const showHeaderBack = !hasHydrated || width >= 768;
   const isMobileLayout = hasHydrated && width < 768;
   const isTabletLayout = hasHydrated && width >= 768 && width < 1024;
+  const mobileTopButtonInset = { top: Spacing.four, horizontal: Spacing.four };
 
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
@@ -130,7 +131,7 @@ export default function TermCardDisplayScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <MobileHomeButton colors={colors} />
-        <StudyMobileBackButton fallbackHref={backFallbackHref} side="right" />
+        <StudyMobileBackButton fallbackHref={backFallbackHref} side="right" inset={mobileTopButtonInset} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -454,12 +455,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
   },
   mobileBackSpacer: {
-    height: 58,
+    height: 70,
   },
   mobileHomeBtn: {
     position: 'absolute',
-    top: Spacing.two,
-    left: Spacing.two,
+    top: Spacing.four,
+    left: Spacing.four,
     zIndex: 50,
     minHeight: 34,
     flexDirection: 'row',

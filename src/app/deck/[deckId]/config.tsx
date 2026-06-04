@@ -1,265 +1,230 @@
 /**
- * Quiz Config screen — /deck/[deckId]/config
+ * Study Config screen — /deck/[deckId]/config
  *
- * Single filter (Phase 2 S3): how many cards per Quiz session.
- *
- * UI 2026-05-27 round-3: custom Pan-gesture slider locked to 5 discrete
- * tick stops (10 / 20 / 30 / 50 / ทั้งหมด). Original 5-row picker took
- * ~5 vertical screens and read as an option list instead of a continuous
- * "how long should this session be" feeling. Slider = one motion captures
- * the intent + matches the "dial-in" metaphor.
- *
- * Why custom (not @react-native-community/slider): lib install on pnpm +
- * SDK 56 hit a Metro resolution failure ("Unable to resolve ./utils/
- * styles") inside the dist build. Custom Pan + Reanimated gives the same
- * UX, full editorial-brutalism styling control, and zero native module
- * dependency — works identical on iOS/Android/Web.
- *
- * Why Quiz-only (not Learn): per GPT verdict 2026-05-27 — Count is a Quiz
- * concept ("ขอทดสอบ 30 ข้อ"), not a Learn concept ("ขอเคลียร์ due").
- * Hub LEARN CTA goes direct to Memorize without passing config.
- *
- * Persistence: global key `quiz-count` ('10' | '20' | '30' | '50' | 'all').
- * User explicitly chose global > per-deck (single mental model). Default
- * = 'all' (deck stays full until user opts in to a limit).
- *
- * Wire: Hub Quiz CTA reads this key + appends `?count=N` to /quiz URL
- * (omitted when 'all'). Quiz screen slices `entries.slice(0, N)` when
- * the param is present AND no entryId resume is active (resume should
- * win over count limit).
+ * Global per-mode session config for Flashcard, Multiple Choice, and
+ * Dictation. Legacy direct quiz links with `?count=N` remain handled in
+ * quiz.tsx; this route writes the new mode config keys only.
  */
 
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { LayoutChangeEvent, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { freeDeckParams } from '@/data/static-params';
-
-/* Pre-render for every free deck — see [deckId]/index.tsx note. */
-export function generateStaticParams() {
-  return freeDeckParams();
-}
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FiChevronLeft } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemePalette } from '@/context/theme';
+import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
+import { useThemeColors } from '@/context/theme';
+import { freeDeckParams } from '@/data/static-params';
 import { usePersistedState } from '@/hooks/use-persisted-state';
+import {
+  DEFAULT_STUDY_MODE_CONFIGS,
+  sanitizeStudyModeConfig,
+  studyModeConfigKey,
+  type StudyCount,
+  type StudyGoal,
+  type StudyMode,
+  type StudyModeConfig,
+  type StudyOrder,
+} from '@/lib/study-mode-config';
 
-type QuizCount = '10' | '20' | '30' | '50' | 'all';
+export function generateStaticParams() {
+  return freeDeckParams();
+}
 
-/* Tick stops in slider index order (0 → 4). Hint shown next to active
-   label only. GPT polish round-1 picked neutral words over personality
-   tags ("รวดเร็ว/มาตรฐาน/จริงจัง/มาราธอน" made the user interpret
-   intensity). */
-const TICKS: { value: QuizCount; label: string; hint: string }[] = [
-  { value: '10',  label: '10',     hint: 'สั้น' },
-  { value: '20',  label: '20',     hint: 'ปกติ' },
-  { value: '30',  label: '30',     hint: 'ยาว' },
-  { value: '50',  label: '50',     hint: 'ยาวมาก' },
-  { value: 'all', label: 'ทั้งหมด', hint: 'ทุกใบในชุดนี้' },
+const COUNT_OPTIONS: { value: StudyCount; label: string }[] = [
+  { value: 10, label: '10' },
+  { value: 20, label: '20' },
+  { value: 30, label: '30' },
+  { value: 50, label: '50' },
+  { value: 'all', label: 'ทั้งหมด' },
 ];
 
-const MAX_INDEX = TICKS.length - 1; // 4
-const THUMB_SIZE = 28;
-const TRACK_HEIGHT = 6;
+const ORDER_OPTIONS: { value: StudyOrder; label: string }[] = [
+  { value: 'normal', label: 'ตามลำดับ' },
+  { value: 'shuffle', label: 'สุ่ม' },
+];
 
-export default function QuizConfigScreen() {
-  const { deckId } = useLocalSearchParams<{ deckId?: string }>();
-  const colors = useThemePalette();
+const GOAL_OPTIONS: { value: StudyGoal; label: string }[] = [
+  { value: 'term', label: 'ฝึกจำคำศัพท์' },
+  { value: 'meaning', label: 'ฝึกจำความหมาย' },
+  { value: 'reading', label: 'ฝึกจำคำอ่าน' },
+];
+
+const HINT_OPTIONS = [
+  { key: 'term', label: 'เห็นคำศัพท์' },
+  { key: 'meaning', label: 'เห็นความหมาย' },
+  { key: 'reading', label: 'เห็นคำอ่าน' },
+] as const;
+
+const MODE_LABELS: Record<StudyMode, string> = {
+  flashcard: 'แฟลชการ์ด',
+  'multiple-choice': 'ปรนัย',
+  dictation: 'เขียนตอบ',
+};
+
+export default function StudyConfigScreen() {
+  const { deckId, mode: modeParam, next } = useLocalSearchParams<{
+    deckId?: string;
+    mode?: string;
+    next?: string;
+  }>();
   const router = useRouter();
-  const [count, setCount] = usePersistedState<QuizCount>('quiz-count', 'all');
-  const [trackWidth, setTrackWidth] = useState(0);
+  const { colors } = useThemeColors();
 
-  const currentIdx = Math.max(0, TICKS.findIndex((t) => t.value === count));
-  const current = TICKS[currentIdx];
+  const mode: StudyMode =
+    modeParam === 'multiple-choice' || modeParam === 'dictation' || modeParam === 'flashcard'
+      ? modeParam
+      : 'flashcard';
 
-  /* Thumb position shared value drives both the visual position AND the
-     fill width. Initialized from persisted index — re-syncs whenever the
-     index or track width changes (handled by useAnimatedStyle reading
-     the latest values on each frame). */
-  const dragX = useSharedValue(0);
-  const dragging = useSharedValue(false);
+  const [config, setConfig] = usePersistedState<StudyModeConfig>(
+    studyModeConfigKey(mode),
+    DEFAULT_STUDY_MODE_CONFIGS[mode],
+  );
+  const safeConfig = sanitizeStudyModeConfig(config, mode);
 
-  const stopFromX = (x: number): number => {
-    'worklet';
-    if (trackWidth <= 0) return currentIdx;
-    const step = trackWidth / MAX_INDEX;
-    const idx = Math.round(x / step);
-    return Math.max(0, Math.min(MAX_INDEX, idx));
-  };
+  function updateConfig(nextConfig: StudyModeConfig) {
+    setConfig(sanitizeStudyModeConfig(nextConfig, mode));
+  }
 
-  const commitIndex = (idx: number) => {
-    const next = TICKS[idx];
-    if (next.value !== count) setCount(next.value);
-  };
+  function setCount(count: StudyCount) {
+    updateConfig({ ...safeConfig, count });
+  }
 
-  const pan = Gesture.Pan()
-    .onBegin((e) => {
-      dragging.value = true;
-      dragX.value = Math.max(0, Math.min(trackWidth, e.x));
-    })
-    .onChange((e) => {
-      dragX.value = Math.max(0, Math.min(trackWidth, e.x));
-    })
-    .onEnd((e) => {
-      const idx = stopFromX(Math.max(0, Math.min(trackWidth, e.x)));
-      dragging.value = false;
-      /* Snap thumb to the committed stop visually */
-      const step = trackWidth / MAX_INDEX;
-      dragX.value = withSpring(idx * step, { damping: 18, stiffness: 220 });
-      scheduleOnRN(commitIndex, idx);
+  function setOrder(order: StudyOrder) {
+    updateConfig({ ...safeConfig, order });
+  }
+
+  function setGoal(goal: StudyGoal) {
+    updateConfig({ ...safeConfig, goal });
+  }
+
+  function toggleHint(key: keyof StudyModeConfig['hints']) {
+    updateConfig({
+      ...safeConfig,
+      hints: {
+        ...safeConfig.hints,
+        [key]: !safeConfig.hints[key],
+      },
     });
+  }
 
-  const thumbStyle = useAnimatedStyle(() => {
-    const step = trackWidth > 0 ? trackWidth / MAX_INDEX : 0;
-    /* When NOT dragging, snap to the React-state index so external
-       changes (tap on tick label) also move the thumb. */
-    const x = dragging.value ? dragX.value : currentIdx * step;
-    return {
-      transform: [
-        { translateX: x - THUMB_SIZE / 2 },
-        { scale: dragging.value ? withTiming(1.15, { duration: 80 }) : withTiming(1, { duration: 80 }) },
-      ],
-    };
-  });
-
-  const fillStyle = useAnimatedStyle(() => {
-    const step = trackWidth > 0 ? trackWidth / MAX_INDEX : 0;
-    const x = dragging.value ? dragX.value : currentIdx * step;
-    return { width: x };
-  });
-
-  const onTrackLayout = (e: LayoutChangeEvent) => {
-    setTrackWidth(e.nativeEvent.layout.width);
-  };
-
-  const handleStart = () => {
+  function handleStart() {
     if (!deckId) return;
-    const qs = count !== 'all' ? `?count=${count}` : '';
-    router.push(`/deck/${deckId}/quiz${qs}` as never);
-  };
+    const route = next === 'multiple-choice' || next === 'dictation' || next === 'quiz' ? next : 'quiz';
+    setConfig({ ...safeConfig, configured: true });
+    router.replace(`/deck/${deckId}/${route}` as never);
+  }
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* No in-page BACK — TopNavBar's right-aligned BACK handles return
-            to Hub. Removed 2026-05-27 (user feedback: dual-BACK redundant). */}
-        <View style={styles.titleRow}>
-          <ThemedText type="title" style={styles.title}>ตั้งค่ารอบทบทวน</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-            // QUIZ CONFIG · เลือกจำนวนการ์ดต่อรอบ
-          </ThemedText>
-        </View>
-
-        <View style={styles.body}>
-          <ThemedText type="smallBold" style={[styles.sectionHead, { color: colors.textHint }]}>
-            // จำนวนการ์ด · CARDS PER SESSION
-          </ThemedText>
-
-          {/* Active readout — large editorial display anchors the slider thumb */}
-          <View style={styles.activeRow}>
-            <ThemedText style={[styles.activeLabel, { color: Accent.base }]}>
-              {current.label}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.activeHint}>
-              {current.hint}
-            </ThemedText>
-          </View>
-
-          <View style={styles.sliderWrap}>
-            <GestureDetector gesture={pan}>
-              <View style={styles.trackArea} onLayout={onTrackLayout}>
-                {/* Track: full-width inactive rail */}
-                <View style={[styles.track, { backgroundColor: colors.border }]} />
-                {/* Fill: animated active portion */}
-                <Animated.View
-                  style={[styles.fill, { backgroundColor: Accent.base }, fillStyle]}
-                />
-                {/* Tick squares — small editorial markers at each stop. */}
-                {TICKS.map((_, i) => {
-                  const active = i === currentIdx;
-                  const left = trackWidth > 0 ? (i / MAX_INDEX) * trackWidth : 0;
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator>
+          <View style={styles.headerBar}>
+            <Link href={deckId ? (`/deck/${deckId}/modes` as never) : '/'} asChild>
+              <Pressable accessibilityRole="link" accessibilityLabel="กลับไปเลือกวิธีเรียน" style={styles.backBtn}>
+                {({ pressed, hovered }: any) => {
+                  const active = pressed || hovered;
                   return (
-                    <View
-                      key={i}
-                      style={[
-                        styles.tickMark,
-                        {
-                          left: left - 3,
-                          backgroundColor: active ? Accent.base : colors.borderStrong,
-                          pointerEvents: 'none',
-                        },
-                      ]}
-                    />
+                    <>
+                      <FiChevronLeft size={18} color={active ? Accent.base : colors.text} strokeWidth={2} />
+                      <ThemedText type="small" style={{ color: active ? Accent.base : colors.textSecondary }}>
+                        BACK
+                      </ThemedText>
+                    </>
                   );
-                })}
-                {/* Draggable thumb — sits above ticks */}
-                <Animated.View
-                  style={[
-                    styles.thumb,
-                    {
-                      backgroundColor: Accent.base,
-                      borderColor: colors.background,
-                      pointerEvents: 'none',
-                    },
-                    thumbStyle,
-                  ]}
-                />
-              </View>
-            </GestureDetector>
-
-            {/* Tick label row — tap to jump (slider thumb still draggable). */}
-            <View style={styles.tickRow}>
-              {TICKS.map((tick, i) => {
-                const active = i === currentIdx;
-                return (
-                  <Pressable
-                    key={tick.value}
-                    onPress={() => setCount(tick.value)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={`เลือก ${tick.label}`}
-                    style={({ pressed }) => [
-                      styles.tickLabelBtn,
-                      pressed && !active && { opacity: 0.6 },
-                    ]}>
-                    <ThemedText
-                      type={active ? 'defaultSemiBold' : 'small'}
-                      style={[
-                        styles.tickLabel,
-                        { color: active ? Accent.base : colors.textSecondary },
-                      ]}>
-                      {tick.label}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
+                }}
+              </Pressable>
+            </Link>
           </View>
 
-          <ThemedText type="small" themeColor="textHint" style={styles.helperText}>
-            ค่าจะถูกบันทึกไว้ใช้ทุก deck · เปลี่ยนได้ทุกเมื่อ
-          </ThemedText>
-        </View>
+          <View style={styles.titleBlock}>
+            <View style={styles.sectionLabel}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+                // QUIZ CONFIG · {mode.toUpperCase()}
+              </ThemedText>
+            </View>
+            <ThemedText type="title" style={[styles.title, { color: colors.text }]}>
+              ตั้งค่ารอบเรียน
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {MODE_LABELS[mode]} · ค่านี้ใช้กับทุก deck
+            </ThemedText>
+          </View>
 
-        <View style={styles.ctaRow}>
-          {/* CTA copy — "เริ่ม" dropped per GPT polish round 2026-05-27. */}
+          <ConfigSection title="// COUNT · จำนวนคำ">
+            <View style={styles.segmentWrap}>
+              {COUNT_OPTIONS.map((option) => (
+                <SegmentButton
+                  key={String(option.value)}
+                  label={option.label}
+                  active={safeConfig.count === option.value}
+                  colors={colors}
+                  onPress={() => setCount(option.value)}
+                />
+              ))}
+            </View>
+          </ConfigSection>
+
+          <ConfigSection title="// ORDER · ลำดับรอบนี้">
+            <View style={styles.segmentWrap}>
+              {ORDER_OPTIONS.map((option) => (
+                <SegmentButton
+                  key={option.value}
+                  label={option.label}
+                  active={safeConfig.order === option.value}
+                  colors={colors}
+                  onPress={() => setOrder(option.value)}
+                />
+              ))}
+            </View>
+          </ConfigSection>
+
+          <ConfigSection title="// GOAL · สิ่งที่ต้องจำ">
+            <View style={styles.goalStack}>
+              {GOAL_OPTIONS.map((option) => (
+                <GoalButton
+                  key={option.value}
+                  label={option.label}
+                  active={safeConfig.goal === option.value}
+                  colors={colors}
+                  onPress={() => setGoal(option.value)}
+                />
+              ))}
+            </View>
+          </ConfigSection>
+
+          <ConfigSection title="// HINTS · สิ่งที่ให้ดูเป็นคำใบ้">
+            <View style={styles.hintStack}>
+              {HINT_OPTIONS.map((option) => (
+                <ToggleRow
+                  key={option.key}
+                  label={option.label}
+                  active={safeConfig.hints[option.key]}
+                  colors={colors}
+                  onPress={() => toggleHint(option.key)}
+                />
+              ))}
+            </View>
+          </ConfigSection>
+        </ScrollView>
+
+        <View style={[styles.ctaWrap, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
           <Pressable
             onPress={handleStart}
             accessibilityRole="button"
-            accessibilityLabel={`ทดสอบ ${count === 'all' ? 'ทั้งชุด' : `${count} ข้อ`}`}
-            style={({ pressed }) => [
+            accessibilityLabel="บันทึกและเริ่มเรียน"
+            style={({ pressed, hovered }: any) => [
               styles.ctaPrimary,
-              { backgroundColor: Accent.base },
+              { backgroundColor: Accent.base, borderColor: Accent.base },
+              (pressed || hovered) && { backgroundColor: Accent.strong, borderColor: Accent.strong },
               pressed && { opacity: 0.85 },
             ]}>
-            <ThemedText style={styles.ctaText}>
-              ทดสอบ {count === 'all' ? '· ทั้งชุด' : `· ${count} ข้อ`}
-            </ThemedText>
+            <ThemedText style={styles.ctaText}>บันทึกและเริ่มเรียน</ThemedText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -267,128 +232,267 @@ export default function QuizConfigScreen() {
   );
 }
 
+function ConfigSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.configSection}>
+      <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
+      {children}
+    </View>
+  );
+}
+
+function SegmentButton({
+  label,
+  active,
+  colors,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  colors: typeof Colors.light;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.segmentBtn,
+        {
+          borderColor: active ? Accent.soft : colors.border,
+          backgroundColor: active ? Accent.bg : colors.background,
+        },
+        pressed && { opacity: 0.75 },
+      ]}>
+      <ThemedText
+        type="small"
+        style={{ color: active ? Accent.base : colors.text, fontWeight: active ? '700' : '500' }}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+function GoalButton({
+  label,
+  active,
+  colors,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  colors: typeof Colors.light;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.goalBtn,
+        {
+          borderColor: active ? Accent.soft : colors.border,
+          backgroundColor: active ? Accent.bg : colors.background,
+        },
+        pressed && { opacity: 0.75 },
+      ]}>
+      <View style={[styles.radio, { borderColor: active ? Accent.base : colors.borderStrong }]}>
+        {active ? <View style={[styles.radioDot, { backgroundColor: Accent.base }]} /> : null}
+      </View>
+      <ThemedText type="defaultSemiBold" style={{ color: active ? Accent.base : colors.text }}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+function ToggleRow({
+  label,
+  active,
+  colors,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  colors: typeof Colors.light;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: active }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.toggleRow,
+        { borderColor: colors.border, backgroundColor: colors.background },
+        pressed && { opacity: 0.75 },
+      ]}>
+      <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
+        {label}
+      </ThemedText>
+      <View
+        style={[
+          styles.switchTrack,
+          {
+            borderColor: active ? Accent.soft : colors.borderStrong,
+            backgroundColor: active ? Accent.bg : colors.backgroundSelected,
+          },
+        ]}>
+        <View
+          style={[
+            styles.switchThumb,
+            {
+              backgroundColor: active ? Accent.base : colors.textHint,
+              transform: [{ translateX: active ? 18 : 0 }],
+            },
+          ]}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
-
-  titleRow: {
+  scroll: { flex: 1 },
+  scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.three,
-    gap: Spacing.one,
+    paddingBottom: Spacing.six,
+    gap: Spacing.five,
   },
-  title: { fontSize: 32, lineHeight: 36 },
-  subtitle: {
-    letterSpacing: 1,
+  headerBar: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: Spacing.three,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+  },
+  titleBlock: {
+    gap: Spacing.two,
+  },
+  sectionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  pip: { width: 5, height: 5 },
+  mono: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
     fontWeight: '600',
   },
-
-  body: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-    gap: Spacing.four,
+  title: {
+    fontSize: 38,
+    lineHeight: 43,
   },
-  sectionHead: {
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-
-  /* Active readout — large numeric anchor for the slider thumb. */
-  activeRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
+  configSection: {
     gap: Spacing.three,
-    paddingVertical: Spacing.three,
   },
-  activeLabel: {
-    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    fontSize: 56,
-    lineHeight: 60,
+  sectionTitle: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    color: Accent.base,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
     fontWeight: '700',
-    letterSpacing: -1,
   },
-  activeHint: {
-    letterSpacing: 0.5,
-  },
-
-  /* Slider rail + tick labels. */
-  sliderWrap: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-  },
-  trackArea: {
-    height: THUMB_SIZE + 12,
-    justifyContent: 'center',
-    /* Web-only: range-style cursor over the track for affordance. */
-    ...(Platform.OS === 'web' ? ({ cursor: 'grab' } as any) : null),
-  },
-  track: {
-    height: TRACK_HEIGHT,
-    borderRadius: TRACK_HEIGHT / 2,
-    width: '100%',
-  },
-  fill: {
-    position: 'absolute',
-    left: 0,
-    height: TRACK_HEIGHT,
-    borderRadius: TRACK_HEIGHT / 2,
-  },
-  tickMark: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 1,
-    top: '50%',
-    marginTop: -3,
-  },
-  thumb: {
-    position: 'absolute',
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    top: '50%',
-    marginTop: -THUMB_SIZE / 2,
-    borderWidth: 3,
-  },
-  tickRow: {
+  segmentWrap: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.two,
+    flexWrap: 'wrap',
+    gap: Spacing.two,
   },
-  tickLabelBtn: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.one,
+  segmentBtn: {
+    minHeight: 40,
+    minWidth: 72,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 40,
   },
-  tickLabel: {
-    fontSize: 13,
-    textAlign: 'center',
+  goalStack: {
+    gap: Spacing.two,
   },
-
-  helperText: {
-    textAlign: 'center',
-    marginTop: Spacing.two,
+  goalBtn: {
+    minHeight: 56,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
   },
-
-  ctaRow: {
+  radio: {
+    width: 18,
+    height: 18,
+    borderWidth: 1,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  hintStack: {
+    gap: Spacing.two,
+  },
+  toggleRow: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  switchTrack: {
+    width: 42,
+    height: 24,
+    borderWidth: 1,
+    borderRadius: 999,
+    padding: 2,
+  },
+  switchThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+  },
+  ctaWrap: {
+    borderTopWidth: StyleSheet.hairlineWidth,
     padding: Spacing.four,
   },
   ctaPrimary: {
-    paddingVertical: Spacing.four,
-    paddingHorizontal: Spacing.five,
-    borderRadius: Radii.md,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ctaText: {
     color: '#ffffff',
     fontWeight: '700',
-    fontSize: 14,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    fontSize: 15,
   },
 });

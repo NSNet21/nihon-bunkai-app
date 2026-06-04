@@ -309,7 +309,7 @@ export default function BrowseScreen() {
                 <View style={styles.libraryGroupHead}>
                   <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
                   <View style={styles.libraryTitleStack}>
-                    <ThemedText type="defaultSemiBold" style={styles.libraryTitle}>
+                    <ThemedText type="defaultSemiBold" style={[styles.libraryTitle, { color: Accent.base }]}>
                       คลังคำศัพท์
                     </ThemedText>
                     <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
@@ -517,7 +517,9 @@ function LibrarySearchModal({
   const colors = useThemePalette();
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const active = groupSearchHasQuery(query);
+  const searchActive = active || inputFocused;
 
   useEffect(() => {
     if (!visible) return;
@@ -545,16 +547,23 @@ function LibrarySearchModal({
               accessibilityRole="button"
               accessibilityLabel="ปิด Library Search"
               hitSlop={8}
-              style={styles.librarySearchClose}>
-              {({ pressed }) => <FiX size={17} color={pressed ? Accent.base : colors.textSecondary} />}
+              style={({ pressed }) => [styles.librarySearchClose, pressed && styles.groupSearchPressActive]}>
+              <FiX size={18} color={Accent.base} strokeWidth={2.2} />
             </Pressable>
           </View>
-          <View style={[styles.librarySearchInputShell, { backgroundColor: colors.surface, borderColor: active ? Accent.base : colors.border }]}>
-            <FiSearch size={17} color={active ? Accent.base : colors.textMuted} />
+          <View
+            style={[
+              styles.librarySearchInputShell,
+              searchActive && styles.librarySearchInputShellActive,
+              { backgroundColor: colors.surface, borderColor: searchActive ? Accent.base : colors.border },
+            ]}>
+            <FiSearch size={17} color={searchActive ? Accent.base : colors.textMuted} />
             <TextInput
               ref={inputRef}
               value={query}
               onChangeText={onChangeQuery}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               placeholder="N5 / kanji / pack 02 / vocab"
               placeholderTextColor={colors.textMuted}
               autoCorrect={false}
@@ -570,7 +579,7 @@ function LibrarySearchModal({
                 accessibilityLabel="ล้าง Library Search"
                 hitSlop={8}
                 style={({ pressed }) => [styles.groupSearchClear, pressed && styles.groupSearchClearActive]}>
-                {({ pressed }) => <FiX size={15} color={pressed ? colors.bg : Accent.base} />}
+                {({ pressed }) => <FiX size={15} color={pressed ? colors.bg : Accent.base} strokeWidth={2.2} />}
               </Pressable>
             )}
           </View>
@@ -984,10 +993,14 @@ const styles = StyleSheet.create({
   },
   librarySearchClose: {
     marginLeft: 'auto',
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  groupSearchPressActive: {
+    opacity: 0.72,
+    transform: [{ scale: 0.92 }],
   },
   librarySearchInputShell: {
     minHeight: 48,
@@ -997,6 +1010,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  librarySearchInputShellActive: {
+    ...librarySearchDockActiveShadow,
   },
   librarySearchInput: {
     flex: 1,
@@ -1070,6 +1086,7 @@ const styles = StyleSheet.create({
   },
   groupSearchClearActive: {
     backgroundColor: Accent.base,
+    transform: [{ scale: 0.92 }],
   },
   toolbar: {
     flexDirection: 'row',

@@ -451,9 +451,18 @@ export default function SearchScreen() {
                 onPress={goBackFromMobileSearch}
                 accessibilityRole="button"
                 accessibilityLabel="กลับไปหน้า Browse"
-                hitSlop={8}
-                style={({ pressed }) => [styles.mobileSearchBack, pressed && styles.headerPressed]}>
-                <FiArrowLeft size={20} color={c.textSecondary} strokeWidth={2} />
+                hitSlop={10}
+                style={({ pressed, hovered }: any) => [
+                  styles.mobileSearchBack,
+                  {
+                    borderColor: pressed || hovered ? Accent.base : 'transparent',
+                    backgroundColor: pressed || hovered ? Accent.bg : 'transparent',
+                  },
+                  pressed && styles.mobileSearchBackPressed,
+                ]}>
+                {({ pressed, hovered }: any) => (
+                  <FiArrowLeft size={24} color={pressed || hovered ? Accent.base : c.textSecondary} strokeWidth={2.2} />
+                )}
               </Pressable>
             )}
             <ThemedText type="title" style={shortMobileViewport && styles.searchTitleShortMobile}>Search</ThemedText>
@@ -1176,11 +1185,16 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   mobileSearchBack: {
-    width: 34,
-    height: 34,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: Radii.sm,
+    borderWidth: 1,
+  },
+  mobileSearchBackPressed: {
+    opacity: 0.76,
+    transform: [{ scale: 0.94 }],
   },
   headerPressed: {
     opacity: 0.68,

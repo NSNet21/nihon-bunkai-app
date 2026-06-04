@@ -173,7 +173,10 @@ export function QuickDeckSwitcher({
             </Pressable>
           </View>
 
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.list}
+            keyboardShouldPersistTaps="handled">
             {groups.map((group) => (
               <SwitcherGroup
                 key={group.key}
@@ -361,6 +364,7 @@ const styles = StyleSheet.create({
   },
   scroll: {
     minHeight: 0,
+    ...(Platform.OS === 'web' ? ({ scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any) : null),
   },
   messageBox: {
     borderWidth: 1,

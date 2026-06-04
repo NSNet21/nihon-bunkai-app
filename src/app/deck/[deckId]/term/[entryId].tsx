@@ -1,11 +1,10 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiTrash2, FiX } from 'react-icons/fi';
-import Markdown from 'react-native-markdown-display';
+import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SpeakButton } from '@/components/speak-button';
+import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -13,6 +12,16 @@ import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/the
 import { useThemeColors } from '@/context/theme';
 import type { Entry } from '@/data/types';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { usePersistedState } from '@/hooks/use-persisted-state';
+import {
+  CARD_VISIBILITY_STORAGE_KEY,
+  DEFAULT_CARD_VISIBILITY,
+  DEFAULT_FRONT_HERO,
+  FRONT_HERO_STORAGE_KEY,
+  applyCardVisibilityToggle,
+  visibleBackCount,
+  visibleFrontCount,
+} from '@/lib/card-display-config';
 import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
 import { studyFallbackHref } from '@/lib/navigation-back';
 
@@ -26,6 +35,20 @@ export default function TermCardDisplayScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [visibility, setVisibility] = usePersistedState<ColumnVisibility>(
+    CARD_VISIBILITY_STORAGE_KEY,
+    DEFAULT_CARD_VISIBILITY,
+  );
+  const [frontHero, setFrontHero] = usePersistedState<FrontHero>(FRONT_HERO_STORAGE_KEY, DEFAULT_FRONT_HERO);
+  const visibleFrontColumns = visibleFrontCount(visibility);
+  const visibleBackColumns = visibleBackCount(visibility);
+  const toggleColumn = (key: keyof ColumnVisibility) => {
+    const next = applyCardVisibilityToggle(visibility, key, frontHero);
+    setVisibility(next.visibility);
+    setFrontHero(next.frontHero);
+  };
 
   useEffect(() => {
     if (!deckId) return;
@@ -46,6 +69,7 @@ export default function TermCardDisplayScreen() {
 
   function goEntry(entry: Entry) {
     if (!deckId) return;
+    setIsFlipped(false);
     router.replace(`/deck/${deckId}/term/${entry.id}` as never);
   }
 
@@ -83,60 +107,66 @@ export default function TermCardDisplayScreen() {
           showsVerticalScrollIndicator>
           <Header backFallbackHref={backFallbackHref} colors={colors} />
 
-          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-            <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
-            <View style={styles.cardMetaRow}>
-              <View style={styles.metaLeft}>
-                <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-                <ThemedText style={[styles.mono, { color: colors.textHint }]}>
-                  {`// TERM ${String(index + 1).padStart(2, '0')} / ${entries.length}`}
-                </ThemedText>
-              </View>
+          <View style={styles.termToolbar}>
+            <View style={styles.metaLeft}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+                {`// TERM ${String(index + 1).padStart(2, '0')} / ${entries.length}`}
+              </ThemedText>
+            </View>
+            <View style={styles.toolbarActions}>
+              <Pressable
+                onPress={() => setConfigOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="ตั้งค่าการแสดงผลการ์ด"
+                style={({ pressed, hovered }: any) => [
+                  styles.iconBtn,
+                  { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                  (pressed || hovered) && { borderColor: Accent.soft },
+                  pressed && { opacity: 0.75 },
+                ]}>
+                <FiSliders size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
               <Pressable
                 onPress={() => setActionsOpen(true)}
                 accessibilityRole="button"
                 accessibilityLabel="เปิดเมนูคำนี้"
                 style={({ pressed, hovered }: any) => [
                   styles.iconBtn,
-                  { borderColor: colors.border, backgroundColor: colors.background },
+                  { borderColor: colors.border, backgroundColor: colors.backgroundElement },
                   (pressed || hovered) && { borderColor: Accent.soft },
                   pressed && { opacity: 0.75 },
                 ]}>
                 <FiMoreVertical size={16} color={colors.text} strokeWidth={2} />
               </Pressable>
             </View>
-
-            <View style={styles.termHero}>
-              <View style={styles.termLine}>
-                <ThemedText style={[styles.termText, { color: colors.text }]}>{current.t}</ThemedText>
-                {current.t ? <SpeakButton text={current.t} language="ja-JP" colors={colors} size="md" /> : null}
-              </View>
-              {current.p ? (
-                <View style={styles.readingLine}>
-                  <ThemedText style={[styles.readingText, { color: colors.textSecondary }]}>{current.p}</ThemedText>
-                  <SpeakButton text={current.p} language="ja-JP" colors={colors} />
-                </View>
-              ) : null}
-            </View>
-
-            {current.d ? (
-              <View style={[styles.meaningBox, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
-                <ThemedText style={[styles.meaningText, { color: Accent.base }]}>{current.d}</ThemedText>
-              </View>
-            ) : null}
-
-            {current.e ? (
-              <View style={styles.markdownWrap}>
-                <Markdown style={markdownStyles(colors)}>{current.e}</Markdown>
-              </View>
-            ) : null}
           </View>
 
-          <View style={styles.navRow}>
-            <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
-            <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next)} />
+          <View style={styles.cardSlot}>
+            <Flashcard
+              entry={current}
+              isFlipped={isFlipped}
+              onFlip={() => setIsFlipped((flipped) => !flipped)}
+              visibility={visibility}
+              frontHero={frontHero}
+              index={index}
+              total={entries.length}
+              deckTitle={deck.title}
+              onSwipeNext={next ? () => goEntry(next) : undefined}
+              onSwipePrev={prev ? () => goEntry(prev) : undefined}
+              canSwipeNext={Boolean(next)}
+              canSwipePrev={Boolean(prev)}
+            />
           </View>
         </ScrollView>
+
+        <View style={[styles.stickyNav, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+          <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev)} />
+          <ThemedText style={[styles.navCounter, { color: colors.textSecondary }]}>
+            {`${index + 1} / ${entries.length}`}
+          </ThemedText>
+          <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next)} />
+        </View>
 
         <ActionsModal
           visible={actionsOpen}
@@ -144,6 +174,15 @@ export default function TermCardDisplayScreen() {
           colors={colors}
           deleteState={deleteState}
           onDelete={handleDeleteDeck}
+        />
+        <VisibilityPopup
+          visible={configOpen}
+          onClose={() => setConfigOpen(false)}
+          visibility={visibility}
+          onToggle={toggleColumn}
+          colors={colors}
+          visibleFrontCount={visibleFrontColumns}
+          visibleBackCount={visibleBackColumns}
         />
       </SafeAreaView>
     </ThemedView>
@@ -286,39 +325,13 @@ function ActionsModal({
   );
 }
 
-function markdownStyles(colors: typeof Colors.light) {
-  return {
-    body: { color: colors.text, fontSize: 15, lineHeight: 24 },
-    heading3: {
-      color: colors.text,
-      fontSize: 17,
-      fontWeight: '700' as const,
-      marginTop: Spacing.four,
-      marginBottom: Spacing.one,
-    },
-    strong: { color: colors.text, fontWeight: '700' as const },
-    bullet_list: { marginVertical: Spacing.one },
-    ordered_list: { marginVertical: Spacing.one },
-    list_item: { color: colors.text, marginVertical: 2 },
-    blockquote: {
-      backgroundColor: colors.backgroundSelected,
-      borderLeftColor: Accent.base,
-      borderLeftWidth: 3,
-      paddingLeft: Spacing.three,
-      paddingVertical: Spacing.one,
-      marginVertical: Spacing.two,
-    },
-    hr: { backgroundColor: colors.textSecondary, height: 1, marginVertical: Spacing.three, opacity: 0.3 },
-  };
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   safeArea: { flex: 1, width: '100%', maxWidth: MaxContentWidth },
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: Spacing.four,
-    paddingBottom: Spacing.six,
+    paddingBottom: 104,
     gap: Spacing.four,
   },
   headerBar: {
@@ -348,31 +361,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 340,
   },
-  card: {
-    position: 'relative',
-    borderWidth: 1,
-    borderRadius: Radii.md,
-    padding: Spacing.five,
-    gap: Spacing.four,
-    overflow: 'hidden',
-  },
-  cardStripe: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-  },
-  cardMetaRow: {
+  termToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   metaLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    minWidth: 0,
+    flex: 1,
   },
   pip: { width: 5, height: 5 },
   mono: {
@@ -390,56 +390,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  termHero: {
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.four,
-  },
-  termLine: {
+  toolbarActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.three,
-    flexWrap: 'wrap',
-  },
-  termText: {
-    fontFamily: Platform.select({ web: '"Noto Serif JP", "Hiragino Mincho ProN", serif', default: undefined }),
-    fontSize: 64,
-    lineHeight: 72,
-    fontWeight: '300',
-    textAlign: 'center',
-  },
-  readingLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: Spacing.two,
-    flexWrap: 'wrap',
   },
-  readingText: {
-    fontFamily: Platform.select({ web: '"Noto Serif JP", "Hiragino Mincho ProN", serif', default: undefined }),
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
+  cardSlot: {
+    minHeight: 420,
   },
-  meaningBox: {
-    alignSelf: 'center',
-    borderWidth: 1,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-  },
-  meaningText: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  markdownWrap: {
-    paddingTop: Spacing.two,
-  },
-  navRow: {
+  stickyNav: {
     flexDirection: 'row',
-    gap: Spacing.three,
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    zIndex: 10,
+  },
+  navCounter: {
+    minWidth: 56,
+    textAlign: 'center',
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 11,
+    fontWeight: '700',
   },
   navBtn: {
     flex: 1,

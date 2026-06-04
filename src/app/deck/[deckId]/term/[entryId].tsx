@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiChevronLeft, FiChevronRight, FiEdit3, FiMoreVertical, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,6 +12,7 @@ import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/the
 import { useThemeColors } from '@/context/theme';
 import type { Entry } from '@/data/types';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import {
   CARD_VISIBILITY_STORAGE_KEY,
@@ -29,7 +30,10 @@ export default function TermCardDisplayScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
   const router = useRouter();
   const { colors } = useThemeColors();
+  const { width } = useWindowDimensions();
+  const hasHydrated = useHasHydrated();
   const backFallbackHref = studyFallbackHref(deckId);
+  const showHeaderBack = !hasHydrated || width >= 768;
 
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
@@ -105,7 +109,8 @@ export default function TermCardDisplayScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator>
-          <Header backFallbackHref={backFallbackHref} colors={colors} />
+          {showHeaderBack ? <Header backFallbackHref={backFallbackHref} colors={colors} /> : null}
+          {!showHeaderBack ? <View style={styles.mobileBackSpacer} /> : null}
 
           <View style={styles.termToolbar}>
             <View style={styles.metaLeft}>
@@ -346,6 +351,9 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
+  },
+  mobileBackSpacer: {
+    height: 58,
   },
   centerFill: {
     flex: 1,

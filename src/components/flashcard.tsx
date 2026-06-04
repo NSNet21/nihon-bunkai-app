@@ -802,7 +802,11 @@ export function VisibilityPopup({
                   badge มุมการ์ด · คอลัมน์ที่จะแสดง
                 </ThemedText>
               </View>
-              <Pressable onPress={onClose} style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
+              <Pressable
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel="ปิดการตั้งค่าการแสดงผลการ์ด"
+                style={({ pressed }) => [popupStyles.close, pressed && { opacity: 0.6 }]}>
                 <FiX size={20} color={colors.text} strokeWidth={2} />
               </Pressable>
             </View>

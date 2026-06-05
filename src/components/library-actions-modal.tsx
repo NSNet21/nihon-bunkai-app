@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useState, type ReactNode } from 'react';
+import { useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiMinus, FiPlus, FiSquare, FiUpload, FiX } from 'react-icons/fi';
 
@@ -21,6 +21,7 @@ import {
 import { parseManualImportFiles, saveManualImport, type ManualImportParseResult } from '@/lib/import-export/manual-import';
 
 type Mode = 'actions' | 'how-to' | 'import-destination' | 'export-one' | 'export-batch';
+type PendingImportMode = 'single' | 'batch' | null;
 
 type LibraryActionsModalProps = {
   visible: boolean;
@@ -45,6 +46,7 @@ type LibraryActionsState = {
   status: string;
   importGroup: string;
   importSection: string;
+  pendingImportMode: PendingImportMode;
   selected: Set<string>;
 };
 
@@ -54,6 +56,7 @@ type LibraryActionsAction =
   | { type: 'busy'; busy: boolean }
   | { type: 'status'; status: string }
   | { type: 'import-field'; field: 'importGroup' | 'importSection'; value: string }
+  | { type: 'pending-import'; mode: PendingImportMode }
   | { type: 'toggle-selected'; deckId: string }
   | { type: 'reset-selected' };
 
@@ -64,6 +67,7 @@ function createLibraryActionsState(): LibraryActionsState {
     status: '',
     importGroup: DEFAULT_IMPORT_GROUP,
     importSection: DEFAULT_IMPORT_SECTION,
+    pendingImportMode: null,
     selected: new Set(),
   };
 }
@@ -71,7 +75,7 @@ function createLibraryActionsState(): LibraryActionsState {
 function libraryActionsReducer(state: LibraryActionsState, action: LibraryActionsAction): LibraryActionsState {
   switch (action.type) {
     case 'close':
-      return { ...state, mode: 'actions', status: '', selected: new Set() };
+      return { ...state, mode: 'actions', status: '', pendingImportMode: null, selected: new Set() };
     case 'mode':
       return { ...state, mode: action.mode, status: '' };
     case 'busy':
@@ -80,6 +84,8 @@ function libraryActionsReducer(state: LibraryActionsState, action: LibraryAction
       return { ...state, status: action.status };
     case 'import-field':
       return { ...state, [action.field]: action.value };
+    case 'pending-import':
+      return { ...state, pendingImportMode: action.mode };
     case 'toggle-selected': {
       const selected = new Set(state.selected);
       if (selected.has(action.deckId)) selected.delete(action.deckId);
@@ -97,7 +103,8 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
   const colors = useThemePalette();
   const { showToast } = useToast();
   const [state, dispatch] = useReducer(libraryActionsReducer, undefined, createLibraryActionsState);
-  const { mode, busy, status, importGroup, importSection, selected } = state;
+  const { mode, busy, status, importGroup, importSection, pendingImportMode, selected } = state;
+  const suppressNextOverlayCloseRef = useRef(false);
   const exportableDecks = useMemo(() => selectExportableDecks(decks), [decks]);
   const destinationOptions = useMemo(() => buildImportDestinationOptions(decks), [decks]);
   const currentDestination = normalizeImportDestination({ group: importGroup, section: importSection });
@@ -116,18 +123,45 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
     onClose();
   }
 
+  function closeFromOverlay() {
+    if (suppressNextOverlayCloseRef.current) {
+      suppressNextOverlayCloseRef.current = false;
+      return;
+    }
+    close();
+  }
+
+  function markPanelInteractionStart() {
+    suppressNextOverlayCloseRef.current = true;
+  }
+
+  function markPanelInteractionEnd() {
+    if (Platform.OS !== 'web') {
+      suppressNextOverlayCloseRef.current = false;
+      return;
+    }
+    window.setTimeout(() => {
+      suppressNextOverlayCloseRef.current = false;
+    }, 500);
+  }
+
   function openMode(nextMode: Mode) {
     dispatch({ type: 'mode', mode: nextMode });
   }
 
-  async function onImport(multiple: boolean) {
+  function startImport(mode: Exclude<PendingImportMode, null>) {
+    dispatch({ type: 'pending-import', mode });
+    openMode('import-destination');
+  }
+
+  async function onImport(multiple: boolean, destination = currentDestination) {
     const files = await pickFiles('.csv,.zip,text/csv,application/zip', multiple);
     if (files.length === 0) return;
     dispatch({ type: 'busy', busy: true });
     try {
       const parsed = await parseManualImportFiles(files, deckIdSets.embeddedFree, {
-        group: currentDestination.group,
-        section: currentDestination.section,
+        group: destination.group,
+        section: destination.section,
       });
       if (!shouldSave(parsed, deckIdSets.local)) {
         dispatch({ type: 'status', status: 'ยกเลิก import' });
@@ -181,13 +215,24 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <Pressable style={styles.overlay} onPress={close}>
+      <Pressable
+        style={styles.overlay}
+        onPress={Platform.OS === 'web' ? undefined : closeFromOverlay}
+        {...(Platform.OS === 'web'
+          ? ({
+              onMouseDown: (event: any) => {
+                if (event.target === event.currentTarget) close();
+              },
+            } as any)
+          : null)}>
         <Pressable
           style={[
             styles.panel,
             mode === 'how-to' && styles.howToPanel,
             { backgroundColor: colors.background, borderColor: colors.border },
           ]}
+          onPressIn={markPanelInteractionStart}
+          onPressOut={markPanelInteractionEnd}
           onPress={(e) => e.stopPropagation?.()}>
           <View style={styles.header}>
             <View>
@@ -212,12 +257,6 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
             {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'card' } } as any) : null)}>
             {mode === 'actions' && (
               <View style={styles.actionList}>
-                <ImportDestinationSummary
-                  group={currentDestination.group}
-                  section={currentDestination.section}
-                  disabled={busy}
-                  onPress={() => openMode('import-destination')}
-                />
                 <ActionRow
                   label={ACTIONS.howTo}
                   hint="เตรียม CSV ใน Sheets/Excel แล้วนำเข้าแอปโดยตรง"
@@ -230,14 +269,14 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                   hint="เพิ่ม CSV หรือ ZIP 1 ไฟล์เข้า Library เครื่องนี้"
                   icon={<FiUpload size={17} color={Accent.base} />}
                   disabled={busy}
-                  onPress={() => void onImport(false)}
+                  onPress={() => startImport('single')}
                 />
                 <ActionRow
                   label={ACTIONS.importBatch}
                   hint="เลือกหลาย CSV หรือ ZIP เดียว แล้ว import ต่อเนื่อง"
                   icon={<FiArchive size={17} color={Accent.base} />}
                   disabled={busy}
-                  onPress={() => void onImport(true)}
+                  onPress={() => startImport('batch')}
                 />
                 <ActionRow
                   label={ACTIONS.exportOne}
@@ -261,12 +300,23 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                 groups={destinationOptions}
                 current={currentDestination}
                 busy={busy}
-                onBack={() => openMode('actions')}
+                onBack={() => {
+                  dispatch({ type: 'pending-import', mode: null });
+                  openMode('actions');
+                }}
                 onApply={(value) => {
                   const normalized = normalizeImportDestination(value);
                   dispatch({ type: 'import-field', field: 'importGroup', value: normalized.group });
                   dispatch({ type: 'import-field', field: 'importSection', value: normalized.section });
-                  openMode('actions');
+                  if (!pendingImportMode) {
+                    openMode('actions');
+                    return;
+                  }
+                  void (async () => {
+                    await onImport(pendingImportMode === 'batch', normalized);
+                    dispatch({ type: 'pending-import', mode: null });
+                    openMode('actions');
+                  })();
                 }}
               />
             )}
@@ -275,8 +325,8 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
               <ImportHowTo
                 busy={busy}
                 onBack={() => openMode('actions')}
-                onImportOne={() => void onImport(false)}
-                onImportBatch={() => void onImport(true)}
+                onImportOne={() => startImport('single')}
+                onImportBatch={() => startImport('batch')}
               />
             )}
 
@@ -336,48 +386,6 @@ function ImportHowTo({
   );
 }
 
-function ImportDestinationSummary({
-  group,
-  section,
-  disabled,
-  onPress,
-}: {
-  group: string;
-  section: string;
-  disabled: boolean;
-  onPress: () => void;
-}) {
-  const colors = useThemePalette();
-  return (
-    <View style={[styles.destinationBlock, { borderBottomColor: colors.border }]}>
-      <View style={styles.destinationTitleRow}>
-        <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-        <ThemedText style={[styles.mono, { color: colors.textHint }]}>// IMPORT DESTINATION</ThemedText>
-      </View>
-      <Pressable
-        onPress={onPress}
-        disabled={disabled}
-        accessibilityRole="button"
-        accessibilityLabel="เลือก import destination"
-        style={({ pressed, hovered }: any) => [
-          styles.destinationSummaryButton,
-          { borderColor: colors.border, backgroundColor: hovered ? colors.surface2 : colors.background },
-          disabled && { opacity: 0.45 },
-          pressed && { opacity: 0.72 },
-        ]}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <ThemedText type="defaultSemiBold" numberOfLines={1}>{group} / {section}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">ใช้กับ import รอบนี้</ThemedText>
-        </View>
-        <ThemedText type="smallBold" style={{ color: Accent.base }}>Change</ThemedText>
-      </Pressable>
-      <ThemedText type="small" themeColor="textSecondary" style={styles.destinationHint}>
-        ใช้กับ Import one file และ Batch import รอบนี้ · แก้ภายหลังได้จาก Deck Actions
-      </ThemedText>
-    </View>
-  );
-}
-
 function ImportDestinationPicker({
   groups,
   current,
@@ -392,20 +400,24 @@ function ImportDestinationPicker({
   onApply: (value: { group: string; section: string }) => void;
 }) {
   const colors = useThemePalette();
-  const [selectedGroupKey, setSelectedGroupKey] = useState(
-    () => groups.find((group) => group.label === current.group)?.key ?? groups[0]?.key ?? '',
-  );
+  const [selectedGroupKey, setSelectedGroupKey] = useState(() => {
+    const currentGroup = groups.find((group) => !group.disabled && group.label === current.group);
+    const firstUserGroup = groups.find((group) => !group.disabled);
+    return currentGroup?.key ?? firstUserGroup?.key ?? '';
+  });
   const [selectedSectionKey, setSelectedSectionKey] = useState(() => {
     const group = groups.find((item) => item.key === selectedGroupKey);
-    return group?.sections.find((section) => section.label === current.section)?.key ?? group?.sections[0]?.key ?? '';
+    return group?.sections.find((section) => !section.disabled && section.label === current.section)?.key
+      ?? group?.sections.find((section) => !section.disabled)?.key
+      ?? '';
   });
-  const [creatingGroup, setCreatingGroup] = useState(false);
-  const [creatingSection, setCreatingSection] = useState(false);
+  const [creatingGroup, setCreatingGroup] = useState(() => !groups.some((group) => !group.disabled));
+  const [creatingSection, setCreatingSection] = useState(() => !groups.some((group) => !group.disabled));
   const [newGroup, setNewGroup] = useState('');
   const [newSection, setNewSection] = useState(DEFAULT_IMPORT_SECTION);
 
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey);
-  const selectedSection = selectedGroup?.sections.find((section) => section.key === selectedSectionKey);
+  const selectedSection = selectedGroup?.sections.find((section) => !section.disabled && section.key === selectedSectionKey);
   const applyLabel = creatingGroup
     ? `Use ${newGroup.trim() || 'New group'} / ${newSection.trim() || DEFAULT_IMPORT_SECTION}`
     : creatingSection
@@ -413,9 +425,10 @@ function ImportDestinationPicker({
       : `Use ${selectedGroup?.label ?? current.group} / ${selectedSection?.label ?? DEFAULT_IMPORT_SECTION}`;
 
   function chooseGroup(group: ImportDestinationGroupOption) {
+    if (group.disabled) return;
     setCreatingGroup(false);
     setSelectedGroupKey(group.key);
-    setSelectedSectionKey(group.sections[0]?.key ?? '');
+    setSelectedSectionKey(group.sections.find((section) => !section.disabled)?.key ?? '');
     setCreatingSection(false);
     setNewSection(DEFAULT_IMPORT_SECTION);
   }
@@ -443,9 +456,9 @@ function ImportDestinationPicker({
               <DestinationChoiceRow
                 key={group.key}
                 label={group.label}
-                meta={`${group.sections.length} sections`}
+                meta={group.disabled ? `Official Source · ${group.sections.length} sections` : `${group.sections.length} sections`}
                 checked={!creatingGroup && selectedGroupKey === group.key}
-                disabled={busy}
+                disabled={busy || Boolean(group.disabled)}
                 onPress={() => chooseGroup(group)}
               />
             ))}
@@ -494,9 +507,11 @@ function ImportDestinationPicker({
                 <DestinationChoiceRow
                   key={section.key}
                   label={section.label}
+                  meta={section.disabled ? 'Official Source · เลือกไม่ได้' : undefined}
                   checked={!creatingSection && selectedSectionKey === section.key}
-                  disabled={busy}
+                  disabled={busy || Boolean(section.disabled)}
                   onPress={() => {
+                    if (section.disabled) return;
                     setCreatingSection(false);
                     setSelectedSectionKey(section.key);
                   }}
@@ -531,11 +546,11 @@ function ImportDestinationPicker({
       </View>
       <Pressable
         onPress={apply}
-        disabled={busy || (creatingGroup && !newGroup.trim())}
+        disabled={busy || (creatingGroup && !newGroup.trim()) || Boolean(selectedGroup?.disabled)}
         style={({ pressed }) => [
           styles.primaryButton,
           { backgroundColor: Accent.base },
-          (pressed || busy || (creatingGroup && !newGroup.trim())) && { opacity: 0.65 },
+          (pressed || busy || (creatingGroup && !newGroup.trim()) || selectedGroup?.disabled) && { opacity: 0.65 },
         ]}>
         <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>{applyLabel}</ThemedText>
       </Pressable>
@@ -568,6 +583,7 @@ function DestinationChoiceRow({
       style={({ pressed, hovered }: any) => [
         styles.destinationChoiceRow,
         { borderBottomColor: colors.border, backgroundColor: checked ? 'rgba(224, 32, 44, 0.07)' : hovered ? colors.surface2 : 'transparent' },
+        disabled && { opacity: 0.45 },
         pressed && { opacity: 0.72 },
       ]}>
       <Icon size={16} color={checked ? Accent.base : colors.textHint} />
@@ -1019,7 +1035,7 @@ function PickerHeader({ title, onBack }: { title: string; onBack: () => void }) 
   return (
     <View style={styles.pickerHeader}>
       <ThemedText type="defaultSemiBold">{title}</ThemedText>
-      <Pressable onPress={onBack} hitSlop={8} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+      <Pressable onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.pickerBackButton, pressed && { opacity: 0.6 }]}>
         <ThemedText type="small" style={{ color: Accent.base }}>Back</ThemedText>
       </Pressable>
     </View>
@@ -1109,48 +1125,12 @@ const styles = StyleSheet.create({
   bodyScrollInner: {
     paddingBottom: Spacing.one,
   },
-  destinationBlock: {
-    gap: Spacing.two,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.two,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  destinationTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  pip: { width: 5, height: 5 },
-  mono: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  destinationGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  destinationSummaryButton: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
   destinationPickerGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: Spacing.three,
   },
   destinationPickerColumn: {
-    flex: 1,
-    minWidth: 180,
+    width: '100%',
     gap: Spacing.two,
   },
   destinationPickerList: {
@@ -1191,9 +1171,6 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
   },
-  destinationHint: {
-    lineHeight: 18,
-  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1212,6 +1189,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Spacing.two,
+  },
+  pickerBackButton: {
+    marginRight: Spacing.four,
   },
   deckList: {
     maxHeight: 320,

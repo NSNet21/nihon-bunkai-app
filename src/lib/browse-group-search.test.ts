@@ -104,4 +104,28 @@ describe('buildBrowseRows', () => {
 
     expect(rows.map((row) => row.key)).toContain('vocab-n5-pack01');
   });
+
+  it('places manual official-shaped imports in their user group and section', () => {
+    const rows = buildBrowseRows([
+      {
+        id: 'vocab-n5-pack96',
+        type: 'vocab',
+        level: 'N5',
+        title: 'Vocab N5 · Pack 96',
+        entryCount: 3,
+        isFree: false,
+        pack: 'vocab-n5-pack96',
+        tags: ['vocab', 'n5', 'group:god of war', 'section:test'],
+        userGroup: 'god of war',
+        userSection: 'test',
+        source: 'manual',
+      },
+    ], new Set(), new Set(), false);
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'lvl-god of war',
+      'cat-god of war/test',
+      'vocab-n5-pack96',
+    ]);
+  });
 });

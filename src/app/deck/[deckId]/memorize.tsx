@@ -30,13 +30,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { type ColumnVisibility, VisibilityPopup } from '@/components/flashcard';
 import { OverlayRailButton } from '@/components/overlay-rail-button';
+import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { SpeakButton } from '@/components/speak-button';
 import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
-import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { entriesForDeckAsync } from '@/hooks/use-decks';
+import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import type { Entry } from '@/data/types';
 import { loadGroupEntriesAsync, parseGroupIds } from '@/lib/group-entries';
@@ -82,9 +84,10 @@ export default function MemorizeScreen() {
   const railIcon = compact ? 24 : 28;
   const railFillWidth = compact ? 72 : 96;
 
-  const { decks: allDecks } = useAllDecks();
-  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const { deck, routeState } = useDeckRouteDeck(deckId);
+  const deckRouteState = isGroupMode ? 'ready' : routeState;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(Boolean(deckId || isGroupMode));
   const [index, setIndex] = useState(0);
   const baseSessionEntriesRef = useRef<Entry[]>([]);
   const shuffleIterationRef = useRef(0);
@@ -149,6 +152,7 @@ export default function MemorizeScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    setEntriesLoading(true);
     const loader = isGroupMode
       ? loadGroupEntriesAsync(groupIds)
       : deckId
@@ -170,6 +174,7 @@ export default function MemorizeScreen() {
           : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
       baseSessionEntriesRef.current = baseRows;
       setEntries(sessionRows);
+      setEntriesLoading(false);
       /* Jump to entryId if present (Continue card resume) — falls
          back to 0 if the entry no longer exists. Group mode never
          resumes, so always start at 0 when ids change. */
@@ -320,7 +325,18 @@ export default function MemorizeScreen() {
   /* Empty-state gate. Group mode skips the deck-existence check —
      deck is intentionally undefined (sentinel path /deck/__group__).
      Only fail when entries actually failed to load. */
-  if ((!deck && !isGroupMode) || !current) {
+  if ((!deck && !isGroupMode) || entriesLoading || !current) {
+    const isLoading = deckRouteState === 'loading' || entriesLoading;
+    if (isLoading) {
+      return (
+        <ThemedView style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <Header backFallbackHref={backFallbackHref} />
+            <RouteLoadingIndicator />
+          </SafeAreaView>
+        </ThemedView>
+      );
+    }
     const isEmpty = isGroupMode ? entries.length === 0 : !!deck;
     return (
       <ThemedView style={styles.container}>

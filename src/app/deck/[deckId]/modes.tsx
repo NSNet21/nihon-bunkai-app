@@ -5,10 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { freeDeckParams } from '@/data/static-params';
-import { useAllDecks } from '@/hooks/use-decks';
+import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import {
   DEFAULT_STUDY_MODE_CONFIGS,
@@ -49,9 +50,8 @@ const MODES = [
 export default function StudyModePickerScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
   const router = useRouter();
-  const { colors } = useThemeColors();
-  const { decks: allDecks } = useAllDecks();
-  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const colors = useThemePalette();
+  const { deck, routeState: deckRouteState } = useDeckRouteDeck(deckId);
 
   const [flashcardConfig] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('flashcard'),
@@ -85,6 +85,59 @@ export default function StudyModePickerScreen() {
   function configureMode(mode: StudyMode, href: string) {
     if (!deckId) return;
     router.push(`/deck/${deckId}/config?mode=${mode}&next=${href}` as never);
+  }
+
+  if (!deck) {
+    const isLoading = deckRouteState === 'loading';
+    if (isLoading) {
+      return (
+        <ThemedView style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator>
+              <View style={styles.headerBar}>
+                <Link href={deckId ? (`/deck/${deckId}` as never) : '/'} asChild>
+                  <Pressable accessibilityRole="link" accessibilityLabel="กลับหน้า deck" style={styles.backBtn}>
+                    <FiChevronLeft size={18} color={colors.text} strokeWidth={2} />
+                    <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+                  </Pressable>
+                </Link>
+              </View>
+              <RouteLoadingIndicator />
+            </ScrollView>
+          </SafeAreaView>
+        </ThemedView>
+      );
+    }
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator>
+            <View style={styles.headerBar}>
+              <Link href={deckId ? (`/deck/${deckId}` as never) : '/'} asChild>
+                <Pressable accessibilityRole="link" accessibilityLabel="กลับหน้า deck" style={styles.backBtn}>
+                  <FiChevronLeft size={18} color={colors.text} strokeWidth={2} />
+                  <ThemedText type="small" themeColor="textSecondary">BACK</ThemedText>
+                </Pressable>
+              </Link>
+            </View>
+            <View style={styles.titleBlock}>
+              <ThemedText type="title" style={[styles.title, { color: colors.text }]}>
+                ไม่พบ Deck
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                อาจถูกลบหรือ deck ID ไม่ถูกต้อง
+              </ThemedText>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </ThemedView>
+    );
   }
 
   return (

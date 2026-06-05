@@ -14,12 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { DeckManagementModal } from '@/components/deck-management-modal';
+import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { TermEditingModal } from '@/components/term-editing-modal';
 import { freeDeckParams } from '@/data/static-params';
 import type { Entry } from '@/data/types';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
-import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { useThemePalette } from '@/context/theme';
+import { entriesForDeckAsync } from '@/hooks/use-decks';
+import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { filterDeckEntries } from '@/lib/deck-term-search';
 import { isUserEditableDeck } from '@/lib/user-content';
 
@@ -33,14 +35,14 @@ export function generateStaticParams() {
 export default function DeckTermListScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
   const { push, replace } = useRouter();
-  const { colors } = useThemeColors();
+  const colors = useThemePalette();
   const { width: viewportW } = useWindowDimensions();
   const isCompact = viewportW < 600;
 
-  const { decks: allDecks, refresh } = useAllDecks();
-  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const { deck, routeState: deckRouteState, refresh } = useDeckRouteDeck(deckId);
 
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [deckActionsOpen, setDeckActionsOpen] = useState(false);
   const [addTermOpen, setAddTermOpen] = useState(false);
@@ -49,9 +51,15 @@ export default function DeckTermListScreen() {
   useEffect(() => {
     if (!deckId) return;
     let cancelled = false;
-    void entriesForDeckAsync(deckId).then((rows) => {
-      if (!cancelled) setEntries(rows);
-    });
+    setEntries([]);
+    setEntriesLoading(true);
+    void entriesForDeckAsync(deckId)
+      .then((rows) => {
+        if (!cancelled) setEntries(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setEntriesLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -75,6 +83,19 @@ export default function DeckTermListScreen() {
   }
 
   if (!deck) {
+    const isLoading = deckRouteState === 'loading';
+    if (isLoading) {
+      return (
+        <ThemedView style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <View style={styles.headerBar}>
+              <BackLink colors={colors} />
+            </View>
+            <RouteLoadingIndicator />
+          </SafeAreaView>
+        </ThemedView>
+      );
+    }
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -186,13 +207,17 @@ export default function DeckTermListScreen() {
             />
           </View>
 
-          <View style={styles.resultLine}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {`ทั้งหมด ${filteredEntries.length} / ${entries.length} คำ`}
-            </ThemedText>
-          </View>
+          {!entriesLoading ? (
+            <View style={styles.resultLine}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {`ทั้งหมด ${filteredEntries.length} / ${entries.length} คำ`}
+              </ThemedText>
+            </View>
+          ) : null}
 
-          {filteredEntries.length > 0 ? (
+          {entriesLoading ? (
+            <RouteLoadingIndicator style={styles.entriesLoading} />
+          ) : filteredEntries.length > 0 ? (
             <View style={[styles.termList, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
               {filteredEntries.map((entry, index) => (
                 <TermRow
@@ -505,6 +530,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radii.sm,
     overflow: 'hidden',
+  },
+  entriesLoading: {
+    minHeight: 180,
   },
   termRow: {
     minHeight: 74,

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import { freeDeckParams } from '@/data/static-params';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import {
@@ -71,7 +71,7 @@ export default function StudyConfigScreen() {
     returnTo?: string;
   }>();
   const router = useRouter();
-  const { colors } = useThemeColors();
+  const colors = useThemePalette();
 
   const mode: StudyMode =
     modeParam === 'multiple-choice' || modeParam === 'dictation' || modeParam === 'flashcard'

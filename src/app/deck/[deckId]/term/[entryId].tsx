@@ -7,14 +7,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { QuickDeckSwitcher } from '@/components/quick-deck-switcher';
+import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { TermEditingModal } from '@/components/term-editing-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
-import { useThemeColors } from '@/context/theme';
+import { useThemePalette } from '@/context/theme';
 import type { Deck, Entry } from '@/data/types';
-import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { entriesForDeckAsync } from '@/hooks/use-decks';
+import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import {
@@ -36,7 +38,7 @@ import type { TermEditingFields } from '@/lib/term-editing-form';
 export default function TermCardDisplayScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
   const { replace, push } = useRouter();
-  const { colors } = useThemeColors();
+  const colors = useThemePalette();
   const { width, height } = useWindowDimensions();
   const [activeDeckId, setActiveDeckId] = useState(deckId);
   const [activeEntryId, setActiveEntryId] = useState(entryId);
@@ -47,9 +49,9 @@ export default function TermCardDisplayScreen() {
   const isTabletLayout = hasHydrated && width >= 768 && width < 1180;
   const mobileTopButtonInset = { top: Spacing.four, horizontal: Spacing.four };
 
-  const { decks: allDecks } = useAllDecks();
-  const deck = activeDeckId ? allDecks.find((d) => d.id === activeDeckId) : undefined;
+  const { decks: allDecks, deck, routeState: deckRouteState } = useDeckRouteDeck(activeDeckId);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(Boolean(activeDeckId));
   const baseEntriesRef = useRef<Entry[]>([]);
   const shuffleIterationRef = useRef(0);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -84,12 +86,18 @@ export default function TermCardDisplayScreen() {
   }, [entryId]);
 
   useEffect(() => {
-    if (!activeDeckId) return;
+    if (!activeDeckId) {
+      setEntries([]);
+      setEntriesLoading(false);
+      return;
+    }
     let cancelled = false;
+    setEntriesLoading(true);
     void entriesForDeckAsync(activeDeckId).then((rows) => {
       if (cancelled) return;
       baseEntriesRef.current = rows;
       setEntries(rows);
+      setEntriesLoading(false);
     });
     return () => {
       cancelled = true;
@@ -252,7 +260,18 @@ export default function TermCardDisplayScreen() {
     replaceTermUrl(activeDeckId, nextEntry.id);
   }
 
-  if (!deck || !current) {
+  if (!deck || entriesLoading || !current) {
+    const isLoading = deckRouteState === 'loading' || entriesLoading;
+    if (isLoading) {
+      return (
+        <ThemedView style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <Header onBack={() => replace(backFallbackHref as never)} colors={colors} />
+            <RouteLoadingIndicator />
+          </SafeAreaView>
+        </ThemedView>
+      );
+    }
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>

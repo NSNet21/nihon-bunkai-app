@@ -33,6 +33,7 @@ import { useAuth } from '@/context/auth';
 
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { RatingButtons } from '@/components/rating-buttons';
+import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -40,7 +41,8 @@ import { useToast } from '@/components/toast';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, RateColors, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
-import { useAllDecks, entriesForDeckAsync } from '@/hooks/use-decks';
+import { entriesForDeckAsync } from '@/hooks/use-decks';
+import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import type { Entry } from '@/data/types';
 import type { LastSession } from '@/lib/last-session';
 import { studyFallbackHref } from '@/lib/navigation-back';
@@ -74,9 +76,9 @@ export default function StudyScreen() {
     const n = countParam ? parseInt(countParam, 10) : NaN;
     return Number.isFinite(n) && [10, 20, 30, 50].includes(n) ? n : undefined;
   })();
-  const { decks: allDecks } = useAllDecks();
-  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const { deck, routeState: deckRouteState } = useDeckRouteDeck(deckId);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(Boolean(deckId));
   const baseSessionEntriesRef = useRef<Entry[]>([]);
   const shuffleIterationRef = useRef(0);
   const [flashcardConfig] = usePersistedState(
@@ -130,8 +132,10 @@ export default function StudyScreen() {
     let cancelled = false;
     if (!deckId) {
       setEntries([]);
+      setEntriesLoading(false);
       return;
     }
+    setEntriesLoading(true);
     void entriesForDeckAsync(deckId).then((rows) => {
       if (cancelled) return;
       /* Legacy ?count= links keep their first-N behavior. Direct resume
@@ -154,6 +158,7 @@ export default function StudyScreen() {
             : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
       baseSessionEntriesRef.current = baseRows;
       setEntries(nextRows);
+      setEntriesLoading(false);
       // Jump to entryId if provided (from Search tap-through OR Continue card
       // restoring a prior session). If the entry no longer exists in this
       // deck (deleted, deck reordered, deep link expired), tell the user
@@ -404,10 +409,12 @@ export default function StudyScreen() {
           showOnAllViewports
         />
         <View style={styles.content}>
-          {!deck ? (
+          {(!deck && deckRouteState === 'loading') || entriesLoading ? (
+            <RouteLoadingIndicator />
+          ) : !deck ? (
             <EmptyState
-              title="ยังไม่ได้เลือก Deck"
-              body="เลือก deck จากแท็บ Browse เพื่อเริ่มเรียน"
+              title={deckId ? 'ไม่พบ Deck' : 'ยังไม่ได้เลือก Deck'}
+              body={deckId ? 'อาจถูกลบหรือ deck ID ไม่ถูกต้อง' : 'เลือก deck จากแท็บ Browse เพื่อเริ่มเรียน'}
             />
           ) : entries.length === 0 ? (
             <EmptyState

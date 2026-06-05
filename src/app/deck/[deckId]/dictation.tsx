@@ -6,11 +6,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing, RateColors } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
 import type { Entry } from '@/data/types';
 import { freeDeckParams } from '@/data/static-params';
-import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { entriesForDeckAsync } from '@/hooks/use-decks';
+import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { checkDictationAnswer } from '@/lib/dictation';
 import { studyFallbackHref } from '@/lib/navigation-back';
@@ -37,9 +39,9 @@ export default function DictationScreen() {
   const backFallbackHref = studyFallbackHref(deckId);
   const showMobileHome = viewportW < 768;
 
-  const { decks: allDecks } = useAllDecks();
-  const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
+  const { deck, routeState: deckRouteState } = useDeckRouteDeck(deckId);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(Boolean(deckId));
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -63,12 +65,15 @@ export default function DictationScreen() {
     let cancelled = false;
     if (!deckId) {
       setEntries([]);
+      setEntriesLoading(false);
       return;
     }
 
+    setEntriesLoading(true);
     void entriesForDeckAsync(deckId).then((rows) => {
       if (cancelled) return;
       setEntries(buildStudySessionEntries(rows, safeConfig, `${deckId}:dictation`));
+      setEntriesLoading(false);
     });
 
     return () => {
@@ -103,14 +108,24 @@ export default function DictationScreen() {
     setCorrectCount(0);
   }
 
-  if (!deckId || (!deck && entries.length === 0)) {
+  if (!deckId || deckRouteState !== 'ready' || entriesLoading) {
+    const isLoading = deckRouteState === 'loading' || entriesLoading;
+    if (isLoading) {
+      return (
+        <ThemedView style={styles.container}>
+          <SafeAreaView style={styles.safeArea} edges={['top']}>
+            <RouteLoadingIndicator />
+          </SafeAreaView>
+        </ThemedView>
+      );
+    }
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           <EmptyState
             colors={colors}
-            title={!deckId ? 'ไม่พบ Deck' : 'กำลังเตรียมรอบเรียน'}
-            body={!deckId ? 'ลิงก์นี้ไม่มี deck ID' : 'กำลังโหลดคำใน deck นี้'}
+            title={!deckId ? 'ไม่พบ Deck' : 'ไม่พบ Deck'}
+            body={!deckId ? 'ลิงก์นี้ไม่มี deck ID' : 'อาจถูกลบหรือ deck ID ไม่ถูกต้อง'}
             backHref={backFallbackHref}
           />
         </SafeAreaView>

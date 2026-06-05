@@ -78,6 +78,19 @@ async function openDeckActions(page) {
   await page.getByText('DECK ACTIONS', { exact: false }).first().waitFor({ timeout: 10_000 });
 }
 
+async function expectStackedImportDestinationPicker(page) {
+  const groupLabel = page.getByText('GROUP', { exact: true }).first();
+  const sectionLabel = page.getByText('SECTION', { exact: true }).first();
+  await groupLabel.waitFor({ state: 'visible', timeout: 10_000 });
+  await sectionLabel.waitFor({ state: 'visible', timeout: 10_000 });
+  const groupBox = await groupLabel.boundingBox();
+  const sectionBox = await sectionLabel.boundingBox();
+  if (!groupBox || !sectionBox) throw new Error('Import destination picker labels are not measurable');
+  if (sectionBox.y <= groupBox.y + groupBox.height) {
+    throw new Error(`Import destination picker should stack SECTION below GROUP. groupY=${groupBox.y}, sectionY=${sectionBox.y}`);
+  }
+}
+
 async function clickFirstVisible(locator) {
   const count = await locator.count();
   for (let index = 0; index < count; index += 1) {
@@ -109,6 +122,11 @@ async function ensureBrowseDeckVisible(page, title) {
   const deck = page.getByText(title, { exact: false }).first();
   if (await deck.isVisible().catch(() => false)) return;
   await clickFirstVisible(page.getByLabel('Expand all'));
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (await deck.isVisible().catch(() => false)) return;
+    await page.mouse.wheel(0, 520);
+    await page.waitForTimeout(120);
+  }
   try {
     await deck.waitFor({ timeout: 15_000 });
   } catch (error) {
@@ -148,6 +166,33 @@ async function waitForBodyTextOrDump(page, text, label, timeout = 15_000) {
   }
 }
 
+async function expectNoSelfImportRouteMissingFlash(page, route, expectedText) {
+  const forbidden = [
+    'ไม่พบหน้านี้',
+    'ไม่พบ Deck',
+    'ไม่พบ Deck นี้',
+    'ไม่พบคำนี้',
+    'กำลังเตรียม',
+    'กำลังโหลดคำใน deck',
+    'กำลังโหลด Local Library',
+  ];
+  const seen = new Set();
+  await page.goto(urlFor(route), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  const watchUntil = Date.now() + 1_200;
+  while (Date.now() < watchUntil) {
+    const body = await page.locator('body').innerText({ timeout: 1_000 }).catch(() => '');
+    for (const text of forbidden) {
+      if (body.includes(text)) seen.add(text);
+    }
+    await page.waitForTimeout(40);
+  }
+  if (seen.size > 0) {
+    const body = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+    throw new Error(`Self-import route flashed missing state on ${route}: ${Array.from(seen).join(', ')}. Body:\n${body.slice(0, 2000)}`);
+  }
+  await waitForBodyTextOrDump(page, expectedText, `Self-import route ${route}`);
+}
+
 async function waitForDownloadOrDump(page, downloadPromise, label) {
   try {
     return await downloadPromise;
@@ -158,6 +203,15 @@ async function waitForDownloadOrDump(page, downloadPromise, label) {
       { cause: error },
     );
   }
+}
+
+async function clickTermDeleteButton(page) {
+  const byRole = page.getByRole('button', { name: 'ลบคำนี้' }).last();
+  if (await byRole.isVisible().catch(() => false)) {
+    await byRole.click({ timeout: 10_000 });
+    return;
+  }
+  await page.getByLabel('ลบคำนี้').last().click({ timeout: 10_000 });
 }
 
 async function readLibraryDecks(page) {
@@ -256,13 +310,19 @@ try {
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => null);
 
   await openLibraryActions(page);
-  await page.getByLabel('เลือก import destination').click({ timeout: 10_000 });
+  await page.getByLabel('Batch import').click({ timeout: 10_000 });
+  await page.getByText('เลือก import destination', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });
+  await expectStackedImportDestinationPicker(page);
+  await page.getByText('Official Source', { exact: false }).first().waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByText('Back', { exact: true }).click({ timeout: 10_000 });
+  await page.getByLabel('Import one file').click({ timeout: 10_000 });
+  await page.getByText('เลือก import destination', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });
+  await expectStackedImportDestinationPicker(page);
   await page.getByLabel('+ Create new group').click({ timeout: 10_000 });
   await page.getByPlaceholder('ชื่อ group ใหม่').fill(importGroup);
   await page.getByPlaceholder('Inbox').fill(importSection);
-  await page.getByText(`Use ${importGroup} / ${importSection}`, { exact: false }).click({ timeout: 10_000 });
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.getByLabel('Import one file').click({ timeout: 10_000 });
+  await page.getByText(`Use ${importGroup} / ${importSection}`, { exact: false }).click({ timeout: 10_000 });
   const chooser = await chooserPromise;
   await chooser.setFiles(csvPath);
   await page.getByText('import 1 decks', { exact: false }).first().waitFor({ timeout: 15_000 });
@@ -274,6 +334,14 @@ try {
   });
   await page.mouse.click(12, 12);
   await ensureBrowseDeckVisible(page, importedDeckTitle);
+
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}`, importedTerm);
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}/term/${importedDeckId}-1`, importedTerm);
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}/modes`, 'เลือกวิธีเรียน');
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}/quiz`, importedTerm);
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}/multiple-choice`, importedDeckTitle);
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}/dictation`, importedDeckTitle);
+  await expectNoSelfImportRouteMissingFlash(page, `/deck/${importedDeckId}/memorize`, importedTerm);
 
   await page.goto(urlFor('/search'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.waitForSelector('input[placeholder*="คำญี่ปุ่น"]', { timeout: 20_000 });
@@ -316,9 +384,10 @@ try {
   await page.getByLabel('เปิดเมนูคำนี้').click({ timeout: 10_000 });
   await page.getByLabel('แก้ไขคำนี้').click({ timeout: 10_000 });
   await page.getByText('TERM EDIT', { exact: false }).first().waitFor({ timeout: 10_000 });
-  await page.getByLabel('ลบคำนี้').click({ timeout: 10_000 });
+  await clickTermDeleteButton(page);
   await page.getByText('กดลบอีกครั้งเพื่อยืนยัน', { exact: false }).waitFor({ timeout: 10_000 });
-  await page.getByLabel('ลบคำนี้').click({ timeout: 10_000 });
+  await clickTermDeleteButton(page);
+  await page.getByText('TERM EDIT', { exact: false }).first().waitFor({ state: 'hidden', timeout: 10_000 });
   await waitForTextOrDump(page, editedTerm, 'Term card after deleting another term');
   await expectLibraryTerms(page, importedDeckId, [editedTerm]);
 

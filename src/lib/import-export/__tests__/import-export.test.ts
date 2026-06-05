@@ -116,18 +116,46 @@ describe('import destination options', () => {
       },
     ] as any);
 
-    expect(options.map((group) => group.label)).toEqual(['Kanji practice', 'Manual imports']);
+    expect(options.filter((group) => !group.disabled).map((group) => group.label)).toEqual(['Kanji practice', 'Manual imports']);
     expect(options.find((group) => group.label === 'Manual imports')?.sections.map((section) => section.label))
       .toEqual(['Inbox', 'Week 1']);
   });
 
-  it('falls back to the default manual destination when the library has no user groups', () => {
+  it('does not create a dummy manual destination when the library has no user groups', () => {
     const options = buildImportDestinationOptions([]);
+    expect(options).toEqual([]);
+  });
+
+  it('shows official groups and sections as disabled import destinations', () => {
+    const options = buildImportDestinationOptions([
+      {
+        id: 'kanji-n5-pack01',
+        title: 'Kanji N5 - Pack 01',
+        source: 'free',
+        level: 'N5',
+        type: 'kanji',
+        tags: ['kanji', 'n5'],
+      },
+      {
+        id: 'grammar-n5-pack01',
+        title: 'Grammar N5 - Pack 01',
+        source: 'entitlement',
+        level: 'N5',
+        type: 'grammar',
+        tags: ['grammar', 'n5'],
+      },
+    ] as any);
+
     expect(options).toEqual([
       {
-        key: 'manual-imports',
-        label: DEFAULT_IMPORT_GROUP,
-        sections: [{ key: 'manual-imports:inbox', label: DEFAULT_IMPORT_SECTION }],
+        key: 'official:n5',
+        label: 'N5',
+        source: 'official',
+        disabled: true,
+        sections: [
+          { key: 'official:n5:grammar', label: 'Grammar', source: 'official', disabled: true },
+          { key: 'official:n5:kanji', label: 'Kanji', source: 'official', disabled: true },
+        ],
       },
     ]);
   });

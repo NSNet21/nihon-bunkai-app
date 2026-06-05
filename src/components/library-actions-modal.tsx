@@ -11,9 +11,16 @@ import { ThemedView } from '@/components/themed-view';
 import { useToast } from '@/components/toast';
 import { buildExportHierarchy, getExportSelectionSummary, type ExportHierarchyGroup, type ExportSelectionSummary } from '@/lib/import-export/export-hierarchy';
 import { buildDeckCsv, buildDeckZip, downloadBlob, selectExportableDecks } from '@/lib/import-export/export-library';
+import {
+  DEFAULT_IMPORT_GROUP,
+  DEFAULT_IMPORT_SECTION,
+  buildImportDestinationOptions,
+  normalizeImportDestination,
+  type ImportDestinationGroupOption,
+} from '@/lib/import-export/import-destination';
 import { parseManualImportFiles, saveManualImport, type ManualImportParseResult } from '@/lib/import-export/manual-import';
 
-type Mode = 'actions' | 'how-to' | 'export-one' | 'export-batch';
+type Mode = 'actions' | 'how-to' | 'import-destination' | 'export-one' | 'export-batch';
 
 type LibraryActionsModalProps = {
   visible: boolean;
@@ -30,7 +37,6 @@ const ACTIONS = {
   exportBatch: 'Batch export',
 } as const;
 
-const DEFAULT_IMPORT_GROUP = 'Manual imports';
 const webNoTextSelect = Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null;
 
 type LibraryActionsState = {
@@ -57,7 +63,7 @@ function createLibraryActionsState(): LibraryActionsState {
     busy: false,
     status: '',
     importGroup: DEFAULT_IMPORT_GROUP,
-    importSection: '',
+    importSection: DEFAULT_IMPORT_SECTION,
     selected: new Set(),
   };
 }
@@ -93,6 +99,8 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
   const [state, dispatch] = useReducer(libraryActionsReducer, undefined, createLibraryActionsState);
   const { mode, busy, status, importGroup, importSection, selected } = state;
   const exportableDecks = useMemo(() => selectExportableDecks(decks), [decks]);
+  const destinationOptions = useMemo(() => buildImportDestinationOptions(decks), [decks]);
+  const currentDestination = normalizeImportDestination({ group: importGroup, section: importSection });
   const deckIdSets = useMemo(() => {
     const embeddedFree = new Set<string>();
     const local = new Set<string>();
@@ -118,8 +126,8 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
     dispatch({ type: 'busy', busy: true });
     try {
       const parsed = await parseManualImportFiles(files, deckIdSets.embeddedFree, {
-        group: importGroup,
-        section: importSection,
+        group: currentDestination.group,
+        section: currentDestination.section,
       });
       if (!shouldSave(parsed, deckIdSets.local)) {
         dispatch({ type: 'status', status: 'ยกเลิก import' });
@@ -204,12 +212,11 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
             {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'card' } } as any) : null)}>
             {mode === 'actions' && (
               <View style={styles.actionList}>
-                <ImportDestinationFields
-                  group={importGroup}
-                  section={importSection}
+                <ImportDestinationSummary
+                  group={currentDestination.group}
+                  section={currentDestination.section}
                   disabled={busy}
-                  onGroup={(value) => dispatch({ type: 'import-field', field: 'importGroup', value })}
-                  onSection={(value) => dispatch({ type: 'import-field', field: 'importSection', value })}
+                  onPress={() => openMode('import-destination')}
                 />
                 <ActionRow
                   label={ACTIONS.howTo}
@@ -247,6 +254,21 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                   onPress={openBatchExport}
                 />
               </View>
+            )}
+
+            {mode === 'import-destination' && (
+              <ImportDestinationPicker
+                groups={destinationOptions}
+                current={currentDestination}
+                busy={busy}
+                onBack={() => openMode('actions')}
+                onApply={(value) => {
+                  const normalized = normalizeImportDestination(value);
+                  dispatch({ type: 'import-field', field: 'importGroup', value: normalized.group });
+                  dispatch({ type: 'import-field', field: 'importSection', value: normalized.section });
+                  openMode('actions');
+                }}
+              />
             )}
 
             {mode === 'how-to' && (
@@ -314,18 +336,16 @@ function ImportHowTo({
   );
 }
 
-function ImportDestinationFields({
+function ImportDestinationSummary({
   group,
   section,
   disabled,
-  onGroup,
-  onSection,
+  onPress,
 }: {
   group: string;
   section: string;
   disabled: boolean;
-  onGroup: (value: string) => void;
-  onSection: (value: string) => void;
+  onPress: () => void;
 }) {
   const colors = useThemePalette();
   return (
@@ -334,26 +354,257 @@ function ImportDestinationFields({
         <View style={[styles.pip, { backgroundColor: Accent.base }]} />
         <ThemedText style={[styles.mono, { color: colors.textHint }]}>// IMPORT DESTINATION</ThemedText>
       </View>
-      <View style={styles.destinationGrid}>
-        <ImportField
-          label="GROUP"
-          value={group}
-          disabled={disabled}
-          placeholder="เช่น Manual imports"
-          onChange={onGroup}
-        />
-        <ImportField
-          label="SECTION"
-          value={section}
-          disabled={disabled}
-          placeholder="เช่น N2 / Week 1"
-          onChange={onSection}
-        />
-      </View>
+      <Pressable
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel="เลือก import destination"
+        style={({ pressed, hovered }: any) => [
+          styles.destinationSummaryButton,
+          { borderColor: colors.border, backgroundColor: hovered ? colors.surface2 : colors.background },
+          disabled && { opacity: 0.45 },
+          pressed && { opacity: 0.72 },
+        ]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ThemedText type="defaultSemiBold" numberOfLines={1}>{group} / {section}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">ใช้กับ import รอบนี้</ThemedText>
+        </View>
+        <ThemedText type="smallBold" style={{ color: Accent.base }}>Change</ThemedText>
+      </Pressable>
       <ThemedText type="small" themeColor="textSecondary" style={styles.destinationHint}>
         ใช้กับ Import one file และ Batch import รอบนี้ · แก้ภายหลังได้จาก Deck Actions
       </ThemedText>
     </View>
+  );
+}
+
+function ImportDestinationPicker({
+  groups,
+  current,
+  busy,
+  onBack,
+  onApply,
+}: {
+  groups: ImportDestinationGroupOption[];
+  current: { group: string; section: string };
+  busy: boolean;
+  onBack: () => void;
+  onApply: (value: { group: string; section: string }) => void;
+}) {
+  const colors = useThemePalette();
+  const [selectedGroupKey, setSelectedGroupKey] = useState(
+    () => groups.find((group) => group.label === current.group)?.key ?? groups[0]?.key ?? '',
+  );
+  const [selectedSectionKey, setSelectedSectionKey] = useState(() => {
+    const group = groups.find((item) => item.key === selectedGroupKey);
+    return group?.sections.find((section) => section.label === current.section)?.key ?? group?.sections[0]?.key ?? '';
+  });
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [creatingSection, setCreatingSection] = useState(false);
+  const [newGroup, setNewGroup] = useState('');
+  const [newSection, setNewSection] = useState(DEFAULT_IMPORT_SECTION);
+
+  const selectedGroup = groups.find((group) => group.key === selectedGroupKey);
+  const selectedSection = selectedGroup?.sections.find((section) => section.key === selectedSectionKey);
+  const applyLabel = creatingGroup
+    ? `Use ${newGroup.trim() || 'New group'} / ${newSection.trim() || DEFAULT_IMPORT_SECTION}`
+    : creatingSection
+      ? `Use ${selectedGroup?.label ?? current.group} / ${newSection.trim() || DEFAULT_IMPORT_SECTION}`
+      : `Use ${selectedGroup?.label ?? current.group} / ${selectedSection?.label ?? DEFAULT_IMPORT_SECTION}`;
+
+  function chooseGroup(group: ImportDestinationGroupOption) {
+    setCreatingGroup(false);
+    setSelectedGroupKey(group.key);
+    setSelectedSectionKey(group.sections[0]?.key ?? '');
+    setCreatingSection(false);
+    setNewSection(DEFAULT_IMPORT_SECTION);
+  }
+
+  function apply() {
+    if (creatingGroup) {
+      onApply({ group: newGroup, section: newSection });
+      return;
+    }
+    if (creatingSection) {
+      onApply({ group: selectedGroup?.label ?? current.group, section: newSection });
+      return;
+    }
+    onApply({ group: selectedGroup?.label ?? current.group, section: selectedSection?.label ?? DEFAULT_IMPORT_SECTION });
+  }
+
+  return (
+    <View style={styles.picker}>
+      <PickerHeader title="เลือก import destination" onBack={onBack} />
+      <View style={styles.destinationPickerGrid}>
+        <View style={styles.destinationPickerColumn}>
+          <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>GROUP</ThemedText>
+          <ScrollView style={[styles.destinationPickerList, { borderColor: colors.border }]}>
+            {groups.map((group) => (
+              <DestinationChoiceRow
+                key={group.key}
+                label={group.label}
+                meta={`${group.sections.length} sections`}
+                checked={!creatingGroup && selectedGroupKey === group.key}
+                disabled={busy}
+                onPress={() => chooseGroup(group)}
+              />
+            ))}
+            <DestinationCreateRow
+              label="+ Create new group"
+              active={creatingGroup}
+              disabled={busy}
+              onPress={() => {
+                setCreatingGroup(true);
+                setCreatingSection(true);
+                setNewSection(DEFAULT_IMPORT_SECTION);
+              }}
+            />
+          </ScrollView>
+          {creatingGroup ? (
+            <TextInput
+              value={newGroup}
+              editable={!busy}
+              onChangeText={setNewGroup}
+              placeholder="ชื่อ group ใหม่"
+              placeholderTextColor={colors.textHint}
+              style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+            />
+          ) : null}
+        </View>
+
+        <View style={styles.destinationPickerColumn}>
+          <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>SECTION</ThemedText>
+          {creatingGroup ? (
+            <View style={styles.destinationCreatePanel}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Group ใหม่ยังไม่มี section เดิม ระบบจะสร้าง section ใหม่สำหรับ import รอบนี้
+              </ThemedText>
+              <TextInput
+                value={newSection}
+                editable={!busy}
+                onChangeText={setNewSection}
+                placeholder={DEFAULT_IMPORT_SECTION}
+                placeholderTextColor={colors.textHint}
+                style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+              />
+            </View>
+          ) : selectedGroup ? (
+            <ScrollView style={[styles.destinationPickerList, { borderColor: colors.border }]}>
+              {selectedGroup.sections.map((section) => (
+                <DestinationChoiceRow
+                  key={section.key}
+                  label={section.label}
+                  checked={!creatingSection && selectedSectionKey === section.key}
+                  disabled={busy}
+                  onPress={() => {
+                    setCreatingSection(false);
+                    setSelectedSectionKey(section.key);
+                  }}
+                />
+              ))}
+              <DestinationCreateRow
+                label="+ Create new section"
+                active={creatingSection}
+                disabled={busy}
+                onPress={() => {
+                  setCreatingSection(true);
+                  setNewSection(DEFAULT_IMPORT_SECTION);
+                }}
+              />
+            </ScrollView>
+          ) : (
+            <View style={styles.destinationCreatePanel}>
+              <ThemedText type="small" themeColor="textSecondary">เลือก group ก่อน แล้ว section จะขึ้นตาม group นั้น</ThemedText>
+            </View>
+          )}
+          {creatingSection && !creatingGroup ? (
+            <TextInput
+              value={newSection}
+              editable={!busy}
+              onChangeText={setNewSection}
+              placeholder={DEFAULT_IMPORT_SECTION}
+              placeholderTextColor={colors.textHint}
+              style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+            />
+          ) : null}
+        </View>
+      </View>
+      <Pressable
+        onPress={apply}
+        disabled={busy || (creatingGroup && !newGroup.trim())}
+        style={({ pressed }) => [
+          styles.primaryButton,
+          { backgroundColor: Accent.base },
+          (pressed || busy || (creatingGroup && !newGroup.trim())) && { opacity: 0.65 },
+        ]}>
+        <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>{applyLabel}</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+
+function DestinationChoiceRow({
+  label,
+  meta,
+  checked,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  meta?: string;
+  checked: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const colors = useThemePalette();
+  const Icon = checked ? FiCheckSquare : FiSquare;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="radio"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      style={({ pressed, hovered }: any) => [
+        styles.destinationChoiceRow,
+        { borderBottomColor: colors.border, backgroundColor: checked ? 'rgba(224, 32, 44, 0.07)' : hovered ? colors.surface2 : 'transparent' },
+        pressed && { opacity: 0.72 },
+      ]}>
+      <Icon size={16} color={checked ? Accent.base : colors.textHint} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <ThemedText type="smallBold" numberOfLines={1}>{label}</ThemedText>
+        {meta ? <ThemedText type="small" themeColor="textHint">{meta}</ThemedText> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function DestinationCreateRow({
+  label,
+  active,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const colors = useThemePalette();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed, hovered }: any) => [
+        styles.destinationChoiceRow,
+        { borderBottomColor: colors.border, backgroundColor: active ? 'rgba(224, 32, 44, 0.07)' : hovered ? colors.surface2 : 'transparent' },
+        pressed && { opacity: 0.72 },
+      ]}>
+      <FiPlus size={16} color={Accent.base} />
+      <ThemedText type="smallBold" style={{ color: Accent.base }}>{label}</ThemedText>
+    </Pressable>
   );
 }
 
@@ -880,6 +1131,45 @@ const styles = StyleSheet.create({
   destinationGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  destinationSummaryButton: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  destinationPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  destinationPickerColumn: {
+    flex: 1,
+    minWidth: 180,
+    gap: Spacing.two,
+  },
+  destinationPickerList: {
+    maxHeight: 220,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  destinationChoiceRow: {
+    minHeight: 44,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  destinationCreatePanel: {
+    minHeight: 88,
     gap: Spacing.two,
   },
   importField: {

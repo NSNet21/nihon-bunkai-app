@@ -24,7 +24,7 @@ export function generateStaticParams() {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiShuffle, FiSliders } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,7 +48,7 @@ import {
   studyModeConfigKey,
   type StudyModeConfig,
 } from '@/lib/study-mode-config';
-import { buildReshuffledStudySessionEntries, buildStudySessionEntries } from '@/lib/study-session';
+import { buildCardPositionMeta, buildReshuffledStudySessionEntries, buildStudySessionEntries } from '@/lib/study-session';
 
 export default function MemorizeScreen() {
   const { deckId, entryId, ids } = useLocalSearchParams<{ deckId?: string; entryId?: string; ids?: string }>();
@@ -86,6 +86,7 @@ export default function MemorizeScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [index, setIndex] = useState(0);
+  const baseSessionEntriesRef = useRef<Entry[]>([]);
   const shuffleIterationRef = useRef(0);
   const [flashcardConfig] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('flashcard'),
@@ -155,10 +156,19 @@ export default function MemorizeScreen() {
         : Promise.resolve<Entry[]>([]);
     void loader.then((rows) => {
       if (cancelled) return;
+      const baseRows =
+        entryId || isGroupMode
+          ? rows
+          : buildStudySessionEntries(
+              rows,
+              { ...safeFlashcardConfig, order: 'normal' },
+              `${deckId}:flashcard:base`,
+            );
       const sessionRows =
         entryId || isGroupMode
           ? rows
           : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
+      baseSessionEntriesRef.current = baseRows;
       setEntries(sessionRows);
       /* Jump to entryId if present (Continue card resume) — falls
          back to 0 if the entry no longer exists. Group mode never
@@ -201,20 +211,30 @@ export default function MemorizeScreen() {
      card-swap pattern (Tinder/Anki mobile = instant). Pan only
      commits via onEnd; activeOffsetX + failOffsetY disambiguate
      from vertical scroll. */
-  function goPrev() {
-    if (canPrev) setIndex((i) => i - 1);
-  }
-  function goNext() {
-    if (canNext) setIndex((i) => i + 1);
-  }
-
-  const shufflePulse = useSharedValue(0);
-  const shuffleCardStyle = useAnimatedStyle(() => ({
+  const cardMotion = useSharedValue(0);
+  const cardMotionOffset = useSharedValue(0);
+  const sessionCardStyle = useAnimatedStyle(() => ({
+    opacity: 1 - cardMotion.value * 0.06,
     transform: [
-      { translateX: shufflePulse.value > 0.5 ? -3 : shufflePulse.value > 0 ? 3 : 0 },
-      { scale: shufflePulse.value > 0 ? 0.992 : 1 },
+      { translateY: cardMotionOffset.value * cardMotion.value },
+      { scale: 1 - cardMotion.value * 0.004 },
     ],
   }));
+  function cueCardMotion(offset: number) {
+    cardMotionOffset.value = offset;
+    cardMotion.value = 1;
+    cardMotion.value = withTiming(0, { duration: 160 });
+  }
+  function goPrev() {
+    if (!canPrev) return;
+    cueCardMotion(-4);
+    setIndex((i) => i - 1);
+  }
+  function goNext() {
+    if (!canNext) return;
+    cueCardMotion(4);
+    setIndex((i) => i + 1);
+  }
 
   const canShuffleSession = !entryId && !isGroupMode && entries.length > 1;
   function handleShuffleSession() {
@@ -222,17 +242,13 @@ export default function MemorizeScreen() {
     setShowAnswer(true);
     setIndex(0);
     shuffleIterationRef.current += 1;
-    setEntries((rows) => buildReshuffledStudySessionEntries(
-      rows,
+    setEntries(() => buildReshuffledStudySessionEntries(
+      baseSessionEntriesRef.current.length > 0 ? baseSessionEntriesRef.current : entries,
       { count: 'all', order: 'normal' },
       `${deckId}:flashcard`,
       shuffleIterationRef.current,
     ));
-    shufflePulse.value = 0;
-    shufflePulse.value = withSequence(
-      withTiming(1, { duration: 80 }),
-      withTiming(0, { duration: 180 }),
-    );
+    cueCardMotion(4);
   }
 
   /* JS-thread refs mirrored into shared values so the gesture worklet
@@ -351,7 +367,7 @@ export default function MemorizeScreen() {
               accessibilityLabel={showAnswer ? 'แตะเพื่อซ่อนคำตอบ' : 'แตะเพื่อแสดงคำตอบ'}
               style={[
                 styles.card,
-                shuffleCardStyle,
+                sessionCardStyle,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
@@ -373,7 +389,7 @@ export default function MemorizeScreen() {
                 <View style={styles.glassMeta}>
                   <View style={styles.metaStripe} />
                   <ThemedText style={[styles.mono, { color: colors.textSecondary, fontSize: 8 }]}>
-                    {`CARD ${String(index + 1).padStart(2, '0')} / ${entries.length} // ${showAnswer ? 'MEMORIZE' : 'RECALL'}`}
+                    {buildCardPositionMeta(index, entries.length, showAnswer ? 'memorize' : 'recall', current.no)}
                   </ThemedText>
                 </View>
               )}

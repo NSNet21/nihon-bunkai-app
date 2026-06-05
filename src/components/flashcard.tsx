@@ -22,6 +22,7 @@ import { ThemedText } from './themed-text';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
 import type { Entry } from '@/data/types';
+import { buildCardPositionMeta } from '@/lib/study-session';
 
 /** Column visibility — front face = T + Pf; back face = D + Pb + E.
  *  Pronunciation has independent toggles per face — user can mix-and-match
@@ -46,6 +47,8 @@ type Props = {
   total?: number;
   /** Optional deck title — appended to top meta (e.g. "Kanji N5 · Pack 01"). */
   deckTitle?: string;
+  /** Optional explicit meta label, used when the card is not a session card. */
+  metaLabel?: string;
   /** Swipe-to-navigate (add-on to SideRail + tap-to-flip). Omit both to disable. */
   onSwipeNext?: () => void;
   onSwipePrev?: () => void;
@@ -64,6 +67,7 @@ export function Flashcard({
   index,
   total,
   deckTitle,
+  metaLabel,
   onSwipeNext,
   onSwipePrev,
   canSwipeNext = false,
@@ -395,9 +399,10 @@ export function Flashcard({
      to 2 lines + collides with the top-right speaker/settings cluster. */
   const [showMeta] = usePersistedState<boolean>('show-card-meta', true);
   const showDeckInPill = deckTitle && screenW >= 600;
-  const metaText = hasProgress && showMeta
-    ? `CARD ${String(index! + 1).padStart(2, '0')} / ${total}${showDeckInPill ? ` // ${deckTitle!.toUpperCase()}` : ''}`
+  const defaultMetaText = hasProgress
+    ? buildCardPositionMeta(index!, total!, showDeckInPill ? deckTitle : undefined, entry.no)
     : null;
+  const metaText = showMeta ? metaLabel ?? defaultMetaText : null;
 
   return (
     <>

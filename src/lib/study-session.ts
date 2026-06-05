@@ -51,3 +51,21 @@ export function buildReshuffledStudySessionEntries(
     `${seed}:reshuffle:${iteration}`,
   );
 }
+
+function twoDigit(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+export function buildCardPositionMeta(index: number, total: number, label?: string, sourceNo?: number) {
+  const parts = [`CARD ${twoDigit(index + 1)} / ${total}`];
+  if (typeof sourceNo === 'number' && Number.isFinite(sourceNo)) {
+    parts.push(`NO. ${twoDigit(sourceNo)}`);
+  }
+  if (label) parts.push(label.toUpperCase());
+  return parts.join(' // ');
+}
+
+export function buildSourcePositionMeta(entry: Entry, label?: string) {
+  const base = `TERM NO. ${twoDigit(entry.no)}`;
+  return label ? `${base} // ${label.toUpperCase()}` : base;
+}

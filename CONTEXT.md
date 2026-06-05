@@ -10,6 +10,11 @@ This context defines user-facing learning, ownership, locking, and study languag
 A user-facing unit of study content in the app, grouped by content type, JLPT level, and deck sequence. A deck contains multiple entries and may originate from a CSV pack, but it is not the same thing as a CSV pack or a purchase entitlement.
 _Avoid_: CSV pack, file, entitlement
 
+**Deck Term List**:
+The deck-level preview/list surface where a learner scans entries in one deck before opening a term or starting a learn mode.
+_Aliases_: Deck Preview, DP
+_Avoid_: Term Preview, Learn mode, raw CSV file
+
 **Entry**:
 A single learnable content object inside a deck, such as one glossary term, grammar pattern, kanji item, or vocab item.
 _Avoid_: Card, row, object
@@ -19,8 +24,13 @@ The learner-facing idea of one item to learn or review. In many app contexts, a 
 _Avoid_: Card, file row
 
 **Card**:
-The UI representation of a single entry or term in browse, memorize, quiz, or review surfaces.
+The UI representation of a single entry or term in browse, Term Preview, Learn modes, or review surfaces.
 _Avoid_: Entry as data, deck
+
+**Term Preview**:
+The single-term preview/detail surface where a learner inspects one term as a card, navigates prev/next, flips it, or uses term actions before choosing a real learn mode.
+_Aliases_: Term Detail, TP
+_Avoid_: Deck Preview, Learn mode, Quiz Card session
 
 **Content Type**:
 The category of content a deck belongs to: Glossary, Grammar, Kanji, or Vocab.
@@ -227,36 +237,33 @@ _Avoid_: Bundle, sales pack, permanent deck merge
 ## Study Modes
 
 **Mode Picker**:
-The deck-level surface where a learner chooses Flashcard, Multiple Choice, or Dictation after opening a deck and reviewing its term list.
+The deck-level surface where a learner chooses a Learn mode after opening a deck and reviewing its term list.
 _Avoid_: Deck Hub, game launcher
 
-**Memorize**:
-The study mode for learning or self-reviewing entries by revealing and recalling answers. It is the canonical product term for the app's memorization-oriented flow.
-_Avoid_: Quiz, test
-
 **Learn**:
-UI/translation-layer alias for Memorize, especially in Thai-facing copy where the learner reads it as `เรียน`.
-_Avoid_: Separate mode from Memorize
+The umbrella learning activity selected from the Mode Picker. Current Learn modes are Quiz Card, Multiple Choice, and Dictation.
+_Avoid_: Term Preview, Deck Preview, passive term browsing
 
-**Quiz**:
-The study mode for answering prompts with clearer correctness, result, or scoring behavior than Memorize.
-_Avoid_: Memorize, Learn
+**Quiz Card**:
+The card-based Learn mode where a learner reviews one card at a time and can rate recall with FSRS-style feedback.
+_Aliases_: Flashcard Quiz, Quiz
+_Avoid_: Term Preview, raw flashcard component
 
-**Quiz Variant**:
-A variant of Quiz that changes answer input style or prompt mechanics without becoming a separate top-level study mode.
-_Aliases_: Quiz Mode
-_Avoid_: Top-level mode sprawl
+**Memorize**:
+A legacy/internal route or implementation word for the older passive reveal-and-review flow. Do not use it as the canonical product term when discussing current Learn modes.
+_Avoid_: Learn umbrella, Term Preview
 
 **Multiple Choice**:
-A Quiz Variant where the learner selects an answer from choices.
-_Avoid_: Separate top-level mode, Memorize
+A Learn mode where the learner selects an answer from choices.
+_Aliases_: MC
+_Avoid_: Quiz Variant, Term Preview
 
 **Dictation**:
-A Quiz Variant where the learner types or reconstructs an answer from listening/recall.
-_Avoid_: Separate top-level mode, Memorize
+A Learn mode where the learner types or reconstructs an answer from listening/recall.
+_Avoid_: Quiz Variant, Term Preview
 
 **Quiz Config**:
-Pre-session quiz settings such as card count, quiz variant, shuffle behavior, deck selection, or future filters.
+Pre-session Learn settings such as card count, mode choice, shuffle behavior, deck selection, or future filters.
 _Avoid_: Global app settings, permanent deck config
 
 **Settings**:
@@ -361,16 +368,16 @@ The Explanation field: richer markdown explanation/details for the term.
 _Avoid_: Term, definition, pronunciation
 
 **Learn Card Display Columns**:
-The field visibility preference for Learn/Memorize cards.
+The field visibility preference for card-based Learn surfaces when the UI still uses Learn-card wording.
 _Avoid_: Quiz Card Display Columns, source schema edit
 
 **Quiz Card Display Columns**:
-The field visibility preference for Quiz cards.
+The field visibility preference for Quiz Card surfaces.
 _Avoid_: Learn Card Display Columns, source schema edit
 
 **Review**:
-An activity that brings the learner back to previously seen items for reinforcement, often guided by progress or SRS state. Review can use Memorize, Quiz, or card UI mechanics, but it is not locked to one mode.
-_Avoid_: Quiz only, Memorize only
+An activity that brings the learner back to previously seen items for reinforcement, often guided by progress or SRS state. Review can use Learn modes or card UI mechanics, but it is not locked to one mode.
+_Avoid_: Quiz Card only, Term Preview only
 
 **SRS**:
 The spaced-repetition scheduling concept that decides when learned items should return for review.
@@ -590,11 +597,12 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **SKU** can connect app catalog state to payment and entitlement systems, but should not be rendered as the main UI label for learners.
 - **In Browse** is the user-facing destination message for **Ready** content.
 - **Multi-deck Study** creates a temporary **Deck Group Session** from multiple selected **Decks**.
-- **Learn** is not a separate mode from **Memorize**; it is the UI/copy layer for the memorization-oriented flow.
-- **Memorize** and **Quiz** can use the same **Entries** and **Cards**, but they have different learner intent.
-- **Multiple Choice** and **Dictation** are **Quiz Variants**, not top-level modes separate from **Quiz**.
-- **Quiz Config** shapes a quiz/session before it starts and should not mutate deck definitions or global app settings.
-- **Quiz Mode** may be used as casual wording for **Quiz Variant**, but **Quiz Variant** is the precise glossary term.
+- **Deck Term List** can also be called **Deck Preview** or **DP**; it previews/list entries in one **Deck**.
+- **Term Preview** can also be called **Term Detail** or **TP**; it previews one **Term** and is not a **Learn** mode.
+- **Learn** is the umbrella learning activity; current **Learn** modes are **Quiz Card**, **Multiple Choice**, and **Dictation**.
+- **Memorize** is legacy/internal wording and should not be used as the canonical current product term for **Learn**.
+- **Quiz Card**, **Multiple Choice**, and **Dictation** can use the same **Entries** and **Cards**, but have different answer mechanics.
+- **Quiz Config** shapes a Learn session before it starts and should not mutate deck definitions or global app settings.
 - **Settings** can grow to cover more app/account utilities, but session-specific study setup belongs in **Quiz Config** or the relevant study flow.
 - **Account** identifies the app user; it is separate from **Payhip Order**, **Purchase Record**, and **Local Library**.
 - **Profile** is user-facing metadata/preferences and should not be used as the entitlement or purchase source of truth.
@@ -610,8 +618,8 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Privacy Request** can go through the **Support Inbox** in MVP, but should be treated as more sensitive than ordinary support.
 - **Field Visibility** controls which **CSV Fields** appear on cards; it does not remove data from the **Entry**.
 - **T Field**, **D Field**, **P Field**, and **E Field** are display/source fields from the CSV-backed entry shape.
-- **Learn Card Display Columns** and **Quiz Card Display Columns** can differ because Learn/Memorize and Quiz have different display needs.
-- **Review** can be implemented through **Memorize**, **Quiz**, or other card-based mechanics.
+- **Learn Card Display Columns** and **Quiz Card Display Columns** can differ because each Learn mode can have different display needs.
+- **Review** can be implemented through **Learn** modes or other card-based mechanics.
 - **SRS** guides when items return for **Review**.
 - **FSRS** is the algorithmic implementation of **SRS** behavior in the app.
 - **Rating** feeds SRS/FSRS scheduling after a reviewed **Card**.
@@ -620,7 +628,7 @@ _Avoid_: Manual Import, confirmed shipped behavior without code check
 - **Session** can be created from one **Deck** or from a **Deck Group Session**.
 - **Shuffle** affects session/study ordering, not official source order.
 - **Seeded Shuffle** should be preferred when resume, restore, or debugging requires a stable order.
-- **Continue** resumes mode-specific progress, such as Learn/Memorize progress or Quiz progress, without changing ownership or deck identity.
+- **Continue** resumes mode-specific progress, such as Learn mode progress, without changing ownership or deck identity.
 - **Progress** belongs to learner activity, not content availability.
 - **Overall Progress** is a future aggregate concept, not a current MVP assumption.
 - **Owned** includes both **Free** and **Entitled** content.
@@ -721,25 +729,29 @@ Dev: "Is the card the data object?"
 
 Domain expert: "No. Entry is the data unit, term is the learner-facing item, and card is the UI representation."
 
-Dev: "Is Learn a third study mode?"
+Dev: "What is DP?"
 
-Domain expert: "No. Learn is UI/copy language for Memorize. Quiz is the separate test-like mode."
+Domain expert: "DP means Deck Preview, an alias for Deck Term List. It is the deck-level list/preview surface, not a Learn mode."
 
-Dev: "Is Multiple Choice a new top-level mode?"
+Dev: "What is TP?"
 
-Domain expert: "No. Multiple Choice is a Quiz Variant. Quiz is the top-level mode."
+Domain expert: "TP means Term Preview, an alias for Term Detail. It previews one term/card and is not the same thing as DP or a Learn mode."
 
-Dev: "Can the user say Quiz Mode?"
+Dev: "What does Learn mean now?"
 
-Domain expert: "Yes, as casual wording. In docs and architecture, Quiz Variant is the precise term."
+Domain expert: "Learn is the umbrella learning activity selected from Mode Picker. Current Learn modes are Quiz Card, Multiple Choice, and Dictation."
+
+Dev: "Is Memorize still the canonical Learn term?"
+
+Domain expert: "No. Memorize is legacy/internal wording for the older passive reveal flow. Use Learn for the umbrella and name the specific Learn mode when needed."
 
 Dev: "Does Quiz Config edit the deck?"
 
-Domain expert: "No. Quiz Config prepares a session. It does not change the deck definition."
+Domain expert: "No. Quiz Config prepares a Learn session. It does not change the deck definition."
 
 Dev: "Should Settings contain every study option?"
 
-Domain expert: "No. Settings is for app/account preferences and utilities. Per-session study options belong in Quiz Config or the study flow."
+Domain expert: "No. Settings is for app/account preferences and utilities. Per-session study options belong in Quiz Config or the relevant Learn flow."
 
 Dev: "Is Account the same as a Payhip customer?"
 

@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiChevronLeft, FiChevronRight, FiEdit3, FiHome, FiLayers, FiMoreVertical, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEdit3, FiHome, FiLayers, FiMoreVertical, FiShuffle, FiSliders, FiTrash2, FiX } from 'react-icons/fi';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +29,7 @@ import {
 import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
 import { resolveFirstEntryJump } from '@/lib/deck-jump';
 import { studyFallbackHref } from '@/lib/navigation-back';
+import { buildReshuffledStudySessionEntries, buildSourcePositionMeta } from '@/lib/study-session';
 import { isOfficialDeck, isUserEditableDeck } from '@/lib/user-content';
 import type { TermEditingFields } from '@/lib/term-editing-form';
 
@@ -49,13 +50,15 @@ export default function TermCardDisplayScreen() {
   const { decks: allDecks } = useAllDecks();
   const deck = activeDeckId ? allDecks.find((d) => d.id === activeDeckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const baseEntriesRef = useRef<Entry[]>([]);
+  const shuffleIterationRef = useRef(0);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [termEditOpen, setTermEditOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherMessage, setSwitcherMessage] = useState<string | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [cardMotionKind, setCardMotionKind] = useState<'prev' | 'next' | 'deck' | 'initial'>('initial');
+  const cardMotionKindRef = useRef<'prev' | 'next' | 'deck' | 'initial'>('initial');
   const cardOpacity = useSharedValue(0.82);
   const cardY = useSharedValue(8);
   const cardScale = useSharedValue(0.985);
@@ -84,7 +87,9 @@ export default function TermCardDisplayScreen() {
     if (!activeDeckId) return;
     let cancelled = false;
     void entriesForDeckAsync(activeDeckId).then((rows) => {
-      if (!cancelled) setEntries(rows);
+      if (cancelled) return;
+      baseEntriesRef.current = rows;
+      setEntries(rows);
     });
     return () => {
       cancelled = true;
@@ -106,6 +111,8 @@ export default function TermCardDisplayScreen() {
     : isTabletLayout
       ? Math.max(420, Math.min(640, height - 310))
       : Math.max(320, Math.min(620, height - (showHeaderBack ? 320 : 308)));
+  const sourceMeta = current && deck ? buildSourcePositionMeta(current, deck.title) : null;
+  const canShuffleEntries = Boolean(activeDeckId) && entries.length > 1;
 
   const cardTransitionStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
@@ -113,6 +120,7 @@ export default function TermCardDisplayScreen() {
   }));
 
   useEffect(() => {
+    const cardMotionKind = cardMotionKindRef.current;
     const delay = cardMotionKind === 'deck' ? 120 : 0;
     const timeout = setTimeout(() => {
       cardOpacity.value = withTiming(1, {
@@ -135,10 +143,10 @@ export default function TermCardDisplayScreen() {
       );
     }, delay);
     return () => clearTimeout(timeout);
-  }, [activeDeckId, activeEntryId, cardMotionKind, cardOpacity, cardY, cardScale]);
+  }, [activeDeckId, activeEntryId, cardOpacity, cardY, cardScale]);
 
   function prepareCardTransition(kind: 'prev' | 'next' | 'deck') {
-    setCardMotionKind(kind);
+    cardMotionKindRef.current = kind;
     cardOpacity.value = kind === 'deck' ? 0.78 : 0.84;
     cardY.value = kind === 'deck' ? 10 : kind === 'next' ? 6 : -6;
     cardScale.value = 0.985;
@@ -159,6 +167,25 @@ export default function TermCardDisplayScreen() {
     setIsFlipped(false);
     setActiveEntryId(entry.id);
     replaceTermUrl(activeDeckId, entry.id);
+  }
+
+  function handleShuffleEntries() {
+    if (!canShuffleEntries || !activeDeckId) return;
+    const baseRows = baseEntriesRef.current.length > 0 ? baseEntriesRef.current : entries;
+    shuffleIterationRef.current += 1;
+    const shuffled = buildReshuffledStudySessionEntries(
+      baseRows,
+      { count: 'all', order: 'normal' },
+      `${activeDeckId}:term-detail`,
+      shuffleIterationRef.current,
+    );
+    const nextEntry = shuffled[0];
+    if (!nextEntry) return;
+    prepareCardTransition('deck');
+    setIsFlipped(false);
+    setEntries(shuffled);
+    setActiveEntryId(nextEntry.id);
+    replaceTermUrl(activeDeckId, nextEntry.id);
   }
 
   async function handleSelectDeck(nextDeck: Deck) {
@@ -262,7 +289,7 @@ export default function TermCardDisplayScreen() {
             <View style={styles.metaLeft}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
               <ThemedText style={[styles.mono, { color: colors.textHint }]}>
-                {`// TERM ${String(index + 1).padStart(2, '0')} / ${entries.length}`}
+                {sourceMeta ? `// ${sourceMeta}` : '// TERM'}
               </ThemedText>
             </View>
             <View style={styles.toolbarActions}>
@@ -282,6 +309,20 @@ export default function TermCardDisplayScreen() {
                   )}
                 </Pressable>
               ) : null}
+              <Pressable
+                onPress={handleShuffleEntries}
+                disabled={!canShuffleEntries}
+                accessibilityRole="button"
+                accessibilityLabel="สลับลำดับคำในหน้านี้"
+                style={({ pressed, hovered }: any) => [
+                  styles.iconBtn,
+                  { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+                  (pressed || hovered) && canShuffleEntries && { borderColor: Accent.soft },
+                  pressed && canShuffleEntries && { opacity: 0.75 },
+                  !canShuffleEntries && { opacity: 0.35 },
+                ]}>
+                <FiShuffle size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
               <Pressable
                 onPress={() => setConfigOpen(true)}
                 accessibilityRole="button"
@@ -321,6 +362,7 @@ export default function TermCardDisplayScreen() {
               index={index}
               total={entries.length}
               deckTitle={deck.title}
+              metaLabel={sourceMeta ?? undefined}
               onSwipeNext={next ? () => goEntry(next, 'next') : undefined}
               onSwipePrev={prev ? () => goEntry(prev, 'prev') : undefined}
               canSwipeNext={Boolean(next)}
@@ -331,7 +373,7 @@ export default function TermCardDisplayScreen() {
           <View style={[styles.stickyNav, isTabletLayout && styles.stickyNavTablet, { borderTopColor: colors.border }]}>
             <NavButton direction="prev" entry={prev} colors={colors} onPress={() => prev && goEntry(prev, 'prev')} />
             <ThemedText style={[styles.navCounter, { color: colors.textSecondary }]}>
-              {`${index + 1} / ${entries.length}`}
+              {`NO. ${String(current.no).padStart(2, '0')}`}
             </ThemedText>
             <NavButton direction="next" entry={next} colors={colors} onPress={() => next && goEntry(next, 'next')} />
           </View>

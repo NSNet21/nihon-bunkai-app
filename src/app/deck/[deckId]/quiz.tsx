@@ -13,7 +13,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -78,6 +77,7 @@ export default function StudyScreen() {
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const baseSessionEntriesRef = useRef<Entry[]>([]);
   const shuffleIterationRef = useRef(0);
   const [flashcardConfig] = usePersistedState(
     studyModeConfigKey('flashcard'),
@@ -138,11 +138,21 @@ export default function StudyScreen() {
          links keep the full deck so the requested entry is never lost to
          config count/order. Fresh flashcard sessions use the saved mode
          config from the new Mode Picker flow. */
-      const nextRows = entryId
+      const baseRows = entryId
         ? rows
         : sessionCount
             ? rows.slice(0, sessionCount)
+            : buildStudySessionEntries(
+                rows,
+                { ...safeFlashcardConfig, order: 'normal' },
+                `${deckId}:flashcard:base`,
+              );
+      const nextRows = entryId
+        ? rows
+        : sessionCount
+            ? baseRows
             : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
+      baseSessionEntriesRef.current = baseRows;
       setEntries(nextRows);
       // Jump to entryId if provided (from Search tap-through OR Continue card
       // restoring a prior session). If the entry no longer exists in this
@@ -201,13 +211,20 @@ export default function StudyScreen() {
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
   const canShuffleSession = !entryId && entries.length > 1 && results.length === 0;
-  const shufflePulse = useSharedValue(0);
-  const shuffleCardStyle = useAnimatedStyle(() => ({
+  const cardMotion = useSharedValue(0);
+  const cardMotionOffset = useSharedValue(0);
+  const sessionCardStyle = useAnimatedStyle(() => ({
+    opacity: 1 - cardMotion.value * 0.06,
     transform: [
-      { translateX: shufflePulse.value > 0.5 ? -3 : shufflePulse.value > 0 ? 3 : 0 },
-      { scale: shufflePulse.value > 0 ? 0.992 : 1 },
+      { translateY: cardMotionOffset.value * cardMotion.value },
+      { scale: 1 - cardMotion.value * 0.004 },
     ],
   }));
+  function cueCardMotion(offset: number) {
+    cardMotionOffset.value = offset;
+    cardMotion.value = 1;
+    cardMotion.value = withTiming(0, { duration: 160 });
+  }
 
   /* Persist study position so Browse can offer "Continue · {deck} · {idx}/{total}".
      Bail when there's no real entry (loading / empty / past-end / no deck). */
@@ -274,12 +291,14 @@ export default function StudyScreen() {
 
   function handlePrev() {
     if (!canPrev) return;
+    cueCardMotion(-4);
     setIsFlipped(false);
     setIndex((i) => i - 1);
   }
 
   function handleNext() {
     if (!canNext) return;
+    cueCardMotion(4);
     setIsFlipped(false);
     setIndex((i) => i + 1);
   }
@@ -298,17 +317,13 @@ export default function StudyScreen() {
     setIndex(0);
     setResults([]);
     shuffleIterationRef.current += 1;
-    setEntries((rows) => buildReshuffledStudySessionEntries(
-      rows,
+    setEntries(() => buildReshuffledStudySessionEntries(
+      baseSessionEntriesRef.current.length > 0 ? baseSessionEntriesRef.current : entries,
       { count: 'all', order: 'normal' },
       `${deckId}:flashcard`,
       shuffleIterationRef.current,
     ));
-    shufflePulse.value = 0;
-    shufflePulse.value = withSequence(
-      withTiming(1, { duration: 80 }),
-      withTiming(0, { duration: 180 }),
-    );
+    cueCardMotion(4);
   }
 
   function handleRestart() {
@@ -480,7 +495,7 @@ export default function StudyScreen() {
                     iconSize={railIcon}
                   />
                 )}
-                <Animated.View style={[styles.cardSlot, shuffleCardStyle]}>
+                <Animated.View style={[styles.cardSlot, sessionCardStyle]}>
                   <Flashcard
                     entry={current}
                     isFlipped={isFlipped}

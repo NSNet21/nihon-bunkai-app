@@ -48,16 +48,39 @@ const cardState = await page.evaluate(() => {
   const el = document.querySelector('[aria-label="แตะเพื่อดูคำตอบ"], [aria-label="แตะเพื่อกลับด้านหน้า"]');
   const rect = el?.getBoundingClientRect();
   const text = document.body.innerText;
+  const sourceMeta = text.split('\n').map((line) => line.trim()).find((line) => line.startsWith('TERM NO.')) ?? '';
   return {
     href: location.pathname,
     hasCard: Boolean(el),
     rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
-    hasCardMeta: text.includes('CARD'),
-    hasTermMeta: text.includes('TERM'),
+    hasCardMeta: text.includes('CARD '),
+    hasSourceMeta: text.includes('TERM NO.'),
+    sourceMeta,
   };
 });
 
-const beforeNavHref = cardState.href;
+await page.getByLabel('สลับลำดับคำในหน้านี้').click({ timeout: 10_000 });
+await page.waitForFunction(
+  ({ href, sourceMeta }) => {
+    const text = document.body.innerText;
+    const nextSourceMeta = text.split('\n').map((line) => line.trim()).find((line) => line.startsWith('TERM NO.')) ?? '';
+    return location.pathname !== href || nextSourceMeta !== sourceMeta;
+  },
+  { href: cardState.href, sourceMeta: cardState.sourceMeta },
+  { timeout: 15_000 },
+);
+const afterShuffleState = await page.evaluate(() => {
+  const text = document.body.innerText;
+  return {
+    href: location.pathname,
+    sourceMeta: text.split('\n').map((line) => line.trim()).find((line) => line.startsWith('TERM NO.')) ?? '',
+  };
+});
+const termShuffleWorked =
+  afterShuffleState.href !== cardState.href ||
+  afterShuffleState.sourceMeta !== cardState.sourceMeta;
+
+const beforeNavHref = afterShuffleState.href;
 await page.getByLabel('คำถัดไป').click({ timeout: 10_000 });
 await page.waitForTimeout(300);
 const afterNavHref = await page.evaluate(() => location.pathname);
@@ -110,7 +133,7 @@ const deckMotionWorked = Boolean(
 const deckSwitchWorked =
   deckSwitchState.href.includes('/deck/kanji-n5-pack03/term/') &&
   deckSwitchState.hasCard &&
-  deckSwitchState.text.includes('CARD 01');
+  deckSwitchState.text.includes('TERM NO.');
 
 await page.getByLabel('กลับไปหน้าก่อนหน้า').click({ timeout: 10_000 });
 await page.waitForTimeout(300);
@@ -122,6 +145,8 @@ await browser.close();
 const result = {
   target,
   cardState,
+  afterShuffleState,
+  termShuffleWorked,
   navNextWorked,
   afterNavHref,
   configOpened,
@@ -138,8 +163,11 @@ const result = {
 
 console.log(JSON.stringify(result, null, 2));
 
-if (!cardState.hasCard || !cardState.hasCardMeta || !cardState.hasTermMeta) {
-  throw new Error('term card disappeared after rapid swipes');
+if (!cardState.hasCard || !cardState.hasSourceMeta || cardState.hasCardMeta) {
+  throw new Error('term detail source metadata did not stay distinct from session card metadata');
+}
+if (!termShuffleWorked) {
+  throw new Error('term detail shuffle did not change the visible source metadata or route');
 }
 if (!navNextWorked) {
   throw new Error('next button did not navigate on first click after rapid swipes');

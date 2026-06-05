@@ -27,6 +27,11 @@ function memorizeFirstTerm(text) {
   return fieldsIndex >= 0 ? lines[fieldsIndex + 1] ?? '' : '';
 }
 
+function firstCardMeta(text) {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  return lines.find((line) => /^CARD 01\b/.test(line)) ?? '';
+}
+
 async function loadCardText(page, route) {
   await page.goto(urlFor(route), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.waitForSelector('text=CARD 01', { timeout: 25_000 });
@@ -95,6 +100,8 @@ async function manualShuffleFirstCardText(route, extractFirstTerm) {
     return {
       beforeTerm,
       afterTerm: extractFirstTerm(afterText),
+      beforeMeta: firstCardMeta(beforeText),
+      afterMeta: firstCardMeta(afterText),
       text: afterText,
       warnings,
       errors,
@@ -134,10 +141,16 @@ const result = {
   quizAndMemorizeUseSameFirstTerm: quizFirstTermValue === memorizeFirstTermValue,
   quizManualBeforeTerm: quizManual.beforeTerm,
   quizManualAfterTerm: quizManual.afterTerm,
+  quizManualBeforeMeta: quizManual.beforeMeta,
+  quizManualAfterMeta: quizManual.afterMeta,
   memorizeManualBeforeTerm: memorizeManual.beforeTerm,
   memorizeManualAfterTerm: memorizeManual.afterTerm,
+  memorizeManualBeforeMeta: memorizeManual.beforeMeta,
+  memorizeManualAfterMeta: memorizeManual.afterMeta,
   quizManualShuffleWorked: quizManual.beforeTerm !== quizManual.afterTerm,
   memorizeManualShuffleWorked: memorizeManual.beforeTerm !== memorizeManual.afterTerm,
+  quizManualMetaWorked: quizManual.beforeMeta !== quizManual.afterMeta && quizManual.afterMeta.includes('NO.'),
+  memorizeManualMetaWorked: memorizeManual.beforeMeta !== memorizeManual.afterMeta && memorizeManual.afterMeta.includes('NO.'),
   warningCount: quiz.warnings.length + memorize.warnings.length + quizManual.warnings.length + memorizeManual.warnings.length,
   errorCount: quiz.errors.length + memorize.errors.length + quizManual.errors.length + memorizeManual.errors.length,
   warnings: [...quiz.warnings, ...memorize.warnings, ...quizManual.warnings, ...memorizeManual.warnings].slice(0, 8),
@@ -160,6 +173,12 @@ if (!result.quizManualShuffleWorked) {
 }
 if (!result.memorizeManualShuffleWorked) {
   throw new Error('Memorize manual shuffle button did not change the first card');
+}
+if (!result.quizManualMetaWorked) {
+  throw new Error('Quiz manual shuffle did not update the card source-number badge');
+}
+if (!result.memorizeManualMetaWorked) {
+  throw new Error('Memorize manual shuffle did not update the card source-number badge');
 }
 if (result.errorCount > 0) {
   throw new Error('Console errors detected during shuffle session smoke');

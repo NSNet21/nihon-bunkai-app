@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildReshuffledStudySessionEntries, buildStudySessionEntries } from './study-session';
+import {
+  buildCardPositionMeta,
+  buildReshuffledStudySessionEntries,
+  buildSourcePositionMeta,
+  buildStudySessionEntries,
+} from './study-session';
 import type { Entry } from '@/data/types';
 
 const entries = Array.from({ length: 6 }, (_, i) => ({
@@ -53,5 +58,19 @@ describe('buildStudySessionEntries', () => {
     expect(baseConfig.order).toBe('normal');
     expect(result).toHaveLength(3);
     expect(result).not.toEqual([1, 2, 3]);
+  });
+});
+
+describe('study session meta labels', () => {
+  it('labels session cards by the shuffled session position', () => {
+    expect(buildCardPositionMeta(1, 20, 'Kanji N5 · Pack 03')).toBe('CARD 02 / 20 // KANJI N5 · PACK 03');
+  });
+
+  it('can include source entry number so shuffled cards keep their identity visible', () => {
+    expect(buildCardPositionMeta(0, 20, 'Memorize', 31)).toBe('CARD 01 / 20 // NO. 31 // MEMORIZE');
+  });
+
+  it('labels term detail by source entry number without a session counter', () => {
+    expect(buildSourcePositionMeta(entries[4], 'Kanji N5 · Pack 03')).toBe('TERM NO. 05 // KANJI N5 · PACK 03');
   });
 });

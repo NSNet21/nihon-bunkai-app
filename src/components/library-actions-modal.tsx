@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useMemo, useReducer, useState, type ReactNode } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiMinus, FiPlus, FiSquare, FiUpload, FiX } from 'react-icons/fi';
 
 import { ImportHowToContent } from '@/components/import-how-to-content';
@@ -30,91 +30,144 @@ const ACTIONS = {
   exportBatch: 'Batch export',
 } as const;
 
+const DEFAULT_IMPORT_GROUP = 'Manual imports';
 const webNoTextSelect = Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null;
+
+type LibraryActionsState = {
+  mode: Mode;
+  busy: boolean;
+  status: string;
+  importGroup: string;
+  importSection: string;
+  selected: Set<string>;
+};
+
+type LibraryActionsAction =
+  | { type: 'close' }
+  | { type: 'mode'; mode: Mode }
+  | { type: 'busy'; busy: boolean }
+  | { type: 'status'; status: string }
+  | { type: 'import-field'; field: 'importGroup' | 'importSection'; value: string }
+  | { type: 'toggle-selected'; deckId: string }
+  | { type: 'reset-selected' };
+
+function createLibraryActionsState(): LibraryActionsState {
+  return {
+    mode: 'actions',
+    busy: false,
+    status: '',
+    importGroup: DEFAULT_IMPORT_GROUP,
+    importSection: '',
+    selected: new Set(),
+  };
+}
+
+function libraryActionsReducer(state: LibraryActionsState, action: LibraryActionsAction): LibraryActionsState {
+  switch (action.type) {
+    case 'close':
+      return { ...state, mode: 'actions', status: '', selected: new Set() };
+    case 'mode':
+      return { ...state, mode: action.mode, status: '' };
+    case 'busy':
+      return { ...state, busy: action.busy };
+    case 'status':
+      return { ...state, status: action.status };
+    case 'import-field':
+      return { ...state, [action.field]: action.value };
+    case 'toggle-selected': {
+      const selected = new Set(state.selected);
+      if (selected.has(action.deckId)) selected.delete(action.deckId);
+      else selected.add(action.deckId);
+      return { ...state, selected };
+    }
+    case 'reset-selected':
+      return { ...state, selected: new Set() };
+    default:
+      return state;
+  }
+}
 
 export function LibraryActionsModal({ visible, decks, onClose, onImported }: LibraryActionsModalProps) {
   const colors = useThemePalette();
   const { showToast } = useToast();
-  const [mode, setMode] = useState<Mode>('actions');
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
+  const [state, dispatch] = useReducer(libraryActionsReducer, undefined, createLibraryActionsState);
+  const { mode, busy, status, importGroup, importSection, selected } = state;
   const exportableDecks = useMemo(() => selectExportableDecks(decks), [decks]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  const embeddedFreeDeckIds = useMemo(
-    () => new Set(decks.filter((deck) => deck.source === 'free').map((deck) => deck.id)),
-    [decks],
-  );
-  const localDeckIds = useMemo(
-    () => new Set(decks.filter((deck) => deck.source !== 'free').map((deck) => deck.id)),
-    [decks],
-  );
+  const deckIdSets = useMemo(() => {
+    const embeddedFree = new Set<string>();
+    const local = new Set<string>();
+    for (const deck of decks) {
+      if (deck.source === 'free') embeddedFree.add(deck.id);
+      else local.add(deck.id);
+    }
+    return { embeddedFree, local };
+  }, [decks]);
 
   function close() {
-    setMode('actions');
-    setStatus('');
-    setSelected(new Set());
+    dispatch({ type: 'close' });
     onClose();
   }
 
   function openMode(nextMode: Mode) {
-    setStatus('');
-    setMode(nextMode);
+    dispatch({ type: 'mode', mode: nextMode });
   }
 
   async function onImport(multiple: boolean) {
     const files = await pickFiles('.csv,.zip,text/csv,application/zip', multiple);
     if (files.length === 0) return;
-    setBusy(true);
+    dispatch({ type: 'busy', busy: true });
     try {
-      const parsed = await parseManualImportFiles(files, embeddedFreeDeckIds);
-      if (!shouldSave(parsed, localDeckIds)) {
-        setStatus('ยกเลิก import');
+      const parsed = await parseManualImportFiles(files, deckIdSets.embeddedFree, {
+        group: importGroup,
+        section: importSection,
+      });
+      if (!shouldSave(parsed, deckIdSets.local)) {
+        dispatch({ type: 'status', status: 'ยกเลิก import' });
         return;
       }
       await saveManualImport(parsed);
       onImported();
       const message = importSummary(parsed);
-      setStatus(message);
+      dispatch({ type: 'status', status: message });
       showToast(message, { kind: parsed.ready.length > 0 ? 'success' : 'info' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import failed';
-      setStatus(message);
+      dispatch({ type: 'status', status: message });
       showToast(message, { kind: 'error' });
     } finally {
-      setBusy(false);
+      dispatch({ type: 'busy', busy: false });
     }
   }
 
   async function onExportDeck(deck: Deck) {
-    setBusy(true);
+    dispatch({ type: 'busy', busy: true });
     try {
       const { fileName, csv } = await buildDeckCsv(deck);
       downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), fileName);
-      setStatus(`Export ${deck.title} แล้ว`);
+      dispatch({ type: 'status', status: `Export ${deck.title} แล้ว` });
     } finally {
-      setBusy(false);
+      dispatch({ type: 'busy', busy: false });
     }
   }
 
   async function onExportBatch() {
     const chosen = exportableDecks.filter((deck) => selected.has(deck.id));
     if (chosen.length === 0) {
-      setStatus('เลือกอย่างน้อย 1 deck ก่อน export');
+      dispatch({ type: 'status', status: 'เลือกอย่างน้อย 1 deck ก่อน export' });
       return;
     }
-    setBusy(true);
+    dispatch({ type: 'busy', busy: true });
     try {
       const blob = await buildDeckZip(chosen);
       downloadBlob(blob, 'nihon-bunkai-library-export.zip');
-      setStatus(`Export ${chosen.length} decks เป็น ZIP แล้ว`);
+      dispatch({ type: 'status', status: `Export ${chosen.length} decks เป็น ZIP แล้ว` });
     } finally {
-      setBusy(false);
+      dispatch({ type: 'busy', busy: false });
     }
   }
 
   function openBatchExport() {
-    setSelected(new Set());
+    dispatch({ type: 'reset-selected' });
     openMode('export-batch');
   }
 
@@ -145,6 +198,13 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
 
           {mode === 'actions' && (
             <View style={styles.actionList}>
+              <ImportDestinationFields
+                group={importGroup}
+                section={importSection}
+                disabled={busy}
+                onGroup={(value) => dispatch({ type: 'import-field', field: 'importGroup', value })}
+                onSection={(value) => dispatch({ type: 'import-field', field: 'importSection', value })}
+              />
               <ActionRow
                 label={ACTIONS.howTo}
                 hint="เตรียม CSV ใน Sheets/Excel แล้วนำเข้าแอปโดยตรง"
@@ -206,14 +266,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
               decks={exportableDecks}
               selected={selected}
               busy={busy}
-              onToggle={(deckId) => {
-                setSelected((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(deckId)) next.delete(deckId);
-                  else next.add(deckId);
-                  return next;
-                });
-              }}
+              onToggle={(deckId) => dispatch({ type: 'toggle-selected', deckId })}
               onBack={() => openMode('actions')}
               onExport={() => void onExportBatch()}
             />
@@ -254,6 +307,80 @@ function ImportHowTo({
   );
 }
 
+function ImportDestinationFields({
+  group,
+  section,
+  disabled,
+  onGroup,
+  onSection,
+}: {
+  group: string;
+  section: string;
+  disabled: boolean;
+  onGroup: (value: string) => void;
+  onSection: (value: string) => void;
+}) {
+  const colors = useThemePalette();
+  return (
+    <View style={[styles.destinationBlock, { borderBottomColor: colors.border }]}>
+      <View style={styles.destinationTitleRow}>
+        <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+        <ThemedText style={[styles.mono, { color: colors.textHint }]}>// IMPORT DESTINATION</ThemedText>
+      </View>
+      <View style={styles.destinationGrid}>
+        <ImportField
+          label="GROUP"
+          value={group}
+          disabled={disabled}
+          placeholder="เช่น Manual imports"
+          onChange={onGroup}
+        />
+        <ImportField
+          label="SECTION"
+          value={section}
+          disabled={disabled}
+          placeholder="เช่น N2 / Week 1"
+          onChange={onSection}
+        />
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.destinationHint}>
+        ใช้กับ Import one file และ Batch import รอบนี้ · แก้ภายหลังได้จาก Deck Actions
+      </ThemedText>
+    </View>
+  );
+}
+
+function ImportField({
+  label,
+  value,
+  disabled,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  const colors = useThemePalette();
+  return (
+    <View style={styles.importField}>
+      <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>{label}</ThemedText>
+      <TextInput
+        value={value}
+        editable={!disabled}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textHint}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+      />
+    </View>
+  );
+}
+
 function ActionRow({
   label,
   hint,
@@ -273,6 +400,7 @@ function ActionRow({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={label}
       style={({ pressed, hovered }: any) => [
         styles.actionRow,
         { borderBottomColor: colors.border, backgroundColor: hovered ? colors.surface2 : 'transparent' },
@@ -715,6 +843,52 @@ const styles = StyleSheet.create({
     marginRight: -4,
   },
   actionList: { borderTopWidth: StyleSheet.hairlineWidth },
+  destinationBlock: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  destinationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  pip: { width: 5, height: 5 },
+  mono: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  destinationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  importField: {
+    flex: 1,
+    minWidth: 150,
+    gap: Spacing.one,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  importInput: {
+    minHeight: 40,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    fontSize: 14,
+    fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
+  },
+  destinationHint: {
+    lineHeight: 18,
+  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',

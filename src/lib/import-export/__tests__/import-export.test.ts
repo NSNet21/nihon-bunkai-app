@@ -87,6 +87,32 @@ describe('parseManualImportFiles', () => {
     expect(result.ready[0].deck.tags).toContain('group:Manual imports');
   });
 
+  it('applies an import destination group and section to manual CSV decks', async () => {
+    const file = new File(['T,D,P,E\n猫,แมว,ねこ,note'], 'my-card-set.csv', { type: 'text/csv' });
+    const result = await parseManualImportFiles([file], new Set(), {
+      group: 'Weak N2 set',
+      section: 'Week 1',
+    });
+    expect(result.failed).toHaveLength(0);
+    expect(result.ready[0].deck.userGroup).toBe('Weak N2 set');
+    expect(result.ready[0].deck.userSection).toBe('Week 1');
+    expect(result.ready[0].deck.tags).toContain('group:Weak N2 set');
+    expect(result.ready[0].deck.tags).toContain('section:Week 1');
+    expect(result.ready[0].deck.tags).not.toContain('group:Manual imports');
+  });
+
+  it('keeps manual imports grouped by default when destination fields are blank', async () => {
+    const file = new File(['T,D,P,E\n犬,หมา,いぬ,note'], 'blank-destination.csv', { type: 'text/csv' });
+    const result = await parseManualImportFiles([file], new Set(), {
+      group: '   ',
+      section: '',
+    });
+    expect(result.failed).toHaveLength(0);
+    expect(result.ready[0].deck.userGroup).toBeUndefined();
+    expect(result.ready[0].deck.userSection).toBeUndefined();
+    expect(result.ready[0].deck.tags).toContain('group:Manual imports');
+  });
+
   it('parses CSV files inside ZIP', async () => {
     const zip = new JSZip();
     zip.file('vocab/vocab-n5-pack98.csv', 'T,D,P,E\n犬,หมา,いぬ,note');

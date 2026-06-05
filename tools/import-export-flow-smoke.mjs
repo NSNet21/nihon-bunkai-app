@@ -10,6 +10,8 @@ const editedTerm = '編集済みテスト';
 const addedTerm = '追加済みテスト';
 const importedDeckId = 'manual-self-imported-file';
 const importedDeckTitle = 'self imported file';
+const importGroup = 'Smoke Import Group';
+const importSection = 'Inbox';
 const renamedDeckTitle = 'Manual Smoke Deck';
 const movedGroup = 'Manual Smoke Group';
 const movedSection = 'Regression';
@@ -254,11 +256,19 @@ try {
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => null);
 
   await openLibraryActions(page);
+  await page.getByPlaceholder('เช่น Manual imports').fill(importGroup);
+  await page.getByPlaceholder('เช่น N2 / Week 1').fill(importSection);
   const chooserPromise = page.waitForEvent('filechooser');
-  await clickText(page, 'Import one file');
+  await page.getByLabel('Import one file').click({ timeout: 10_000 });
   const chooser = await chooserPromise;
   await chooser.setFiles(csvPath);
   await page.getByText('import 1 decks', { exact: false }).first().waitFor({ timeout: 15_000 });
+  await expectLibraryDeck(page, importedDeckId, {
+    title: importedDeckTitle,
+    source: 'manual',
+    userGroup: importGroup,
+    userSection: importSection,
+  });
   await page.mouse.click(12, 12);
   await ensureBrowseDeckVisible(page, importedDeckTitle);
 
@@ -374,6 +384,8 @@ try {
   const result = {
     target,
     importedDeckTitle,
+    importGroup,
+    importSection,
     editedTerm,
     addedTerm,
     renamedDeckTitle,

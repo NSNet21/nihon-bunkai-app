@@ -256,8 +256,11 @@ try {
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => null);
 
   await openLibraryActions(page);
-  await page.getByPlaceholder('เช่น Manual imports').fill(importGroup);
-  await page.getByPlaceholder('เช่น N2 / Week 1').fill(importSection);
+  await page.getByLabel('เลือก import destination').click({ timeout: 10_000 });
+  await page.getByLabel('+ Create new group').click({ timeout: 10_000 });
+  await page.getByPlaceholder('ชื่อ group ใหม่').fill(importGroup);
+  await page.getByPlaceholder('Inbox').fill(importSection);
+  await page.getByText(`Use ${importGroup} / ${importSection}`, { exact: false }).click({ timeout: 10_000 });
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByLabel('Import one file').click({ timeout: 10_000 });
   const chooser = await chooserPromise;

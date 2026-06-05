@@ -8,11 +8,12 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import { FiBookOpen, FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi';
+import { FiBookOpen, FiChevronLeft, FiChevronRight, FiMoreVertical, FiSearch } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { DeckManagementModal } from '@/components/deck-management-modal';
 import { freeDeckParams } from '@/data/static-params';
 import type { Entry } from '@/data/types';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -34,11 +35,12 @@ export default function DeckTermListScreen() {
   const { width: viewportW } = useWindowDimensions();
   const isCompact = viewportW < 600;
 
-  const { decks: allDecks } = useAllDecks();
+  const { decks: allDecks, refresh } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [query, setQuery] = useState('');
+  const [deckActionsOpen, setDeckActionsOpen] = useState(false);
   const filteredEntries = useMemo(() => filterDeckEntries(entries, query), [entries, query]);
 
   useEffect(() => {
@@ -100,6 +102,20 @@ export default function DeckTermListScreen() {
 
           <View style={[styles.hero, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
             <View style={[styles.heroStripe, { backgroundColor: Accent.base }]} />
+            <Pressable
+              onPress={() => setDeckActionsOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="เปิด Deck Actions"
+              style={({ pressed, hovered }: any) => [
+                styles.heroActionBtn,
+                { borderColor: colors.border, backgroundColor: colors.background },
+                (pressed || hovered) && { borderColor: Accent.soft },
+                pressed && { opacity: 0.75 },
+              ]}>
+              {({ pressed, hovered }: any) => (
+                <FiMoreVertical size={16} color={pressed || hovered ? Accent.base : colors.text} strokeWidth={2} />
+              )}
+            </Pressable>
             <ThemedText style={[styles.ghostKanji, { color: colors.text }]}>語</ThemedText>
             <View style={styles.metaRow}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
@@ -186,6 +202,20 @@ export default function DeckTermListScreen() {
             <ThemedText style={styles.startText}>เริ่มเรียน</ThemedText>
           </Pressable>
         </View>
+        <DeckManagementModal
+          visible={deckActionsOpen}
+          deck={deck}
+          onClose={() => setDeckActionsOpen(false)}
+          onChanged={() => {
+            refresh();
+            setDeckActionsOpen(false);
+          }}
+          onDeleted={() => {
+            refresh();
+            setDeckActionsOpen(false);
+            router.replace('/' as never);
+          }}
+        />
       </SafeAreaView>
     </ThemedView>
   );
@@ -314,6 +344,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
+  },
+  heroActionBtn: {
+    position: 'absolute',
+    top: Spacing.three,
+    right: Spacing.three,
+    zIndex: 2,
+    width: 34,
+    height: 34,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ghostKanji: {
     position: 'absolute',

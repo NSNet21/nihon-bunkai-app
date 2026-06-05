@@ -42,6 +42,13 @@ import type { Entry } from '@/data/types';
 import { loadGroupEntriesAsync, parseGroupIds } from '@/lib/group-entries';
 import type { LastSession } from '@/lib/last-session';
 import { studyFallbackHref } from '@/lib/navigation-back';
+import {
+  DEFAULT_STUDY_MODE_CONFIGS,
+  sanitizeStudyModeConfig,
+  studyModeConfigKey,
+  type StudyModeConfig,
+} from '@/lib/study-mode-config';
+import { buildStudySessionEntries } from '@/lib/study-session';
 
 export default function MemorizeScreen() {
   const { deckId, entryId, ids } = useLocalSearchParams<{ deckId?: string; entryId?: string; ids?: string }>();
@@ -79,6 +86,14 @@ export default function MemorizeScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [index, setIndex] = useState(0);
+  const [flashcardConfig] = usePersistedState<StudyModeConfig>(
+    studyModeConfigKey('flashcard'),
+    DEFAULT_STUDY_MODE_CONFIGS.flashcard,
+  );
+  const safeFlashcardConfig = useMemo(
+    () => sanitizeStudyModeConfig(flashcardConfig, 'flashcard'),
+    [flashcardConfig],
+  );
   /* Continue tracking for Learn mode — separate from Quiz's
      'last-session'. Browse renders both Continue cards if both have
      a session in flight. */
@@ -139,12 +154,16 @@ export default function MemorizeScreen() {
         : Promise.resolve<Entry[]>([]);
     void loader.then((rows) => {
       if (cancelled) return;
-      setEntries(rows);
+      const sessionRows =
+        entryId || isGroupMode
+          ? rows
+          : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
+      setEntries(sessionRows);
       /* Jump to entryId if present (Continue card resume) — falls
          back to 0 if the entry no longer exists. Group mode never
          resumes, so always start at 0 when ids change. */
       if (entryId && !isGroupMode) {
-        const jumpTo = rows.findIndex((r) => r.id === entryId);
+        const jumpTo = sessionRows.findIndex((r) => r.id === entryId);
         setIndex(jumpTo >= 0 ? jumpTo : 0);
       } else {
         setIndex(0);
@@ -153,7 +172,7 @@ export default function MemorizeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [deckId, entryId, isGroupMode, groupIds]);
+  }, [deckId, entryId, isGroupMode, groupIds, safeFlashcardConfig]);
 
   /* Persist position for Continue · Learn — fires on every card change
      so Browse can resume the user where they left off. Skips when

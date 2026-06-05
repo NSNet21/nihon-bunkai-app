@@ -24,6 +24,7 @@ export interface Entry extends CsvRow {
   level: JlptLevel | null;
   pack: string;           // e.g. "vocab-n5-pack01"
   tags: string[];         // ['vocab', 'n5', 'vocab-n5-pack01'] — for filter/search
+  hasPersonalOverride?: boolean;
 }
 
 export interface Deck {

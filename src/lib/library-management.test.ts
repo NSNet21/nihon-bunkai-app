@@ -4,6 +4,7 @@ import type { Deck } from '@/data/types';
 
 const decks = new Map<string, Deck>();
 const entries = new Map<string, Array<{ no: number; t: string; d: string; p: string; e: string }>>();
+const overrides = new Map<string, { id: string; deckId: string; pack: string; no: number; fields: { t: string; d: string; p: string; e: string }; updatedAt: number }>();
 
 vi.mock('./download-store', () => ({
   deleteLibraryDeckAndEntries: vi.fn(async (deckId: string) => {
@@ -26,6 +27,10 @@ vi.mock('./download-store', () => ({
   putLibraryEntriesRecord: vi.fn(async (record: { pack: string; rows: Array<{ no: number; t: string; d: string; p: string; e: string }> }) => {
     entries.set(record.pack, record.rows);
   }),
+  putEntryOverride: vi.fn(async (record: { id: string; deckId: string; pack: string; no: number; fields: { t: string; d: string; p: string; e: string }; updatedAt: number }) => {
+    overrides.set(record.id, record);
+  }),
+  deleteEntryOverride: vi.fn(async (deckId: string, no: number) => overrides.delete(`${deckId}::${no}`)),
 }));
 
 import {
@@ -34,6 +39,8 @@ import {
   deleteUserLibraryDeck,
   moveUserLibraryDeck,
   renameUserLibraryDeck,
+  resetOfficialEntryOverride,
+  saveOfficialEntryOverride,
   updateUserLibraryEntry,
 } from './library-management';
 
@@ -52,6 +59,7 @@ const manualDeck: Deck = {
 beforeEach(() => {
   decks.clear();
   entries.clear();
+  overrides.clear();
   decks.set(manualDeck.id, manualDeck);
   entries.set(manualDeck.pack, [
     { no: 1, t: '輸入テスト', d: 'ทดสอบนำเข้า', p: 'ゆにゅうてすと', e: '### Import smoke' },
@@ -208,5 +216,49 @@ describe('library management operations', () => {
       reason: 'Official Source ลบหรือแก้ metadata ไม่ได้',
     });
     expect(entries.get('official')).toHaveLength(1);
+  });
+
+  it('saves an official personal edit as an override without mutating source rows', async () => {
+    decks.set('official', { ...manualDeck, id: 'official', pack: 'official', source: 'entitlement' });
+    entries.set('official', [{ no: 1, t: '公式', d: 'official', p: 'こうしき', e: '### Source' }]);
+
+    await expect(saveOfficialEntryOverride('official', 1, {
+      t: '公式メモ',
+      d: 'official personal note',
+      p: 'こうしき',
+      e: '### Personal',
+    })).resolves.toEqual({ ok: true });
+
+    expect(entries.get('official')?.[0]).toEqual({
+      no: 1,
+      t: '公式',
+      d: 'official',
+      p: 'こうしき',
+      e: '### Source',
+    });
+    expect(overrides.get('official::1')?.fields).toEqual({
+      t: '公式メモ',
+      d: 'official personal note',
+      p: 'こうしき',
+      e: '### Personal',
+    });
+  });
+
+  it('resets an official personal edit by deleting only the override', async () => {
+    decks.set('official', { ...manualDeck, id: 'official', pack: 'official', source: 'entitlement' });
+    entries.set('official', [{ no: 1, t: '公式', d: 'official', p: 'こうしき', e: '### Source' }]);
+    overrides.set('official::1', {
+      id: 'official::1',
+      deckId: 'official',
+      pack: 'official',
+      no: 1,
+      fields: { t: '公式メモ', d: 'memo', p: 'こうしき', e: '### Personal' },
+      updatedAt: 1,
+    });
+
+    await expect(resetOfficialEntryOverride('official', 1)).resolves.toEqual({ ok: true });
+
+    expect(overrides.has('official::1')).toBe(false);
+    expect(entries.get('official')?.[0]?.t).toBe('公式');
   });
 });

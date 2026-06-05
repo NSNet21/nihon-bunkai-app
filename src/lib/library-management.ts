@@ -1,4 +1,5 @@
 import type { Deck, Entry } from '@/data/types';
+import { decks as freeDecks } from '../data/free-tier';
 import { DECKS_IMPORTED_EVENT } from './deck-import';
 import {
   deleteLibraryDeckAndEntries,
@@ -6,9 +7,12 @@ import {
   getLibraryDeck,
   putLibraryEntriesRecord,
   putLibraryDeck,
+  putEntryOverride,
+  deleteEntryOverride,
   type LibraryDeckRecord,
 } from './download-store';
-import { applyDeckOrganization, isUserEditableDeck, type DeckOrganization } from './user-content';
+import { entryOverrideKey } from './personal-overrides';
+import { applyDeckOrganization, isOfficialDeck, isUserEditableDeck, type DeckOrganization } from './user-content';
 
 export type LibraryMutationResult = {
   ok: boolean;
@@ -124,11 +128,45 @@ export async function deleteUserLibraryEntry(deckId: string, no: number): Promis
   return { ok: true };
 }
 
+export async function saveOfficialEntryOverride(
+  deckId: string,
+  no: number,
+  fields: EditableEntryFields,
+): Promise<LibraryMutationResult> {
+  const deck = await getOfficialLibraryDeck(deckId);
+  if ('ok' in deck) return deck;
+  await putEntryOverride({
+    id: entryOverrideKey(deck.id, no),
+    deckId: deck.id,
+    pack: deck.pack,
+    no,
+    fields,
+    updatedAt: Date.now(),
+  });
+  notifyLibraryChanged({ source: 'personal-override', action: 'term-override-save', deckId, no: String(no) });
+  return { ok: true };
+}
+
+export async function resetOfficialEntryOverride(deckId: string, no: number): Promise<LibraryMutationResult> {
+  const deck = await getOfficialLibraryDeck(deckId);
+  if ('ok' in deck) return deck;
+  await deleteEntryOverride(deck.id, no);
+  notifyLibraryChanged({ source: 'personal-override', action: 'term-override-reset', deckId, no: String(no) });
+  return { ok: true };
+}
+
 async function getMutableLibraryDeck(deckId: string): Promise<LibraryDeckRecord | LibraryMutationResult> {
   const deck = await getLibraryDeck(deckId);
   if (!deck) return { ok: false, reason: MISSING_DECK_REASON };
   if (!isUserEditableDeck(deck as Deck)) return { ok: false, reason: OFFICIAL_REJECT_REASON };
   return deck;
+}
+
+async function getOfficialLibraryDeck(deckId: string): Promise<Deck | LibraryMutationResult> {
+  const deck = (await getLibraryDeck(deckId)) ?? freeDecks.find((item) => item.id === deckId);
+  if (!deck) return { ok: false, reason: MISSING_DECK_REASON };
+  if (!isOfficialDeck(deck as Deck)) return { ok: false, reason: 'User Content ใช้การแก้คำโดยตรงอยู่แล้ว' };
+  return deck as Deck;
 }
 
 function notifyLibraryChanged(detail: Record<string, string>) {

@@ -11,7 +11,8 @@ function value(row: RawRow, key: string): string {
 }
 
 export function parseManualCsv(text: string): CsvRow[] {
-  const parsed = Papa.parse<RawRow>(text, {
+  const cleanText = stripNihonBunkaiGuardComments(text);
+  const parsed = Papa.parse<RawRow>(cleanText, {
     header: true,
     skipEmptyLines: true,
   });
@@ -44,6 +45,16 @@ export function parseManualCsv(text: string): CsvRow[] {
 
   if (hasAnyNo) assertSequential(rows.map((row) => row.no));
   return rows;
+}
+
+function stripNihonBunkaiGuardComments(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .filter((line) => {
+      const clean = line.trimStart();
+      return !clean.startsWith('# @nihon-bunkai:') && !clean.startsWith('# deckId=');
+    })
+    .join('\n');
 }
 
 function parseNo(raw: string): number {

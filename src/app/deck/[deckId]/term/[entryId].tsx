@@ -29,12 +29,12 @@ import {
 import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
 import { resolveFirstEntryJump } from '@/lib/deck-jump';
 import { studyFallbackHref } from '@/lib/navigation-back';
-import { isUserEditableDeck } from '@/lib/user-content';
+import { isOfficialDeck, isUserEditableDeck } from '@/lib/user-content';
 import type { TermEditingFields } from '@/lib/term-editing-form';
 
 export default function TermCardDisplayScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
-  const router = useRouter();
+  const { replace, push } = useRouter();
   const { colors } = useThemeColors();
   const { width, height } = useWindowDimensions();
   const [activeDeckId, setActiveDeckId] = useState(deckId);
@@ -98,7 +98,9 @@ export default function TermCardDisplayScreen() {
   const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
   const termEditState = deck && isUserEditableDeck(deck)
     ? { enabled: true, reason: 'แก้ T/D/P/E ของคำนี้ใน Local Library' }
-    : { enabled: false, reason: 'Official Source แก้คำโดยตรงไม่ได้ใน v1' };
+    : deck && isOfficialDeck(deck)
+      ? { enabled: true, reason: current?.hasPersonalOverride ? 'แก้ Personal Edit หรือ reset กลับต้นฉบับ' : 'สร้าง Personal Edit เฉพาะในเครื่องนี้' }
+      : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
   const cardSlotHeight = isMobileLayout
     ? Math.max(340, Math.min(520, height - 258))
     : isTabletLayout
@@ -148,7 +150,7 @@ export default function TermCardDisplayScreen() {
       window.history.replaceState(window.history.state, '', href);
       return;
     }
-    router.replace(href as never);
+    replace(href as never);
   }
 
   function goEntry(entry: Entry, direction: 'prev' | 'next') {
@@ -180,13 +182,25 @@ export default function TermCardDisplayScreen() {
   async function handleDeleteDeck() {
     if (!deck || !deleteState.enabled) return;
     const deleted = await deleteUserDeck(deck);
-    if (deleted) router.replace('/');
+    if (deleted) replace('/');
   }
 
   function handleTermSaved(fields: TermEditingFields) {
-    if (!current) return;
-    const updated = { ...current, ...fields };
+    if (!current || !deck) return;
+    const updated = {
+      ...current,
+      ...fields,
+      hasPersonalOverride: isOfficialDeck(deck) ? true : current.hasPersonalOverride,
+    };
     setEntries((rows) => rows.map((entry) => (entry.id === current.id ? updated : entry)));
+    setTermEditOpen(false);
+    setActionsOpen(false);
+  }
+
+  async function handleTermReset() {
+    if (!current || !activeDeckId) return;
+    const rows = await entriesForDeckAsync(activeDeckId);
+    setEntries(rows);
     setTermEditOpen(false);
     setActionsOpen(false);
   }
@@ -198,12 +212,12 @@ export default function TermCardDisplayScreen() {
     setTermEditOpen(false);
     setActionsOpen(false);
     if (remaining.length === 0) {
-      router.replace(`/deck/${activeDeckId}` as never);
+      replace(`/deck/${activeDeckId}` as never);
       return;
     }
     const nextEntry = remaining[Math.min(index, remaining.length - 1)];
     if (!nextEntry) {
-      router.replace(`/deck/${activeDeckId}` as never);
+      replace(`/deck/${activeDeckId}` as never);
       return;
     }
     setIsFlipped(false);
@@ -215,7 +229,7 @@ export default function TermCardDisplayScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <Header onBack={() => router.replace(backFallbackHref as never)} colors={colors} />
+          <Header onBack={() => replace(backFallbackHref as never)} colors={colors} />
           <View style={styles.centerFill}>
             <ThemedText type="title" style={styles.emptyTitle}>
               {!deck ? 'ไม่พบ Deck' : 'ไม่พบคำนี้'}
@@ -241,7 +255,7 @@ export default function TermCardDisplayScreen() {
             isTabletLayout && styles.scrollContentTablet,
           ]}
           showsVerticalScrollIndicator>
-          {showHeaderBack ? <Header onBack={() => router.replace(backFallbackHref as never)} colors={colors} /> : null}
+          {showHeaderBack ? <Header onBack={() => replace(backFallbackHref as never)} colors={colors} /> : null}
           {!showHeaderBack ? <View style={styles.mobileBackSpacer} /> : null}
 
           <View style={styles.termToolbar}>
@@ -254,7 +268,7 @@ export default function TermCardDisplayScreen() {
             <View style={styles.toolbarActions}>
               {isMobileLayout ? (
                 <Pressable
-                  onPress={() => router.push('/' as never)}
+                  onPress={() => push('/' as never)}
                   accessibilityRole="link"
                   accessibilityLabel="กลับ Browse"
                   style={({ pressed, hovered }: any) => [
@@ -347,6 +361,7 @@ export default function TermCardDisplayScreen() {
           onClose={() => setTermEditOpen(false)}
           onSaved={handleTermSaved}
           onDeleted={handleTermDeleted}
+          onReset={handleTermReset}
         />
         <QuickDeckSwitcher
           visible={switcherOpen}

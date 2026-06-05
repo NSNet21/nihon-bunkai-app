@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer } from 'react';
 import type { ReactNode } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { FiEdit3, FiFileText, FiHash, FiPlus, FiTrash2, FiX } from 'react-icons/fi';
+import { FiEdit3, FiFileText, FiHash, FiPlus, FiRotateCcw, FiTrash2, FiX } from 'react-icons/fi';
 
 import type { Deck, Entry } from '@/data/types';
 import { Accent, Radii, Spacing } from '@/constants/theme';
@@ -15,9 +15,11 @@ import {
 import {
   createUserLibraryEntry,
   deleteUserLibraryEntry,
+  resetOfficialEntryOverride,
+  saveOfficialEntryOverride,
   updateUserLibraryEntry,
 } from '@/lib/library-management';
-import { isUserEditableDeck } from '@/lib/user-content';
+import { isOfficialDeck, isUserEditableDeck } from '@/lib/user-content';
 
 type TermEditingModalState = TermEditingFields & {
   busy: boolean;
@@ -70,6 +72,7 @@ type TermEditingModalProps = {
   onSaved?: (fields: TermEditingFields) => void;
   onCreated?: (entry: Entry) => void;
   onDeleted?: () => void;
+  onReset?: () => void;
 };
 
 export function TermEditingModal({
@@ -81,10 +84,14 @@ export function TermEditingModal({
   onSaved,
   onCreated,
   onDeleted,
+  onReset,
 }: TermEditingModalProps) {
   const colors = useThemePalette();
-  const editable = deck ? isUserEditableDeck(deck) : false;
   const isCreate = mode === 'create';
+  const userEditable = deck ? isUserEditableDeck(deck) : false;
+  const officialEditable = deck && !isCreate ? isOfficialDeck(deck) : false;
+  const editable = userEditable || Boolean(officialEditable);
+  const canReset = Boolean(officialEditable && entry?.hasPersonalOverride);
   const initial = useMemo<TermEditingFields>(() => ({
     t: isCreate ? '' : entry?.t ?? '',
     d: isCreate ? '' : entry?.d ?? '',
@@ -124,7 +131,9 @@ export function TermEditingModal({
         return;
       }
       if (!entry) return;
-      const result = await updateUserLibraryEntry(deck.id, entry.no, normalized);
+      const result = officialEditable
+        ? await saveOfficialEntryOverride(deck.id, entry.no, normalized)
+        : await updateUserLibraryEntry(deck.id, entry.no, normalized);
       if (!result.ok) {
         dispatch({ type: 'status', status: result.reason ?? 'บันทึกคำนี้ไม่สำเร็จ' });
         return;
@@ -135,8 +144,23 @@ export function TermEditingModal({
     }
   }
 
+  async function resetTerm() {
+    if (!deck || !entry || !officialEditable || !canReset || busy) return;
+    dispatch({ type: 'busy', busy: true });
+    try {
+      const result = await resetOfficialEntryOverride(deck.id, entry.no);
+      if (!result.ok) {
+        dispatch({ type: 'status', status: result.reason ?? 'รีเซ็ตคำนี้ไม่สำเร็จ' });
+        return;
+      }
+      onReset?.();
+    } finally {
+      dispatch({ type: 'busy', busy: false });
+    }
+  }
+
   async function deleteTerm() {
-    if (!deck || !entry || !editable || busy) return;
+    if (!deck || !entry || !userEditable || busy) return;
     if (!confirmDelete) {
       dispatch({ type: 'confirm-delete' });
       return;
@@ -194,7 +218,9 @@ export function TermEditingModal({
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {editable
-                  ? isCreate ? 'User Content · เพิ่มคำใหม่ใน deck นี้' : 'User Content · แก้คำนี้ได้'
+                  ? officialEditable
+                    ? entry?.hasPersonalOverride ? 'Personal Edit · มีการแก้ส่วนตัวแล้ว' : 'Personal Edit · แก้เฉพาะในเครื่องนี้'
+                    : isCreate ? 'User Content · เพิ่มคำใหม่ใน deck นี้' : 'User Content · แก้คำนี้ได้'
                   : 'Official Source · แก้ไม่ได้'}
               </ThemedText>
             </View>
@@ -210,6 +236,10 @@ export function TermEditingModal({
           {!editable ? (
             <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
               Official Source เป็นเนื้อหาหลักของ Nihon Bunkai จึงแก้ เพิ่ม หรือลบคำโดยตรงไม่ได้ใน v1
+            </ThemedText>
+          ) : officialEditable ? (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+              การแก้นี้เป็น Personal Edit เฉพาะในเครื่องนี้ · Official Source ยังไม่ถูกแก้ และสามารถ reset กลับต้นฉบับได้
             </ThemedText>
           ) : null}
 
@@ -228,20 +258,36 @@ export function TermEditingModal({
                 {isCreate ? 'เพิ่มคำ' : 'บันทึก'}
               </ThemedText>
             </Pressable>
-            {!isCreate ? (
+            {!isCreate && officialEditable ? (
+              <Pressable
+                onPress={() => void resetTerm()}
+                disabled={!canReset || busy}
+                accessibilityRole="button"
+                accessibilityLabel="รีเซ็ตกลับต้นฉบับ"
+                style={({ pressed }) => [
+                  styles.deleteBtn,
+                  { borderColor: canReset ? Accent.soft : colors.border, opacity: canReset && !busy ? 1 : 0.45 },
+                  pressed && canReset && { opacity: 0.75 },
+                ]}>
+                <FiRotateCcw size={15} color={canReset ? Accent.base : colors.textHint} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: canReset ? Accent.base : colors.textSecondary }}>
+                  Reset
+                </ThemedText>
+              </Pressable>
+            ) : !isCreate ? (
               <Pressable
                 onPress={() => void deleteTerm()}
-                disabled={!editable || busy}
+                disabled={!userEditable || busy}
                 accessibilityRole="button"
                 accessibilityLabel="ลบคำนี้"
                 style={({ pressed }) => [
                   styles.deleteBtn,
-                  { borderColor: editable ? Accent.soft : colors.border, opacity: editable && !busy ? 1 : 0.45 },
+                  { borderColor: userEditable ? Accent.soft : colors.border, opacity: userEditable && !busy ? 1 : 0.45 },
                   confirmDelete && { backgroundColor: Accent.bg },
-                  pressed && editable && { opacity: 0.75 },
+                  pressed && userEditable && { opacity: 0.75 },
                 ]}>
-                <FiTrash2 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
-                <ThemedText type="small" style={{ color: editable ? Accent.base : colors.textSecondary }}>
+                <FiTrash2 size={15} color={userEditable ? Accent.base : colors.textHint} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: userEditable ? Accent.base : colors.textSecondary }}>
                   {confirmDelete ? 'ยืนยันลบ' : 'ลบ'}
                 </ThemedText>
               </Pressable>

@@ -12,6 +12,7 @@
 import Dexie, { type Table } from 'dexie';
 
 import type { CsvRow, Deck } from '@/data/types';
+import type { EntryOverrideRecord } from './personal-overrides';
 
 export type DownloadedZip = {
   /** Filename in storage (also primary key). */
@@ -48,6 +49,7 @@ class DownloadDB extends Dexie {
   zips!: Table<DownloadedZip, string>;
   paidDecks!: Table<LibraryDeckRecord, string>;
   paidEntries!: Table<LibraryEntriesRecord, string>;
+  entryOverrides!: Table<EntryOverrideRecord, string>;
 
   constructor() {
     super('nihon-bunkai-downloads');
@@ -63,6 +65,12 @@ class DownloadDB extends Dexie {
       zips: '&name, skuId, downloadedAt',
       paidDecks: '&id, source, skuId, level, type',
       paidEntries: '&pack, source, skuId',
+    });
+    this.version(4).stores({
+      zips: '&name, skuId, downloadedAt',
+      paidDecks: '&id, source, skuId, level, type',
+      paidEntries: '&pack, source, skuId',
+      entryOverrides: '&id, deckId, pack, updatedAt',
     });
   }
 }
@@ -169,6 +177,28 @@ export async function putLibraryEntriesRecord(record: LibraryEntriesRecord): Pro
   const d = getDB();
   if (!d) return;
   await d.paidEntries.put(record);
+}
+
+export async function putEntryOverride(record: EntryOverrideRecord): Promise<void> {
+  const d = getDB();
+  if (!d) return;
+  await d.entryOverrides.put(record);
+}
+
+export async function listEntryOverridesForDeck(deckId: string): Promise<EntryOverrideRecord[]> {
+  const d = getDB();
+  if (!d) return [];
+  return d.entryOverrides.where('deckId').equals(deckId).toArray();
+}
+
+export async function deleteEntryOverride(deckId: string, no: number): Promise<boolean> {
+  const d = getDB();
+  if (!d) return false;
+  const id = `${deckId}::${no}`;
+  const existing = await d.entryOverrides.get(id);
+  if (!existing) return false;
+  await d.entryOverrides.delete(id);
+  return true;
 }
 
 export async function deleteLibraryDeckAndEntries(deckId: string): Promise<boolean> {

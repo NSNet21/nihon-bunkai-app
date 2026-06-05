@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 
 import type { Deck } from '../../data/types';
 
-import { serializeDeckCsv } from './export-csv';
+import { serializeGuardedDeckCsv } from './export-csv';
 
 export function selectExportableDecks(decks: readonly Deck[]): Deck[] {
   return decks.filter(
@@ -11,9 +11,10 @@ export function selectExportableDecks(decks: readonly Deck[]): Deck[] {
 }
 
 export async function buildDeckCsv(deck: Deck): Promise<{ fileName: string; csv: string }> {
-  const { entriesForDeckAsync } = await import('../../hooks/use-decks');
-  const rows = await entriesForDeckAsync(deck.id);
-  return { fileName: `${deck.id}.csv`, csv: serializeDeckCsv(rows) };
+  const { entriesForDeckSourceAsync } = await import('../../hooks/use-decks');
+  const rows = await entriesForDeckSourceAsync(deck.id);
+  const source = deck.source === 'manual' || deck.source === 'custom' ? deck.source : 'official';
+  return { fileName: `${deck.id}.csv`, csv: serializeGuardedDeckCsv(rows, { deckId: deck.id, source }) };
 }
 
 export async function buildDeckZip(decks: readonly Deck[]): Promise<Blob> {

@@ -13,7 +13,12 @@ import { Platform } from 'react-native';
 import { decks as freeDecks, entriesForDeckAsync as freeEntriesForDeckAsync } from '@/data/free-tier';
 import type { CsvRow, Deck, Entry } from '@/data/types';
 import { DECKS_IMPORTED_EVENT } from '@/lib/deck-import';
-import { getLibraryEntries, listLibraryDecks } from '@/lib/download-store';
+import { getLibraryEntries, listEntryOverridesForDeck, listLibraryDecks } from '@/lib/download-store';
+import { applyEntryOverrides } from '@/lib/personal-overrides';
+
+type EntryReadOptions = {
+  applyPersonalOverrides?: boolean;
+};
 
 export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () => void } {
   const [paidDecks, setPaidDecks] = useState<Deck[]>([]);
@@ -66,9 +71,12 @@ export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () =>
 
 /** Read entries for a deck — checks free embedded first, then IndexedDB.
  *  Free path is now async (per-level lazy bundle import) so we await it. */
-export async function entriesForDeckAsync(deckId: string): Promise<Entry[]> {
+export async function entriesForDeckAsync(deckId: string, options: EntryReadOptions = {}): Promise<Entry[]> {
+  const applyPersonal = options.applyPersonalOverrides ?? true;
   const fromFree = await freeEntriesForDeckAsync(deckId);
-  if (fromFree.length > 0) return fromFree;
+  if (fromFree.length > 0) return applyPersonal
+    ? applyEntryOverrides(deckId, fromFree, await listEntryOverridesForDeck(deckId))
+    : fromFree;
 
   const paid = await getLibraryEntries(deckId);
   if (!paid) return [];
@@ -78,7 +86,7 @@ export async function entriesForDeckAsync(deckId: string): Promise<Entry[]> {
   const deck = allPaid.find((d) => d.id === deckId);
   if (!deck) return [];
 
-  return paid.map((r: CsvRow) => ({
+  const entries = paid.map((r: CsvRow) => ({
     id: `${deck.pack}-${r.no}`,
     type: deck.type,
     level: deck.level,
@@ -90,4 +98,11 @@ export async function entriesForDeckAsync(deckId: string): Promise<Entry[]> {
     p: r.p,
     e: r.e,
   }));
+  return applyPersonal
+    ? applyEntryOverrides(deck.id, entries, await listEntryOverridesForDeck(deck.id))
+    : entries;
+}
+
+export function entriesForDeckSourceAsync(deckId: string): Promise<Entry[]> {
+  return entriesForDeckAsync(deckId, { applyPersonalOverrides: false });
 }

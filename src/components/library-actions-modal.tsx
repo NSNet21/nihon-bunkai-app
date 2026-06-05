@@ -196,81 +196,88 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
             </Pressable>
           </View>
 
-          {mode === 'actions' && (
-            <View style={styles.actionList}>
-              <ImportDestinationFields
-                group={importGroup}
-                section={importSection}
-                disabled={busy}
-                onGroup={(value) => dispatch({ type: 'import-field', field: 'importGroup', value })}
-                onSection={(value) => dispatch({ type: 'import-field', field: 'importSection', value })}
-              />
-              <ActionRow
-                label={ACTIONS.howTo}
-                hint="เตรียม CSV ใน Sheets/Excel แล้วนำเข้าแอปโดยตรง"
-                icon={<FiHelpCircle size={17} color={Accent.base} />}
-                disabled={busy}
-                onPress={() => openMode('how-to')}
-              />
-              <ActionRow
-                label={ACTIONS.importOne}
-                hint="เพิ่ม CSV หรือ ZIP 1 ไฟล์เข้า Library เครื่องนี้"
-                icon={<FiUpload size={17} color={Accent.base} />}
-                disabled={busy}
-                onPress={() => void onImport(false)}
-              />
-              <ActionRow
-                label={ACTIONS.importBatch}
-                hint="เลือกหลาย CSV หรือ ZIP เดียว แล้ว import ต่อเนื่อง"
-                icon={<FiArchive size={17} color={Accent.base} />}
-                disabled={busy}
-                onPress={() => void onImport(true)}
-              />
-              <ActionRow
-                label={ACTIONS.exportOne}
-                hint="เลือก 1 deck ที่พร้อมเรียน แล้ว save เป็น CSV"
-                icon={<FiDownload size={17} color={Accent.base} />}
-                disabled={busy || exportableDecks.length === 0}
-                onPress={() => openMode('export-one')}
-              />
-              <ActionRow
-                label={ACTIONS.exportBatch}
-                hint="เลือกหลาย deck แล้ว save รวมเป็น ZIP"
-                icon={<FiArchive size={17} color={Accent.base} />}
-                disabled={busy || exportableDecks.length === 0}
-                onPress={openBatchExport}
-              />
-            </View>
-          )}
+          <ScrollView
+            style={styles.bodyScroll}
+            contentContainerStyle={styles.bodyScrollInner}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+            {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'card' } } as any) : null)}>
+            {mode === 'actions' && (
+              <View style={styles.actionList}>
+                <ImportDestinationFields
+                  group={importGroup}
+                  section={importSection}
+                  disabled={busy}
+                  onGroup={(value) => dispatch({ type: 'import-field', field: 'importGroup', value })}
+                  onSection={(value) => dispatch({ type: 'import-field', field: 'importSection', value })}
+                />
+                <ActionRow
+                  label={ACTIONS.howTo}
+                  hint="เตรียม CSV ใน Sheets/Excel แล้วนำเข้าแอปโดยตรง"
+                  icon={<FiHelpCircle size={17} color={Accent.base} />}
+                  disabled={busy}
+                  onPress={() => openMode('how-to')}
+                />
+                <ActionRow
+                  label={ACTIONS.importOne}
+                  hint="เพิ่ม CSV หรือ ZIP 1 ไฟล์เข้า Library เครื่องนี้"
+                  icon={<FiUpload size={17} color={Accent.base} />}
+                  disabled={busy}
+                  onPress={() => void onImport(false)}
+                />
+                <ActionRow
+                  label={ACTIONS.importBatch}
+                  hint="เลือกหลาย CSV หรือ ZIP เดียว แล้ว import ต่อเนื่อง"
+                  icon={<FiArchive size={17} color={Accent.base} />}
+                  disabled={busy}
+                  onPress={() => void onImport(true)}
+                />
+                <ActionRow
+                  label={ACTIONS.exportOne}
+                  hint="เลือก 1 deck ที่พร้อมเรียน แล้ว save เป็น CSV"
+                  icon={<FiDownload size={17} color={Accent.base} />}
+                  disabled={busy || exportableDecks.length === 0}
+                  onPress={() => openMode('export-one')}
+                />
+                <ActionRow
+                  label={ACTIONS.exportBatch}
+                  hint="เลือกหลาย deck แล้ว save รวมเป็น ZIP"
+                  icon={<FiArchive size={17} color={Accent.base} />}
+                  disabled={busy || exportableDecks.length === 0}
+                  onPress={openBatchExport}
+                />
+              </View>
+            )}
 
-          {mode === 'how-to' && (
-            <ImportHowTo
-              busy={busy}
-              onBack={() => openMode('actions')}
-              onImportOne={() => void onImport(false)}
-              onImportBatch={() => void onImport(true)}
-            />
-          )}
+            {mode === 'how-to' && (
+              <ImportHowTo
+                busy={busy}
+                onBack={() => openMode('actions')}
+                onImportOne={() => void onImport(false)}
+                onImportBatch={() => void onImport(true)}
+              />
+            )}
 
-          {mode === 'export-one' && (
-            <DeckPicker
-              decks={exportableDecks}
-              busy={busy}
-              onBack={() => openMode('actions')}
-              onPick={(deck) => void onExportDeck(deck)}
-            />
-          )}
+            {mode === 'export-one' && (
+              <DeckPicker
+                decks={exportableDecks}
+                busy={busy}
+                onBack={() => openMode('actions')}
+                onPick={(deck) => void onExportDeck(deck)}
+              />
+            )}
 
-          {mode === 'export-batch' && (
-            <BatchPicker
-              decks={exportableDecks}
-              selected={selected}
-              busy={busy}
-              onToggle={(deckId) => dispatch({ type: 'toggle-selected', deckId })}
-              onBack={() => openMode('actions')}
-              onExport={() => void onExportBatch()}
-            />
-          )}
+            {mode === 'export-batch' && (
+              <BatchPicker
+                decks={exportableDecks}
+                selected={selected}
+                busy={busy}
+                onToggle={(deckId) => dispatch({ type: 'toggle-selected', deckId })}
+                onBack={() => openMode('actions')}
+                onExport={() => void onExportBatch()}
+              />
+            )}
+          </ScrollView>
 
           {status ? (
             <ThemedView type="backgroundElement" style={styles.status}>
@@ -843,6 +850,14 @@ const styles = StyleSheet.create({
     marginRight: -4,
   },
   actionList: { borderTopWidth: StyleSheet.hairlineWidth },
+  bodyScroll: {
+    flexShrink: 1,
+    minHeight: 0,
+    ...(Platform.OS === 'web' ? ({ scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any) : null),
+  },
+  bodyScrollInner: {
+    paddingBottom: Spacing.one,
+  },
   destinationBlock: {
     gap: Spacing.two,
     paddingVertical: Spacing.three,

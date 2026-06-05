@@ -5,7 +5,7 @@ import { decks as freeDecks } from '../../../data/free-tier';
 import { parseLibraryCsvFilename } from '../filename';
 import { parseManualCsv } from '../manual-csv';
 import { parseManualImportFiles } from '../manual-import';
-import { serializeDeckCsv } from '../export-csv';
+import { serializeDeckCsv, serializeGuardedDeckCsv } from '../export-csv';
 import { selectExportableDecks } from '../export-library';
 import { buildExportHierarchy, getExportSelectionSummary } from '../export-hierarchy';
 import { IMPORT_HOW_TO_STEPS, IMPORT_SCHEMA_HEADERS } from '../import-how-to';
@@ -47,6 +47,18 @@ describe('parseManualCsv', () => {
 
   it('rejects missing required headers', () => {
     expect(() => parseManualCsv('NO,T,D,P\n1,猫,แมว,ねこ')).toThrow(/missing/i);
+  });
+
+  it('ignores Nihon Bunkai guard comments when importing CSV', () => {
+    const guarded = [
+      '# @nihon-bunkai:export v1',
+      '# deckId=vocab-n5-pack01 source=official',
+      'NO,T,D,P,E',
+      '1,猫,แมว,ねこ,note',
+    ].join('\n');
+    expect(parseManualCsv(guarded)).toEqual([
+      { no: 1, t: '猫', d: 'แมว', p: 'ねこ', e: 'note' },
+    ]);
   });
 });
 
@@ -137,6 +149,21 @@ describe('export csv', () => {
     ]);
     expect(csv.split(/\r?\n/)[0]).toBe('NO,T,D,P,E');
     expect(csv).toContain('7,猫,แมว,ねこ,note');
+  });
+
+  it('can add a Nihon Bunkai export guard while preserving app re-import schema', () => {
+    const csv = serializeGuardedDeckCsv(
+      [{ no: 7, t: '猫', d: 'แมว', p: 'ねこ', e: 'note' }],
+      { deckId: 'vocab-n5-pack01', source: 'official' },
+    );
+    const lines = csv.split(/\r?\n/);
+    expect(lines[0]).toBe('# @nihon-bunkai:export v1');
+    expect(lines[1]).toContain('deckId=vocab-n5-pack01');
+    expect(lines[1]).toContain('source=official');
+    expect(lines[2]).toBe('NO,T,D,P,E');
+    expect(parseManualCsv(csv)).toEqual([
+      { no: 7, t: '猫', d: 'แมว', p: 'ねこ', e: 'note' },
+    ]);
   });
 
   it('selects only ready Library decks', () => {

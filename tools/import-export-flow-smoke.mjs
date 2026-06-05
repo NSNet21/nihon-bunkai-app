@@ -5,6 +5,8 @@ import { chromium } from 'playwright';
 
 const target = process.env.APP_URL || process.argv[2] || 'http://localhost:8097';
 const importedTerm = '輸入テスト';
+const secondImportedTerm = '削除テスト';
+const editedTerm = '編集済みテスト';
 const importedDeckId = 'manual-self-imported-file';
 const importedDeckTitle = 'self imported file';
 const renamedDeckTitle = 'Manual Smoke Deck';
@@ -165,10 +167,25 @@ async function readLibraryDecks(page) {
     });
     const entries = await new Promise((resolve, reject) => {
       entriesReq.onerror = () => reject(entriesReq.error);
-      entriesReq.onsuccess = () => resolve(entriesReq.result.map((entry) => ({ pack: entry.pack, source: entry.source, rows: entry.rows?.length ?? 0, first: entry.rows?.[0]?.t })));
+      entriesReq.onsuccess = () => resolve(entriesReq.result.map((entry) => ({
+        pack: entry.pack,
+        source: entry.source,
+        rows: entry.rows?.length ?? 0,
+        first: entry.rows?.[0]?.t,
+        terms: entry.rows?.map((row) => row.t) ?? [],
+      })));
     });
     return { decks, entries };
   }).catch((dbError) => [{ error: String(dbError) }]);
+}
+
+async function expectLibraryTerms(page, deckId, expectedTerms) {
+  const library = await readLibraryDecks(page);
+  const entry = library.entries?.find((item) => item.pack === deckId);
+  if (!entry) throw new Error(`Expected entry pack ${deckId}, got ${JSON.stringify(library)}`);
+  if (JSON.stringify(entry.terms) !== JSON.stringify(expectedTerms)) {
+    throw new Error(`Expected terms ${JSON.stringify(expectedTerms)}, got ${JSON.stringify(entry.terms)}. Library: ${JSON.stringify(library)}`);
+  }
 }
 
 async function expectLibraryDeck(page, deckId, expected) {
@@ -195,7 +212,7 @@ const tmp = await mkdtemp(path.join(tmpdir(), 'nihon-bunkai-import-export-'));
 const csvPath = path.join(tmp, 'self-imported-file.csv');
 await writeFile(
   csvPath,
-  'T,D,P,E\n輸入テスト,ทดสอบนำเข้า,ゆにゅうてすと,### Import smoke\n',
+  'T,D,P,E\n輸入テスト,ทดสอบนำเข้า,ゆにゅうてすと,### Import smoke\n削除テスト,ทดสอบลบ,さくじょてすと,### Delete smoke\n',
   'utf8',
 );
 
@@ -241,6 +258,7 @@ try {
   await page.goto(urlFor(`/deck/${importedDeckId}`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await waitForTextOrDump(page, importedDeckTitle, 'Deck hub title');
   await waitForTextOrDump(page, importedTerm, 'Deck hub sample');
+  await waitForTextOrDump(page, secondImportedTerm, 'Deck hub second imported term');
   await openDeckActions(page);
   await page.getByText('User Content · แก้ metadata ได้', { exact: false }).first().waitFor({ timeout: 10_000 });
   await page.getByPlaceholder('ชื่อ deck').fill(renamedDeckTitle);
@@ -255,11 +273,40 @@ try {
     userSection: movedSection,
   });
 
+  await page.goto(urlFor(`/deck/${importedDeckId}/term/${importedDeckId}-1`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.getByLabel('เปิดเมนูคำนี้').click({ timeout: 10_000 });
+  await page.getByLabel('แก้ไขคำนี้').click({ timeout: 10_000 });
+  await page.getByText('TERM EDIT', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByPlaceholder('คำศัพท์ / term').fill(editedTerm);
+  await page.getByPlaceholder('ความหมาย').fill('แก้ไขผ่าน smoke');
+  await page.getByPlaceholder('คำอ่าน').fill('へんしゅうずみてすと');
+  await page.getByPlaceholder('รายละเอียด / markdown').fill('### Edited through smoke');
+  await page.getByLabel('บันทึกคำ').click({ timeout: 10_000 });
+  await waitForTextOrDump(page, editedTerm, 'Edited term card');
+  await expectLibraryTerms(page, importedDeckId, [editedTerm, secondImportedTerm]);
+
+  await page.goto(urlFor(`/deck/${importedDeckId}/term/${importedDeckId}-2`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.getByLabel('เปิดเมนูคำนี้').click({ timeout: 10_000 });
+  await page.getByLabel('แก้ไขคำนี้').click({ timeout: 10_000 });
+  await page.getByText('TERM EDIT', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByLabel('ลบคำนี้').click({ timeout: 10_000 });
+  await page.getByText('กดลบอีกครั้งเพื่อยืนยัน', { exact: false }).waitFor({ timeout: 10_000 });
+  await page.getByLabel('ลบคำนี้').click({ timeout: 10_000 });
+  await waitForTextOrDump(page, editedTerm, 'Term card after deleting another term');
+  await expectLibraryTerms(page, importedDeckId, [editedTerm]);
+
+  await page.goto(urlFor('/search'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForSelector('input[placeholder*="คำญี่ปุ่น"]', { timeout: 20_000 });
+  await page.waitForFunction(() => !document.body.innerText.includes('กำลังสร้าง index'), null, { timeout: 30_000 });
+  await page.click('input[placeholder*="คำญี่ปุ่น"]');
+  await page.keyboard.type(editedTerm);
+  await waitForTextOrDump(page, editedTerm, 'Search edited self-made term result', 20_000);
+
   await page.goto(urlFor(`/deck/${importedDeckId}/memorize`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 15_000 });
+  await page.getByText(editedTerm, { exact: false }).waitFor({ timeout: 15_000 });
 
   await page.goto(urlFor(`/deck/${importedDeckId}/quiz`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 15_000 });
+  await page.getByText(editedTerm, { exact: false }).waitFor({ timeout: 15_000 });
 
   await page.goto(urlFor('/'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await ensureBrowseDeckVisible(page, renamedDeckTitle);
@@ -300,6 +347,7 @@ try {
   const result = {
     target,
     importedDeckTitle,
+    editedTerm,
     renamedDeckTitle,
     movedGroup,
     movedSection,

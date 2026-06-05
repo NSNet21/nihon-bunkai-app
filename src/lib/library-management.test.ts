@@ -3,26 +3,37 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Deck } from '@/data/types';
 
 const decks = new Map<string, Deck>();
-const entryPacks = new Set<string>();
+const entries = new Map<string, Array<{ no: number; t: string; d: string; p: string; e: string }>>();
 
 vi.mock('./download-store', () => ({
   deleteLibraryDeckAndEntries: vi.fn(async (deckId: string) => {
     const deck = decks.get(deckId);
     if (!deck) return false;
     decks.delete(deckId);
-    entryPacks.delete(deck.pack);
+    entries.delete(deck.pack);
     return true;
   }),
   getLibraryDeck: vi.fn(async (deckId: string) => decks.get(deckId)),
   putLibraryDeck: vi.fn(async (deck: Deck) => {
     decks.set(deck.id, deck);
   }),
+  getLibraryEntriesRecord: vi.fn(async (pack: string) => {
+    const deck = Array.from(decks.values()).find((item) => item.pack === pack);
+    const rows = entries.get(pack);
+    if (!deck || !rows) return undefined;
+    return { pack, source: deck.source, rows };
+  }),
+  putLibraryEntriesRecord: vi.fn(async (record: { pack: string; rows: Array<{ no: number; t: string; d: string; p: string; e: string }> }) => {
+    entries.set(record.pack, record.rows);
+  }),
 }));
 
 import {
+  deleteUserLibraryEntry,
   deleteUserLibraryDeck,
   moveUserLibraryDeck,
   renameUserLibraryDeck,
+  updateUserLibraryEntry,
 } from './library-management';
 
 const manualDeck: Deck = {
@@ -39,9 +50,12 @@ const manualDeck: Deck = {
 
 beforeEach(() => {
   decks.clear();
-  entryPacks.clear();
+  entries.clear();
   decks.set(manualDeck.id, manualDeck);
-  entryPacks.add(manualDeck.pack);
+  entries.set(manualDeck.pack, [
+    { no: 1, t: '輸入テスト', d: 'ทดสอบนำเข้า', p: 'ゆにゅうてすと', e: '### Import smoke' },
+    { no: 2, t: '編集テスト', d: 'ทดสอบแก้ไข', p: 'へんしゅうてすと', e: '### Edit smoke' },
+  ]);
   vi.stubGlobal('window', new EventTarget());
 });
 
@@ -78,6 +92,48 @@ describe('library management operations', () => {
     const result = await deleteUserLibraryDeck(manualDeck.id);
     expect(result).toEqual({ ok: true });
     expect(decks.has(manualDeck.id)).toBe(false);
-    expect(entryPacks.has(manualDeck.pack)).toBe(false);
+    expect(entries.has(manualDeck.pack)).toBe(false);
+  });
+
+  it('updates one term row in a user deck and preserves row number', async () => {
+    const result = await updateUserLibraryEntry(manualDeck.id, 2, {
+      t: '編集済み',
+      d: 'แก้แล้ว',
+      p: 'へんしゅうずみ',
+      e: '### Edited',
+    });
+    expect(result).toEqual({ ok: true });
+    expect(entries.get(manualDeck.pack)?.[1]).toEqual({
+      no: 2,
+      t: '編集済み',
+      d: 'แก้แล้ว',
+      p: 'へんしゅうずみ',
+      e: '### Edited',
+    });
+    expect(decks.get(manualDeck.id)?.entryCount).toBe(2);
+  });
+
+  it('deletes one term row in a user deck and updates entry count', async () => {
+    const result = await deleteUserLibraryEntry(manualDeck.id, 1);
+    expect(result).toEqual({ ok: true });
+    expect(entries.get(manualDeck.pack)).toEqual([
+      { no: 2, t: '編集テスト', d: 'ทดสอบแก้ไข', p: 'へんしゅうてすと', e: '### Edit smoke' },
+    ]);
+    expect(decks.get(manualDeck.id)?.entryCount).toBe(1);
+  });
+
+  it('rejects term edits for official decks', async () => {
+    decks.set('official', { ...manualDeck, id: 'official', pack: 'official', source: 'entitlement' });
+    entries.set('official', [{ no: 1, t: '公式', d: 'official', p: 'こうしき', e: '' }]);
+    await expect(updateUserLibraryEntry('official', 1, {
+      t: 'Nope',
+      d: 'Nope',
+      p: '',
+      e: '',
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'Official Source ลบหรือแก้ metadata ไม่ได้',
+    });
+    expect(entries.get('official')?.[0]?.t).toBe('公式');
   });
 });

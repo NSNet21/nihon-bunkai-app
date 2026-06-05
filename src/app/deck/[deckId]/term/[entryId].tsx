@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Flashcard, VisibilityPopup, type ColumnVisibility, type FrontHero } from '@/components/flashcard';
 import { QuickDeckSwitcher } from '@/components/quick-deck-switcher';
 import { StudyMobileBackButton } from '@/components/study-mobile-back-button';
+import { TermEditingModal } from '@/components/term-editing-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -28,6 +29,8 @@ import {
 import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
 import { resolveFirstEntryJump } from '@/lib/deck-jump';
 import { studyFallbackHref } from '@/lib/navigation-back';
+import { isUserEditableDeck } from '@/lib/user-content';
+import type { TermEditingFields } from '@/lib/term-editing-form';
 
 export default function TermCardDisplayScreen() {
   const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
@@ -47,6 +50,7 @@ export default function TermCardDisplayScreen() {
   const deck = activeDeckId ? allDecks.find((d) => d.id === activeDeckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [termEditOpen, setTermEditOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switcherMessage, setSwitcherMessage] = useState<string | null>(null);
@@ -92,6 +96,9 @@ export default function TermCardDisplayScreen() {
   const prev = index > 0 ? entries[index - 1] : undefined;
   const next = index >= 0 && index < entries.length - 1 ? entries[index + 1] : undefined;
   const deleteState = deck ? deleteAvailability(deck) : { enabled: false, reason: 'ยังไม่ได้เลือก deck' };
+  const termEditState = deck && isUserEditableDeck(deck)
+    ? { enabled: true, reason: 'แก้ T/D/P/E ของคำนี้ใน Local Library' }
+    : { enabled: false, reason: 'Official Source แก้คำโดยตรงไม่ได้ใน v1' };
   const cardSlotHeight = isMobileLayout
     ? Math.max(340, Math.min(520, height - 258))
     : isTabletLayout
@@ -174,6 +181,34 @@ export default function TermCardDisplayScreen() {
     if (!deck || !deleteState.enabled) return;
     const deleted = await deleteUserDeck(deck);
     if (deleted) router.replace('/');
+  }
+
+  function handleTermSaved(fields: TermEditingFields) {
+    if (!current) return;
+    const updated = { ...current, ...fields };
+    setEntries((rows) => rows.map((entry) => (entry.id === current.id ? updated : entry)));
+    setTermEditOpen(false);
+    setActionsOpen(false);
+  }
+
+  function handleTermDeleted() {
+    if (!current || !activeDeckId) return;
+    const remaining = entries.filter((entry) => entry.id !== current.id);
+    setEntries(remaining);
+    setTermEditOpen(false);
+    setActionsOpen(false);
+    if (remaining.length === 0) {
+      router.replace(`/deck/${activeDeckId}` as never);
+      return;
+    }
+    const nextEntry = remaining[Math.min(index, remaining.length - 1)];
+    if (!nextEntry) {
+      router.replace(`/deck/${activeDeckId}` as never);
+      return;
+    }
+    setIsFlipped(false);
+    setActiveEntryId(nextEntry.id);
+    replaceTermUrl(activeDeckId, nextEntry.id);
   }
 
   if (!deck || !current) {
@@ -293,12 +328,25 @@ export default function TermCardDisplayScreen() {
           onClose={() => setActionsOpen(false)}
           colors={colors}
           deleteState={deleteState}
+          termEditState={termEditState}
+          onEditTerm={() => {
+            setActionsOpen(false);
+            setTermEditOpen(true);
+          }}
           onOpenSwitcher={() => {
             setActionsOpen(false);
             setSwitcherMessage(null);
             setSwitcherOpen(true);
           }}
           onDelete={handleDeleteDeck}
+        />
+        <TermEditingModal
+          visible={termEditOpen}
+          deck={deck}
+          entry={current}
+          onClose={() => setTermEditOpen(false)}
+          onSaved={handleTermSaved}
+          onDeleted={handleTermDeleted}
         />
         <QuickDeckSwitcher
           visible={switcherOpen}
@@ -387,6 +435,8 @@ function ActionsModal({
   onClose,
   colors,
   deleteState,
+  termEditState,
+  onEditTerm,
   onOpenSwitcher,
   onDelete,
 }: {
@@ -394,6 +444,8 @@ function ActionsModal({
   onClose: () => void;
   colors: typeof Colors.light;
   deleteState: { enabled: boolean; reason: string };
+  termEditState: { enabled: boolean; reason: string };
+  onEditTerm: () => void;
   onOpenSwitcher: () => void;
   onDelete: () => void;
 }) {
@@ -449,17 +501,29 @@ function ActionsModal({
               </View>
             </Pressable>
 
-            <View style={[styles.actionRow, { borderColor: colors.border, opacity: 0.48 }]}>
-              <FiEdit3 size={18} color={colors.textHint} strokeWidth={2} />
+            <Pressable
+              onPress={termEditState.enabled ? onEditTerm : undefined}
+              disabled={!termEditState.enabled}
+              accessibilityRole="button"
+              accessibilityLabel="แก้ไขคำนี้"
+              style={({ pressed }) => [
+                styles.actionRow,
+                { borderColor: termEditState.enabled ? Accent.soft : colors.border },
+                !termEditState.enabled && { opacity: 0.52 },
+                pressed && termEditState.enabled && { opacity: 0.75 },
+              ]}>
+              <FiEdit3 size={18} color={termEditState.enabled ? Accent.base : colors.textHint} strokeWidth={2} />
               <View style={styles.actionText}>
-                <ThemedText type="defaultSemiBold" themeColor="textSecondary">
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={{ color: termEditState.enabled ? Accent.base : colors.textSecondary }}>
                   แก้ไขคำนี้
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  จะเปิดพร้อม Personal Edit
+                  {termEditState.reason}
                 </ThemedText>
               </View>
-            </View>
+            </Pressable>
 
             <Pressable
               onPress={deleteState.enabled ? onDelete : undefined}

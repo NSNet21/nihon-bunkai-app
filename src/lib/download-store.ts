@@ -159,6 +159,18 @@ export async function getLibraryEntries(pack: string): Promise<CsvRow[] | undefi
   return rec?.rows;
 }
 
+export async function getLibraryEntriesRecord(pack: string): Promise<LibraryEntriesRecord | undefined> {
+  const d = getDB();
+  if (!d) return undefined;
+  return d.paidEntries.get(pack);
+}
+
+export async function putLibraryEntriesRecord(record: LibraryEntriesRecord): Promise<void> {
+  const d = getDB();
+  if (!d) return;
+  await d.paidEntries.put(record);
+}
+
 export async function deleteLibraryDeckAndEntries(deckId: string): Promise<boolean> {
   const d = getDB();
   if (!d) return false;

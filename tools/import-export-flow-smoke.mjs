@@ -5,7 +5,8 @@ import { chromium } from 'playwright';
 
 const target = process.env.APP_URL || process.argv[2] || 'http://localhost:8097';
 const importedTerm = '輸入テスト';
-const importedDeckTitle = 'Vocab N5 · Pack 99';
+const importedDeckId = 'manual-self-imported-file';
+const importedDeckTitle = 'self imported file';
 
 function urlFor(route) {
   return new URL(route, target).toString();
@@ -138,18 +139,23 @@ async function readLibraryDecks(page) {
       req.onerror = () => reject(req.error);
       req.onsuccess = () => resolve(req.result);
     });
-    const tx = db.transaction(['paidDecks'], 'readonly');
-    const store = tx.objectStore('paidDecks');
-    const allReq = store.getAll();
-    return await new Promise((resolve, reject) => {
-      allReq.onerror = () => reject(allReq.error);
-      allReq.onsuccess = () => resolve(allReq.result.map((deck) => ({ id: deck.id, title: deck.title, source: deck.source })));
+    const tx = db.transaction(['paidDecks', 'paidEntries'], 'readonly');
+    const deckReq = tx.objectStore('paidDecks').getAll();
+    const entriesReq = tx.objectStore('paidEntries').getAll();
+    const decks = await new Promise((resolve, reject) => {
+      deckReq.onerror = () => reject(deckReq.error);
+      deckReq.onsuccess = () => resolve(deckReq.result.map((deck) => ({ id: deck.id, pack: deck.pack, title: deck.title, source: deck.source })));
     });
+    const entries = await new Promise((resolve, reject) => {
+      entriesReq.onerror = () => reject(entriesReq.error);
+      entriesReq.onsuccess = () => resolve(entriesReq.result.map((entry) => ({ pack: entry.pack, source: entry.source, rows: entry.rows?.length ?? 0, first: entry.rows?.[0]?.t })));
+    });
+    return { decks, entries };
   }).catch((dbError) => [{ error: String(dbError) }]);
 }
 
 const tmp = await mkdtemp(path.join(tmpdir(), 'nihon-bunkai-import-export-'));
-const csvPath = path.join(tmp, 'vocab-n5-pack99.csv');
+const csvPath = path.join(tmp, 'self-imported-file.csv');
 await writeFile(
   csvPath,
   'T,D,P,E\n輸入テスト,ทดสอบนำเข้า,ゆにゅうてすと,### Import smoke\n',
@@ -189,17 +195,20 @@ try {
   await ensureBrowseDeckVisible(page, importedDeckTitle);
 
   await page.goto(urlFor('/search'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.getByPlaceholder('คำญี่ปุ่น · ความหมายไทย · เสียงอ่าน').fill(importedTerm);
-  await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 20_000 });
+  await page.waitForSelector('input[placeholder*="คำญี่ปุ่น"]', { timeout: 20_000 });
+  await page.waitForFunction(() => !document.body.innerText.includes('กำลังสร้าง index'), null, { timeout: 30_000 });
+  await page.click('input[placeholder*="คำญี่ปุ่น"]');
+  await page.keyboard.type(importedTerm);
+  await waitForTextOrDump(page, importedTerm, 'Search imported self-made file result', 20_000);
 
-  await page.goto(urlFor('/deck/vocab-n5-pack99'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await waitForTextOrDump(page, 'PACK 99', 'Deck hub');
+  await page.goto(urlFor(`/deck/${importedDeckId}`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await waitForTextOrDump(page, importedDeckTitle, 'Deck hub title');
   await waitForTextOrDump(page, importedTerm, 'Deck hub sample');
 
-  await page.goto(urlFor('/deck/vocab-n5-pack99/memorize'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.goto(urlFor(`/deck/${importedDeckId}/memorize`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 15_000 });
 
-  await page.goto(urlFor('/deck/vocab-n5-pack99/quiz'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.goto(urlFor(`/deck/${importedDeckId}/quiz`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 15_000 });
 
   await page.goto(urlFor('/'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -219,7 +228,7 @@ try {
   await page.getByText('Batch export', { exact: false }).last().waitFor({ timeout: 15_000 });
   await waitForTextOrDump(page, 'Groups only', 'Batch export hierarchy controls');
   await clickLastText(page, importedDeckTitle);
-  await waitForTextOrDump(page, 'เลือกแล้ว 1/', 'Batch export partial selection');
+  await waitForTextOrDump(page, 'Batch export · 1/', 'Batch export partial selection');
   const zipDownloadPromise = page.waitForEvent('download');
   await clickText(page, 'Export ZIP');
   const zipDownload = await waitForDownloadOrDump(page, zipDownloadPromise, 'ZIP export');

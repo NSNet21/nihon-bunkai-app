@@ -9,7 +9,7 @@ import {
   type LibraryEntriesRecord,
 } from '../download-store';
 
-import { parseLibraryCsvFilename } from './filename';
+import { buildManualCsvFallbackMeta, parseLibraryCsvFilename } from './filename';
 import { parseManualCsv } from './manual-csv';
 
 export type ParsedManualDeck = {
@@ -82,8 +82,7 @@ async function parseCsvFile(
   skipped: ManualImportIssue[],
 ): Promise<void> {
   try {
-    const meta = parseLibraryCsvFilename(fileName);
-    if (!meta) throw new Error('Unknown filename pattern');
+    const meta = parseLibraryCsvFilename(fileName) ?? buildManualCsvFallbackMeta(fileName);
     if (embeddedFreeDeckIds.has(meta.pack)) {
       skipped.push({ fileName, reason: 'Already included in free Library' });
       return;

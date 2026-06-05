@@ -48,3 +48,46 @@ export function parseLibraryCsvFilename(name: string): LibraryCsvMeta | null {
     tags: [type, level.toLowerCase(), pack],
   };
 }
+
+export function buildManualCsvFallbackMeta(name: string): LibraryCsvMeta {
+  const clean = name.replace(/\\/g, '/').replace(/^\.\//, '');
+  const baseName = clean.split('/').pop() ?? 'manual-deck.csv';
+  const withoutExt = baseName.replace(/\.csv$/i, '').trim() || 'manual-deck';
+  const slugBase = slugFileName(withoutExt);
+  const pack = slugBase === 'deck'
+    ? `manual-deck-${hashString(withoutExt)}`
+    : `manual-${slugBase}`;
+
+  return {
+    pack,
+    type: 'vocab',
+    level: null,
+    title: titleFromFileName(withoutExt),
+    tags: ['manual', 'group:Manual imports', pack],
+  };
+}
+
+function slugFileName(value: string) {
+  const slug = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'deck';
+}
+
+function titleFromFileName(value: string) {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'Manual deck';
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36).padStart(6, '0');
+}

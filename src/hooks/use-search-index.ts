@@ -12,9 +12,12 @@
  */
 
 import type Fuse from 'fuse.js';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
+import { decks as freeDecks } from '@/data/free-tier';
+import { entriesForDeckAsync } from '@/hooks/use-decks';
+import { DECKS_IMPORTED_EVENT } from '@/lib/deck-import';
+import { listLibraryDecks } from '@/lib/download-store';
 import {
   loadSearchEngine,
   type SearchEngine,
@@ -37,24 +40,30 @@ interface UseSearchIndex {
 }
 
 export function useSearchIndex(): UseSearchIndex {
-  const { decks, loading: decksLoading, refresh } = useAllDecks();
   const engineRef = useRef<SearchEngine | null>(null);
   const fuseRef = useRef<Fuse<SearchableEntry> | null>(null);
   const [ready, setReady] = useState(false);
   const [totalEntries, setTotalEntries] = useState(0);
   const [allEntries, setAllEntries] = useState<SearchableEntry[]>([]);
-
-  /* Stable join of deck IDs — rebuild trigger. */
-  const deckKey = useMemo(() => decks.map((d) => d.id).sort().join('|'), [decks]);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const refresh = useCallback(() => setRefreshTick((tick) => tick + 1), []);
 
   useEffect(() => {
-    if (decksLoading) return;
+    if (typeof window === 'undefined') return;
+    window.addEventListener(DECKS_IMPORTED_EVENT, refresh);
+    return () => window.removeEventListener(DECKS_IMPORTED_EVENT, refresh);
+  }, [refresh]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function build() {
       setReady(false);
       const engine = await loadSearchEngine();
       if (cancelled) return;
+      const libraryDecks = await listLibraryDecks();
+      if (cancelled) return;
+      const decks = [...freeDecks, ...libraryDecks];
       const flat: SearchableEntry[] = [];
       for (const deck of decks) {
         const entries = await entriesForDeckAsync(deck.id);
@@ -72,7 +81,7 @@ export function useSearchIndex(): UseSearchIndex {
 
     void build();
     return () => { cancelled = true; };
-  }, [deckKey, decksLoading]);
+  }, [refreshTick]);
 
   const run = useCallback((query: string, limit = 50): SearchResult[] => {
     if (!fuseRef.current || !engineRef.current) return [];

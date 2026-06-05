@@ -1,4 +1,4 @@
-import type { Deck } from '@/data/types';
+import type { Deck, Entry } from '@/data/types';
 import { DECKS_IMPORTED_EVENT } from './deck-import';
 import {
   deleteLibraryDeckAndEntries,
@@ -13,6 +13,10 @@ import { applyDeckOrganization, isUserEditableDeck, type DeckOrganization } from
 export type LibraryMutationResult = {
   ok: boolean;
   reason?: string;
+};
+
+export type LibraryEntryCreateResult = LibraryMutationResult & {
+  entry?: Entry;
 };
 
 const OFFICIAL_REJECT_REASON = 'Official Source ลบหรือแก้ metadata ไม่ได้';
@@ -80,6 +84,31 @@ export async function updateUserLibraryEntry(
   await putLibraryDeck({ ...deck, entryCount: rows.length, isUserContent: true, updatedAt: Date.now() });
   notifyLibraryChanged({ source: 'user-content', action: 'term-update', deckId, no: String(no) });
   return { ok: true };
+}
+
+export async function createUserLibraryEntry(
+  deckId: string,
+  fields: EditableEntryFields,
+): Promise<LibraryEntryCreateResult> {
+  const deck = await getMutableLibraryDeck(deckId);
+  if ('ok' in deck) return deck;
+  const entryRecord = await getLibraryEntriesRecord(deck.pack);
+  if (!entryRecord) return { ok: false, reason: MISSING_ENTRY_REASON };
+  const nextNo = entryRecord.rows.reduce((max, row) => Math.max(max, row.no), 0) + 1;
+  const row = { no: nextNo, ...fields };
+  const rows = [...entryRecord.rows, row];
+  const entry: Entry = {
+    ...row,
+    id: `${deck.id}-${nextNo}`,
+    type: deck.type,
+    level: deck.level,
+    pack: deck.pack,
+    tags: deck.tags,
+  };
+  await putLibraryEntriesRecord({ ...entryRecord, rows });
+  await putLibraryDeck({ ...deck, entryCount: rows.length, isUserContent: true, updatedAt: Date.now() });
+  notifyLibraryChanged({ source: 'user-content', action: 'term-create', deckId, no: String(nextNo) });
+  return { ok: true, entry };
 }
 
 export async function deleteUserLibraryEntry(deckId: string, no: number): Promise<LibraryMutationResult> {

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import type { ReactNode } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { FiEdit3, FiFileText, FiHash, FiTrash2, FiX } from 'react-icons/fi';
+import { FiEdit3, FiFileText, FiHash, FiPlus, FiTrash2, FiX } from 'react-icons/fi';
 
 import type { Deck, Entry } from '@/data/types';
 import { Accent, Radii, Spacing } from '@/constants/theme';
@@ -13,98 +13,144 @@ import {
   type TermEditingFields,
 } from '@/lib/term-editing-form';
 import {
+  createUserLibraryEntry,
   deleteUserLibraryEntry,
   updateUserLibraryEntry,
 } from '@/lib/library-management';
 import { isUserEditableDeck } from '@/lib/user-content';
 
+type TermEditingModalState = TermEditingFields & {
+  busy: boolean;
+  status: string;
+  confirmDelete: boolean;
+};
+
+type TermEditingModalAction =
+  | { type: 'reset'; initial: TermEditingFields }
+  | { type: 'field'; field: keyof TermEditingFields; value: string }
+  | { type: 'busy'; busy: boolean }
+  | { type: 'status'; status: string }
+  | { type: 'confirm-delete' };
+
+function createModalState(initial: TermEditingFields): TermEditingModalState {
+  return {
+    ...initial,
+    busy: false,
+    status: '',
+    confirmDelete: false,
+  };
+}
+
+function termEditingModalReducer(
+  state: TermEditingModalState,
+  action: TermEditingModalAction,
+): TermEditingModalState {
+  switch (action.type) {
+    case 'reset':
+      return createModalState(action.initial);
+    case 'field':
+      return { ...state, [action.field]: action.value };
+    case 'busy':
+      return { ...state, busy: action.busy };
+    case 'status':
+      return { ...state, status: action.status };
+    case 'confirm-delete':
+      return { ...state, confirmDelete: true, status: 'กดลบอีกครั้งเพื่อยืนยัน' };
+    default:
+      return state;
+  }
+}
+
 type TermEditingModalProps = {
   visible: boolean;
+  mode?: 'edit' | 'create';
   deck?: Deck;
   entry?: Entry;
   onClose: () => void;
-  onSaved: (fields: TermEditingFields) => void;
-  onDeleted: () => void;
+  onSaved?: (fields: TermEditingFields) => void;
+  onCreated?: (entry: Entry) => void;
+  onDeleted?: () => void;
 };
 
 export function TermEditingModal({
   visible,
+  mode = 'edit',
   deck,
   entry,
   onClose,
   onSaved,
+  onCreated,
   onDeleted,
 }: TermEditingModalProps) {
   const colors = useThemePalette();
   const editable = deck ? isUserEditableDeck(deck) : false;
+  const isCreate = mode === 'create';
   const initial = useMemo<TermEditingFields>(() => ({
-    t: entry?.t ?? '',
-    d: entry?.d ?? '',
-    p: entry?.p ?? '',
-    e: entry?.e ?? '',
-  }), [entry]);
-  const [t, setT] = useState(initial.t);
-  const [d, setD] = useState(initial.d);
-  const [p, setP] = useState(initial.p);
-  const [e, setE] = useState(initial.e);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
+    t: isCreate ? '' : entry?.t ?? '',
+    d: isCreate ? '' : entry?.d ?? '',
+    p: isCreate ? '' : entry?.p ?? '',
+    e: isCreate ? '' : entry?.e ?? '',
+  }), [entry, isCreate]);
+  const [state, dispatch] = useReducer(termEditingModalReducer, initial, createModalState);
+  const { t, d, p, e, busy, status, confirmDelete } = state;
 
   useEffect(() => {
     if (!visible) return;
-    setT(initial.t);
-    setD(initial.d);
-    setP(initial.p);
-    setE(initial.e);
-    setBusy(false);
-    setStatus('');
-    setConfirmDelete(false);
+    dispatch({ type: 'reset', initial });
   }, [initial, visible]);
 
   const normalized = normalizeTermEditingFields({ t, d, p, e });
-  const canSave = deck && entry && canSaveTermEditingForm({
+  const canSave = Boolean(deck) && canSaveTermEditingForm({
     editable,
     t,
     d,
     p,
     e,
-    initial,
+    initial: isCreate ? undefined : initial,
   });
 
   async function save() {
-    if (!deck || !entry || !canSave || busy) return;
-    setBusy(true);
-    setStatus('');
+    if (!deck || !canSave || busy) return;
+    dispatch({ type: 'busy', busy: true });
+    dispatch({ type: 'status', status: '' });
     try {
-      const result = await updateUserLibraryEntry(deck.id, entry.no, normalized);
-      if (!result.ok) {
-        setStatus(result.reason ?? 'บันทึกคำนี้ไม่สำเร็จ');
+      if (isCreate) {
+        const result = await createUserLibraryEntry(deck.id, normalized);
+        if (!result.ok || !result.entry) {
+          dispatch({ type: 'status', status: result.reason ?? 'เพิ่มคำใหม่ไม่สำเร็จ' });
+          return;
+        }
+        onCreated?.(result.entry);
         return;
       }
-      onSaved(normalized);
+      if (!entry) return;
+      const result = await updateUserLibraryEntry(deck.id, entry.no, normalized);
+      if (!result.ok) {
+        dispatch({ type: 'status', status: result.reason ?? 'บันทึกคำนี้ไม่สำเร็จ' });
+        return;
+      }
+      onSaved?.(normalized);
     } finally {
-      setBusy(false);
+      dispatch({ type: 'busy', busy: false });
     }
   }
 
   async function deleteTerm() {
     if (!deck || !entry || !editable || busy) return;
     if (!confirmDelete) {
-      setConfirmDelete(true);
-      setStatus('กดลบอีกครั้งเพื่อยืนยัน');
+      dispatch({ type: 'confirm-delete' });
       return;
     }
-    setBusy(true);
+    dispatch({ type: 'busy', busy: true });
     try {
       const result = await deleteUserLibraryEntry(deck.id, entry.no);
       if (!result.ok) {
-        setStatus(result.reason ?? 'ลบคำนี้ไม่สำเร็จ');
+        dispatch({ type: 'status', status: result.reason ?? 'ลบคำนี้ไม่สำเร็จ' });
         return;
       }
-      onDeleted();
+      onDeleted?.();
     } finally {
-      setBusy(false);
+      dispatch({ type: 'busy', busy: false });
     }
   }
 
@@ -117,7 +163,9 @@ export function TermEditingModal({
           <View style={styles.header}>
             <View style={styles.titleRow}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-              <ThemedText style={[styles.mono, { color: colors.textHint }]}>// TERM EDIT</ThemedText>
+              <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+                {isCreate ? '// TERM CREATE' : '// TERM EDIT'}
+              </ThemedText>
             </View>
             <Pressable
               onPress={onClose}
@@ -135,25 +183,33 @@ export function TermEditingModal({
           </View>
 
           <View style={[styles.termBadge, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-            <FiEdit3 size={17} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
+            {isCreate ? (
+              <FiPlus size={17} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
+            ) : (
+              <FiEdit3 size={17} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
+            )}
             <View style={styles.termBadgeText}>
-              <ThemedText type="defaultSemiBold" numberOfLines={1}>{entry?.t ?? 'Term'}</ThemedText>
+              <ThemedText type="defaultSemiBold" numberOfLines={1}>
+                {isCreate ? deck?.title ?? 'New term' : entry?.t ?? 'Term'}
+              </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {editable ? 'User Content · แก้คำนี้ได้' : 'Official Source · แก้ไม่ได้'}
+                {editable
+                  ? isCreate ? 'User Content · เพิ่มคำใหม่ใน deck นี้' : 'User Content · แก้คำนี้ได้'
+                  : 'Official Source · แก้ไม่ได้'}
               </ThemedText>
             </View>
           </View>
 
           <View style={[styles.formBlock, !editable && { opacity: 0.5 }]}>
-            <Field label="T" value={t} disabled={!editable || busy} placeholder="คำศัพท์ / term" icon={<FiHash size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={setT} />
-            <Field label="D" value={d} disabled={!editable || busy} placeholder="ความหมาย" icon={<FiFileText size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={setD} />
-            <Field label="P" value={p} disabled={!editable || busy} placeholder="คำอ่าน" icon={<FiFileText size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={setP} />
-            <Field label="E" value={e} disabled={!editable || busy} placeholder="รายละเอียด / markdown" multiline icon={<FiFileText size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={setE} />
+            <Field label="T" value={t} disabled={!editable || busy} placeholder="คำศัพท์ / term" icon={<FiHash size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={(value) => dispatch({ type: 'field', field: 't', value })} />
+            <Field label="D" value={d} disabled={!editable || busy} placeholder="ความหมาย" icon={<FiFileText size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={(value) => dispatch({ type: 'field', field: 'd', value })} />
+            <Field label="P" value={p} disabled={!editable || busy} placeholder="คำอ่าน" icon={<FiFileText size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={(value) => dispatch({ type: 'field', field: 'p', value })} />
+            <Field label="E" value={e} disabled={!editable || busy} placeholder="รายละเอียด / markdown" multiline icon={<FiFileText size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />} onChange={(value) => dispatch({ type: 'field', field: 'e', value })} />
           </View>
 
           {!editable ? (
             <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-              Official Source เป็นเนื้อหาหลักของ Nihon Bunkai จึงแก้หรือลบคำโดยตรงไม่ได้ใน v1
+              Official Source เป็นเนื้อหาหลักของ Nihon Bunkai จึงแก้ เพิ่ม หรือลบคำโดยตรงไม่ได้ใน v1
             </ThemedText>
           ) : null}
 
@@ -168,24 +224,28 @@ export function TermEditingModal({
                 { backgroundColor: Accent.base, opacity: canSave && !busy ? 1 : 0.45 },
                 pressed && canSave && { opacity: 0.78 },
               ]}>
-              <ThemedText type="defaultSemiBold" style={styles.primaryText}>บันทึก</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => void deleteTerm()}
-              disabled={!editable || busy}
-              accessibilityRole="button"
-              accessibilityLabel="ลบคำนี้"
-              style={({ pressed }) => [
-                styles.deleteBtn,
-                { borderColor: editable ? Accent.soft : colors.border, opacity: editable && !busy ? 1 : 0.45 },
-                confirmDelete && { backgroundColor: Accent.bg },
-                pressed && editable && { opacity: 0.75 },
-              ]}>
-              <FiTrash2 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
-              <ThemedText type="small" style={{ color: editable ? Accent.base : colors.textSecondary }}>
-                {confirmDelete ? 'ยืนยันลบ' : 'ลบ'}
+              <ThemedText type="defaultSemiBold" style={styles.primaryText}>
+                {isCreate ? 'เพิ่มคำ' : 'บันทึก'}
               </ThemedText>
             </Pressable>
+            {!isCreate ? (
+              <Pressable
+                onPress={() => void deleteTerm()}
+                disabled={!editable || busy}
+                accessibilityRole="button"
+                accessibilityLabel="ลบคำนี้"
+                style={({ pressed }) => [
+                  styles.deleteBtn,
+                  { borderColor: editable ? Accent.soft : colors.border, opacity: editable && !busy ? 1 : 0.45 },
+                  confirmDelete && { backgroundColor: Accent.bg },
+                  pressed && editable && { opacity: 0.75 },
+                ]}>
+                <FiTrash2 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: editable ? Accent.base : colors.textSecondary }}>
+                  {confirmDelete ? 'ยืนยันลบ' : 'ลบ'}
+                </ThemedText>
+              </Pressable>
+            ) : null}
           </View>
 
           {status ? (

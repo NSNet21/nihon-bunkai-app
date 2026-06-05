@@ -29,6 +29,7 @@ vi.mock('./download-store', () => ({
 }));
 
 import {
+  createUserLibraryEntry,
   deleteUserLibraryEntry,
   deleteUserLibraryDeck,
   moveUserLibraryDeck,
@@ -122,6 +123,63 @@ describe('library management operations', () => {
     expect(decks.get(manualDeck.id)?.entryCount).toBe(1);
   });
 
+  it('creates a term in a user deck with the next highest row number', async () => {
+    entries.set(manualDeck.pack, [
+      { no: 2, t: '編集テスト', d: 'ทดสอบแก้ไข', p: 'へんしゅうてすと', e: '### Edit smoke' },
+      { no: 7, t: '間隔テスト', d: 'ทดสอบช่องว่างเลข', p: 'かんかくてすと', e: '' },
+    ]);
+    const result = await createUserLibraryEntry(manualDeck.id, {
+      t: '追加テスト',
+      d: 'ทดสอบเพิ่ม',
+      p: 'ついかてすと',
+      e: '### Add smoke',
+    });
+    expect(result).toEqual({
+      ok: true,
+      entry: {
+        id: `${manualDeck.id}-8`,
+        no: 8,
+        t: '追加テスト',
+        d: 'ทดสอบเพิ่ม',
+        p: 'ついかてすと',
+        e: '### Add smoke',
+        type: manualDeck.type,
+        level: manualDeck.level,
+        pack: manualDeck.pack,
+        tags: manualDeck.tags,
+      },
+    });
+    expect(entries.get(manualDeck.pack)?.at(-1)).toEqual({
+      no: 8,
+      t: '追加テスト',
+      d: 'ทดสอบเพิ่ม',
+      p: 'ついかてすと',
+      e: '### Add smoke',
+    });
+    expect(decks.get(manualDeck.id)?.entryCount).toBe(3);
+  });
+
+  it('creates the first term in an empty user deck', async () => {
+    entries.set(manualDeck.pack, []);
+    const result = await createUserLibraryEntry(manualDeck.id, {
+      t: '最初',
+      d: 'คำแรก',
+      p: 'さいしょ',
+      e: '',
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      entry: {
+        id: `${manualDeck.id}-1`,
+        no: 1,
+        t: '最初',
+        d: 'คำแรก',
+      },
+    });
+    expect(entries.get(manualDeck.pack)).toHaveLength(1);
+    expect(decks.get(manualDeck.id)?.entryCount).toBe(1);
+  });
+
   it('rejects term edits for official decks', async () => {
     decks.set('official', { ...manualDeck, id: 'official', pack: 'official', source: 'entitlement' });
     entries.set('official', [{ no: 1, t: '公式', d: 'official', p: 'こうしき', e: '' }]);
@@ -135,5 +193,20 @@ describe('library management operations', () => {
       reason: 'Official Source ลบหรือแก้ metadata ไม่ได้',
     });
     expect(entries.get('official')?.[0]?.t).toBe('公式');
+  });
+
+  it('rejects term creation for official decks', async () => {
+    decks.set('official', { ...manualDeck, id: 'official', pack: 'official', source: 'entitlement' });
+    entries.set('official', [{ no: 1, t: '公式', d: 'official', p: 'こうしき', e: '' }]);
+    await expect(createUserLibraryEntry('official', {
+      t: 'Nope',
+      d: 'Nope',
+      p: '',
+      e: '',
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'Official Source ลบหรือแก้ metadata ไม่ได้',
+    });
+    expect(entries.get('official')).toHaveLength(1);
   });
 });

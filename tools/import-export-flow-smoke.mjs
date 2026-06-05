@@ -7,6 +7,7 @@ const target = process.env.APP_URL || process.argv[2] || 'http://localhost:8097'
 const importedTerm = '輸入テスト';
 const secondImportedTerm = '削除テスト';
 const editedTerm = '編集済みテスト';
+const addedTerm = '追加済みテスト';
 const importedDeckId = 'manual-self-imported-file';
 const importedDeckTitle = 'self imported file';
 const renamedDeckTitle = 'Manual Smoke Deck';
@@ -127,6 +128,19 @@ async function waitForTextOrDump(page, text, label, timeout = 15_000) {
     const decks = await readLibraryDecks(page);
     throw new Error(
       `${label} did not show text: ${text}. URL: ${page.url()}. IndexedDB paidDecks: ${JSON.stringify(decks)}. Body:\n${body.slice(0, 2000)}`,
+      { cause: error },
+    );
+  }
+}
+
+async function waitForBodyTextOrDump(page, text, label, timeout = 15_000) {
+  try {
+    await page.waitForFunction((expected) => document.body.innerText.includes(expected), text, { timeout });
+  } catch (error) {
+    const body = await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '');
+    const decks = await readLibraryDecks(page);
+    throw new Error(
+      `${label} did not show body text: ${text}. URL: ${page.url()}. IndexedDB paidDecks: ${JSON.stringify(decks)}. Body:\n${body.slice(0, 2000)}`,
       { cause: error },
     );
   }
@@ -295,12 +309,25 @@ try {
   await waitForTextOrDump(page, editedTerm, 'Term card after deleting another term');
   await expectLibraryTerms(page, importedDeckId, [editedTerm]);
 
+  await page.goto(urlFor(`/deck/${importedDeckId}`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await waitForTextOrDump(page, renamedDeckTitle, 'Renamed deck title before adding term');
+  await page.getByLabel('เพิ่มคำใหม่').click({ timeout: 10_000 });
+  await page.getByText('TERM CREATE', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByPlaceholder('คำศัพท์ / term').fill(addedTerm);
+  await page.getByPlaceholder('ความหมาย').fill('ทดสอบเพิ่มคำ');
+  await page.getByPlaceholder('คำอ่าน').fill('ついかずみてすと');
+  await page.getByPlaceholder('รายละเอียด / markdown').fill('### Added through smoke');
+  await page.getByLabel('บันทึกคำ').click({ timeout: 10_000 });
+  await page.waitForURL(urlFor(`/deck/${importedDeckId}/term/${importedDeckId}-2`), { timeout: 15_000 });
+  await waitForBodyTextOrDump(page, addedTerm, 'Added term card');
+  await expectLibraryTerms(page, importedDeckId, [editedTerm, addedTerm]);
+
   await page.goto(urlFor('/search'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.waitForSelector('input[placeholder*="คำญี่ปุ่น"]', { timeout: 20_000 });
   await page.waitForFunction(() => !document.body.innerText.includes('กำลังสร้าง index'), null, { timeout: 30_000 });
   await page.click('input[placeholder*="คำญี่ปุ่น"]');
-  await page.keyboard.type(editedTerm);
-  await waitForTextOrDump(page, editedTerm, 'Search edited self-made term result', 20_000);
+  await page.keyboard.type(addedTerm);
+  await waitForTextOrDump(page, addedTerm, 'Search added self-made term result', 20_000);
 
   await page.goto(urlFor(`/deck/${importedDeckId}/memorize`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.getByText(editedTerm, { exact: false }).waitFor({ timeout: 15_000 });
@@ -348,6 +375,7 @@ try {
     target,
     importedDeckTitle,
     editedTerm,
+    addedTerm,
     renamedDeckTitle,
     movedGroup,
     movedSection,

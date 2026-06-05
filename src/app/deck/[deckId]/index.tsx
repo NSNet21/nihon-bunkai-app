@@ -8,18 +8,20 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import { FiBookOpen, FiChevronLeft, FiChevronRight, FiMoreVertical, FiSearch } from 'react-icons/fi';
+import { FiBookOpen, FiChevronLeft, FiChevronRight, FiMoreVertical, FiPlus, FiSearch } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { DeckManagementModal } from '@/components/deck-management-modal';
+import { TermEditingModal } from '@/components/term-editing-modal';
 import { freeDeckParams } from '@/data/static-params';
 import type { Entry } from '@/data/types';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
 import { entriesForDeckAsync, useAllDecks } from '@/hooks/use-decks';
 import { filterDeckEntries } from '@/lib/deck-term-search';
+import { isUserEditableDeck } from '@/lib/user-content';
 
 /* Pre-render this route for every free deck so direct URL access
    (cold load, bookmark, share-link) gets the correct static HTML
@@ -30,7 +32,7 @@ export function generateStaticParams() {
 
 export default function DeckTermListScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
-  const router = useRouter();
+  const { push, replace } = useRouter();
   const { colors } = useThemeColors();
   const { width: viewportW } = useWindowDimensions();
   const isCompact = viewportW < 600;
@@ -41,6 +43,7 @@ export default function DeckTermListScreen() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [query, setQuery] = useState('');
   const [deckActionsOpen, setDeckActionsOpen] = useState(false);
+  const [addTermOpen, setAddTermOpen] = useState(false);
   const filteredEntries = useMemo(() => filterDeckEntries(entries, query), [entries, query]);
 
   useEffect(() => {
@@ -56,12 +59,19 @@ export default function DeckTermListScreen() {
 
   function goTerm(entry: Entry) {
     if (!deckId) return;
-    router.push(`/deck/${deckId}/term/${entry.id}` as never);
+    push(`/deck/${deckId}/term/${entry.id}` as never);
   }
 
   function goModes() {
     if (!deckId) return;
-    router.push(`/deck/${deckId}/modes` as never);
+    push(`/deck/${deckId}/modes` as never);
+  }
+
+  function handleTermCreated(entry: Entry) {
+    setEntries((rows) => [...rows, entry]);
+    setAddTermOpen(false);
+    refresh();
+    push(`/deck/${entry.pack}/term/${entry.id}` as never);
   }
 
   if (!deck) {
@@ -87,6 +97,7 @@ export default function DeckTermListScreen() {
   const titleParts = deck.title.split('·').map((s) => s.trim());
   const titleMain = titleParts[0] ?? deck.title;
   const titleSub = titleParts.slice(1).join(' · ');
+  const canAddTerm = isUserEditableDeck(deck);
 
   return (
     <ThemedView style={styles.container}>
@@ -139,10 +150,27 @@ export default function DeckTermListScreen() {
           </View>
 
           <View style={styles.sectionHead}>
-            <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-            <ThemedText style={[styles.mono, { color: colors.textHint }]}>
-              // TERMS · คำใน deck
-            </ThemedText>
+            <View style={styles.sectionTitleRow}>
+              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+              <ThemedText style={[styles.mono, { color: colors.textHint }]}>
+                // TERMS · คำใน deck
+              </ThemedText>
+            </View>
+            {canAddTerm ? (
+              <Pressable
+                onPress={() => setAddTermOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="เพิ่มคำใหม่"
+                style={({ pressed, hovered }: any) => [
+                  styles.addTermBtn,
+                  { borderColor: Accent.soft, backgroundColor: Accent.bg },
+                  (pressed || hovered) && { borderColor: Accent.base },
+                  pressed && { opacity: 0.78 },
+                ]}>
+                <FiPlus size={15} color={Accent.base} strokeWidth={2} />
+                <ThemedText style={[styles.addTermText, { color: Accent.base }]}>ADD TERM</ThemedText>
+              </Pressable>
+            ) : null}
           </View>
 
           <View style={[styles.searchBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
@@ -213,8 +241,15 @@ export default function DeckTermListScreen() {
           onDeleted={() => {
             refresh();
             setDeckActionsOpen(false);
-            router.replace('/' as never);
+            replace('/' as never);
           }}
+        />
+        <TermEditingModal
+          visible={addTermOpen}
+          mode="create"
+          deck={deck}
+          onClose={() => setAddTermOpen(false)}
+          onCreated={handleTermCreated}
         />
       </SafeAreaView>
     </ThemedView>
@@ -419,7 +454,31 @@ const styles = StyleSheet.create({
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Spacing.two,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    minWidth: 0,
+    flex: 1,
+  },
+  addTermBtn: {
+    minHeight: 32,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.one,
+  },
+  addTermText: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   searchBox: {
     minHeight: 44,

@@ -57,10 +57,12 @@ function twoDigit(value: number) {
 }
 
 export function buildCardPositionMeta(index: number, total: number, label?: string, sourceNo?: number) {
-  const parts = [`CARD ${twoDigit(index + 1)} / ${total}`];
   if (typeof sourceNo === 'number' && Number.isFinite(sourceNo)) {
-    parts.push(`NO. ${twoDigit(sourceNo)}`);
+    const parts = [`NO. ${twoDigit(sourceNo)}`];
+    if (label) parts.push(label.toUpperCase());
+    return parts.join(' // ');
   }
+  const parts = [`CARD ${twoDigit(index + 1)} / ${total}`];
   if (label) parts.push(label.toUpperCase());
   return parts.join(' // ');
 }

@@ -17,7 +17,7 @@ function urlFor(route) {
 
 function quizFirstTerm(text) {
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
-  const cardIndex = lines.findIndex((line) => /^CARD 01\b/.test(line));
+  const cardIndex = lines.findIndex((line) => /^NO\. \d+/.test(line));
   return cardIndex >= 0 ? lines[cardIndex + 1] ?? '' : '';
 }
 
@@ -29,12 +29,12 @@ function memorizeFirstTerm(text) {
 
 function firstCardMeta(text) {
   const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
-  return lines.find((line) => /^CARD 01\b/.test(line)) ?? '';
+  return lines.find((line) => /^NO\. \d+/.test(line)) ?? '';
 }
 
 async function loadCardText(page, route) {
   await page.goto(urlFor(route), { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.waitForSelector('text=CARD 01', { timeout: 25_000 });
+  await page.waitForSelector('text=/NO\\. \\d+/', { timeout: 25_000 });
   return page.locator('body').innerText({ timeout: 10_000 });
 }
 
@@ -57,6 +57,21 @@ async function firstCardText(route) {
   try {
     const text = await loadCardText(page, route);
     return { text, warnings, errors };
+  } finally {
+    await browser.close();
+  }
+}
+
+async function desktopStudyBackVisible(route) {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1168, height: 628 } });
+  await page.addInitScript(() => {
+    localStorage.setItem('nb.onboarded', 'true');
+  });
+
+  try {
+    await loadCardText(page, route);
+    return await page.getByLabel('กลับไปหน้าก่อนหน้า').isVisible({ timeout: 5_000 }).catch(() => false);
   } finally {
     await browser.close();
   }
@@ -87,7 +102,7 @@ async function manualShuffleFirstCardText(route, extractFirstTerm) {
       ({ before, kind }) => {
         const lines = document.body.innerText.split('\n').map((line) => line.trim()).filter(Boolean);
         if (kind === 'quiz') {
-          const cardIndex = lines.findIndex((line) => /^CARD 01\b/.test(line));
+          const cardIndex = lines.findIndex((line) => /^NO\. \d+/.test(line));
           return cardIndex >= 0 && lines[cardIndex + 1] && lines[cardIndex + 1] !== before;
         }
         const fieldsIndex = lines.findIndex((line) => line === 'VISIBLE FIELDS');
@@ -123,6 +138,7 @@ const quiz = await firstCardText(`/deck/${deckId}/quiz`);
 const memorize = await firstCardText(`/deck/${deckId}/memorize`);
 const quizManual = await manualShuffleFirstCardText(`/deck/${deckId}/quiz`, quizFirstTerm);
 const memorizeManual = await manualShuffleFirstCardText(`/deck/${deckId}/memorize`, memorizeFirstTerm);
+const quizDesktopStudyBackVisible = await desktopStudyBackVisible(`/deck/${deckId}/quiz`);
 const normalFirstTerm = quizFirstTerm(normalText);
 const quizFirstTermValue = quizFirstTerm(quiz.text);
 const memorizeFirstTermValue = memorizeFirstTerm(memorize.text);
@@ -151,6 +167,9 @@ const result = {
   memorizeManualShuffleWorked: memorizeManual.beforeTerm !== memorizeManual.afterTerm,
   quizManualMetaWorked: quizManual.beforeMeta !== quizManual.afterMeta && quizManual.afterMeta.includes('NO.'),
   memorizeManualMetaWorked: memorizeManual.beforeMeta !== memorizeManual.afterMeta && memorizeManual.afterMeta.includes('NO.'),
+  quizMetaDroppedCardCounter: !/^CARD\b/.test(quizManual.afterMeta),
+  memorizeMetaDroppedCardCounter: !/^CARD\b/.test(memorizeManual.afterMeta),
+  quizDesktopStudyBackVisible,
   warningCount: quiz.warnings.length + memorize.warnings.length + quizManual.warnings.length + memorizeManual.warnings.length,
   errorCount: quiz.errors.length + memorize.errors.length + quizManual.errors.length + memorizeManual.errors.length,
   warnings: [...quiz.warnings, ...memorize.warnings, ...quizManual.warnings, ...memorizeManual.warnings].slice(0, 8),
@@ -179,6 +198,15 @@ if (!result.quizManualMetaWorked) {
 }
 if (!result.memorizeManualMetaWorked) {
   throw new Error('Memorize manual shuffle did not update the card source-number badge');
+}
+if (!result.quizMetaDroppedCardCounter) {
+  throw new Error('Quiz card meta still repeats the session card counter');
+}
+if (!result.memorizeMetaDroppedCardCounter) {
+  throw new Error('Memorize card meta still repeats the session card counter');
+}
+if (!result.quizDesktopStudyBackVisible) {
+  throw new Error('Quiz study back button is not visible on desktop/tablet viewport');
 }
 if (result.errorCount > 0) {
   throw new Error('Console errors detected during shuffle session smoke');

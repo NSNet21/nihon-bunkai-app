@@ -62,12 +62,12 @@ describe('buildStudySessionEntries', () => {
 });
 
 describe('study session meta labels', () => {
-  it('labels session cards by the shuffled session position', () => {
-    expect(buildCardPositionMeta(1, 20, 'Kanji N5 · Pack 03')).toBe('CARD 02 / 20 // KANJI N5 · PACK 03');
+  it('labels learn cards by source entry number instead of repeating the session position', () => {
+    expect(buildCardPositionMeta(1, 20, 'Kanji N5 · Pack 03', 24)).toBe('NO. 24 // KANJI N5 · PACK 03');
   });
 
-  it('can include source entry number so shuffled cards keep their identity visible', () => {
-    expect(buildCardPositionMeta(0, 20, 'Memorize', 31)).toBe('CARD 01 / 20 // NO. 31 // MEMORIZE');
+  it('keeps source identity visible after shuffle without a card counter', () => {
+    expect(buildCardPositionMeta(0, 20, 'Memorize', 31)).toBe('NO. 31 // MEMORIZE');
   });
 
   it('labels term detail by source entry number without a session counter', () => {

@@ -18,6 +18,7 @@ export function StudyMobileBackButton({
   floating = true,
   side = 'left',
   inset,
+  showOnAllViewports = false,
 }: {
   fallbackHref: string;
   preferFallback?: boolean;
@@ -25,6 +26,7 @@ export function StudyMobileBackButton({
   floating?: boolean;
   side?: 'left' | 'right';
   inset?: { top?: number; horizontal?: number };
+  showOnAllViewports?: boolean;
 }) {
   const router = useRouter();
   const colors = useThemePalette();
@@ -32,7 +34,7 @@ export function StudyMobileBackButton({
   const hasHydrated = useHasHydrated();
   const isMobile = hasHydrated && width < MOBILE_NAV_BREAKPOINT;
 
-  if (!isMobile) return null;
+  if (!showOnAllViewports && !isMobile) return null;
 
   return (
     <Pressable

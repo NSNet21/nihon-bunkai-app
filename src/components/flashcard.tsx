@@ -391,7 +391,7 @@ export function Flashcard({
   const mdBody = Math.max(12, Math.round(14 * cardScale));
 
   const hasProgress = typeof index === 'number' && typeof total === 'number' && total > 0;
-  /* Editorial top meta — `CARD 01 / 20 // KANJI N5 · PACK 01`.
+  /* Editorial top meta — `NO. 24 // KANJI N5 · PACK 01`.
      Falls back gracefully if either piece is missing. Hidden when the
      user toggles it off in Settings (persisted under nb.show-card-meta).
      On narrow viewports (<600px) drop the deckTitle suffix — the deck

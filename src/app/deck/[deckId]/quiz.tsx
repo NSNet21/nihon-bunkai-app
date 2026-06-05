@@ -397,7 +397,12 @@ export default function StudyScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StudyMobileBackButton fallbackHref={backFallbackHref} preferFallback variant="plain" />
+        <StudyMobileBackButton
+          fallbackHref={backFallbackHref}
+          preferFallback
+          variant="plain"
+          showOnAllViewports
+        />
         <View style={styles.content}>
           {!deck ? (
             <EmptyState

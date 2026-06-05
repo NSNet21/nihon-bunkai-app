@@ -9,6 +9,12 @@ import { serializeDeckCsv, serializeGuardedDeckCsv } from '../export-csv';
 import { selectExportableDecks } from '../export-library';
 import { buildExportHierarchy, getExportSelectionSummary } from '../export-hierarchy';
 import { IMPORT_HOW_TO_STEPS, IMPORT_SCHEMA_HEADERS } from '../import-how-to';
+import {
+  DEFAULT_IMPORT_GROUP,
+  DEFAULT_IMPORT_SECTION,
+  buildImportDestinationOptions,
+  normalizeImportDestination,
+} from '../import-destination';
 
 describe('library source metadata', () => {
   it('marks embedded free decks with source free', () => {
@@ -72,6 +78,65 @@ describe('parseLibraryCsvFilename', () => {
 
   it('rejects unknown filenames', () => {
     expect(parseLibraryCsvFilename('random.csv')).toBeNull();
+  });
+});
+
+describe('import destination options', () => {
+  it('derives user/import groups and sections from deck organization metadata', () => {
+    const options = buildImportDestinationOptions([
+      {
+        id: 'manual-a',
+        title: 'Manual A',
+        source: 'manual',
+        tags: ['manual', 'group:Manual imports', 'section:Week 1'],
+      },
+      {
+        id: 'manual-b',
+        title: 'Manual B',
+        source: 'manual',
+        userGroup: 'Manual imports',
+        userSection: 'Inbox',
+        tags: ['manual'],
+      },
+      {
+        id: 'custom-a',
+        title: 'Custom A',
+        source: 'custom',
+        userGroup: 'Kanji practice',
+        userSection: 'N5',
+        tags: ['manual'],
+      },
+      {
+        id: 'official-a',
+        title: 'Official A',
+        source: 'free',
+        level: 'N5',
+        type: 'kanji',
+        tags: ['kanji', 'n5'],
+      },
+    ] as any);
+
+    expect(options.map((group) => group.label)).toEqual(['Kanji practice', 'Manual imports']);
+    expect(options.find((group) => group.label === 'Manual imports')?.sections.map((section) => section.label))
+      .toEqual(['Inbox', 'Week 1']);
+  });
+
+  it('falls back to the default manual destination when the library has no user groups', () => {
+    const options = buildImportDestinationOptions([]);
+    expect(options).toEqual([
+      {
+        key: 'manual-imports',
+        label: DEFAULT_IMPORT_GROUP,
+        sections: [{ key: 'manual-imports:inbox', label: DEFAULT_IMPORT_SECTION }],
+      },
+    ]);
+  });
+
+  it('normalizes blank section to Inbox while trimming the group', () => {
+    expect(normalizeImportDestination({ group: '  Weak N2 set  ', section: '   ' })).toEqual({
+      group: 'Weak N2 set',
+      section: DEFAULT_IMPORT_SECTION,
+    });
   });
 });
 

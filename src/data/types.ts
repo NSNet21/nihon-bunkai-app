@@ -1,6 +1,6 @@
 /**
  * Entry schema — MUST match the 5-column CSV that customers buy/import/export.
- * Single source of truth across PDF, CSV, App, Anki/Onevoca.
+ * Single source of truth across PDF, CSV, and the Nihon Bunkai Companion App.
  * Reference: [[csv-export-schema]] memory · content/_csv-output/*.csv
  */
 

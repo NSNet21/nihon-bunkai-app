@@ -16,7 +16,7 @@ type Props = {
 /**
  * Tap the speaker icon to read the adjacent text aloud via expo-speech.
  * Subsequent taps interrupt the in-flight utterance and restart — predictable
- * behavior matching every consumer speaker UI (Onevoca, Quizlet, etc.).
+ * behavior matching common consumer speaker UI.
  *
  * Uses expo-speech's native onDone/onStopped/onError callbacks for the
  * playing-state feedback (no polling, no setInterval). mountedRef guards

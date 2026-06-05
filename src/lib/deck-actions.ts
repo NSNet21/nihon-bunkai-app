@@ -1,9 +1,9 @@
 import type { Deck } from '@/data/types';
-import { DECKS_IMPORTED_EVENT } from './deck-import';
-import { deleteManualLibraryDeck } from './download-store';
+import { deleteUserLibraryDeck } from './library-management';
+import { isUserEditableDeck } from './user-content';
 
 export function deleteAvailability(deck: Deck) {
-  if (deck.source === 'manual') {
+  if (isUserEditableDeck(deck)) {
     return {
       enabled: true,
       reason: 'ลบ deck ที่ import เองออกจาก Local Library',
@@ -16,10 +16,7 @@ export function deleteAvailability(deck: Deck) {
 }
 
 export async function deleteUserDeck(deck: Deck) {
-  if (deck.source !== 'manual') return false;
-  const deleted = await deleteManualLibraryDeck(deck.id);
-  if (deleted && typeof window !== 'undefined') {
-    window.dispatchEvent(new Event(DECKS_IMPORTED_EVENT));
-  }
-  return deleted;
+  if (!isUserEditableDeck(deck)) return false;
+  const result = await deleteUserLibraryDeck(deck.id);
+  return result.ok;
 }

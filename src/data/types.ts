@@ -6,7 +6,7 @@
 
 export type JlptLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5';
 export type ContentType = 'vocab' | 'grammar' | 'kanji' | 'glossary';
-export type DeckSource = 'free' | 'entitlement' | 'manual';
+export type DeckSource = 'free' | 'entitlement' | 'manual' | 'custom';
 
 /** Core CSV row — exactly the 5 columns shipped to customers. */
 export interface CsvRow {
@@ -36,6 +36,11 @@ export interface Deck {
   pack: string;
   tags: string[];
   source: DeckSource;
+  userGroup?: string;
+  userSection?: string;
+  isUserContent?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 /** Shape of the build-generated free-tier.json. */

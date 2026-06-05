@@ -27,7 +27,7 @@ export type DownloadedZip = {
 };
 
 export type LibraryDeckRecord = Deck & {
-  source: 'entitlement' | 'manual';
+  source: 'entitlement' | 'manual' | 'custom';
   /** SKU that granted this deck, only for entitlement-backed content. */
   skuId?: string;
   importedAt: number;
@@ -36,7 +36,7 @@ export type LibraryDeckRecord = Deck & {
 export type LibraryEntriesRecord = {
   /** Pack id (matches PaidDeckRecord.pack). */
   pack: string;
-  source: 'entitlement' | 'manual';
+  source: 'entitlement' | 'manual' | 'custom';
   skuId?: string;
   rows: CsvRow[];
 };
@@ -140,11 +140,35 @@ export async function listLibraryDecks(): Promise<LibraryDeckRecord[]> {
   return d.paidDecks.toArray();
 }
 
+export async function getLibraryDeck(deckId: string): Promise<LibraryDeckRecord | undefined> {
+  const d = getDB();
+  if (!d) return undefined;
+  return d.paidDecks.get(deckId);
+}
+
+export async function putLibraryDeck(deck: LibraryDeckRecord): Promise<void> {
+  const d = getDB();
+  if (!d) return;
+  await d.paidDecks.put(deck);
+}
+
 export async function getLibraryEntries(pack: string): Promise<CsvRow[] | undefined> {
   const d = getDB();
   if (!d) return undefined;
   const rec = await d.paidEntries.get(pack);
   return rec?.rows;
+}
+
+export async function deleteLibraryDeckAndEntries(deckId: string): Promise<boolean> {
+  const d = getDB();
+  if (!d) return false;
+  const deck = await d.paidDecks.get(deckId);
+  if (!deck) return false;
+  await Promise.all([
+    d.paidDecks.delete(deckId),
+    d.paidEntries.delete(deck.pack),
+  ]);
+  return true;
 }
 
 export async function deleteManualLibraryDeck(deckId: string): Promise<boolean> {

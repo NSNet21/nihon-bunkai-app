@@ -36,4 +36,11 @@ describe('deleteAvailability', () => {
       reason: 'ลบ deck ที่ import เองออกจาก Local Library',
     });
   });
+
+  it('enables delete for custom user decks', () => {
+    expect(deleteAvailability({ ...baseDeck, id: 'custom-deck', isFree: false, source: 'custom' })).toEqual({
+      enabled: true,
+      reason: 'ลบ deck ที่ import เองออกจาก Local Library',
+    });
+  });
 });

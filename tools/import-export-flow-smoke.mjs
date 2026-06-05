@@ -7,6 +7,9 @@ const target = process.env.APP_URL || process.argv[2] || 'http://localhost:8097'
 const importedTerm = '輸入テスト';
 const importedDeckId = 'manual-self-imported-file';
 const importedDeckTitle = 'self imported file';
+const renamedDeckTitle = 'Manual Smoke Deck';
+const movedGroup = 'Manual Smoke Group';
+const movedSection = 'Regression';
 
 function urlFor(route) {
   return new URL(route, target).toString();
@@ -61,6 +64,13 @@ async function openLibraryActions(page) {
       { cause: error },
     );
   }
+}
+
+async function openDeckActions(page) {
+  const action = page.getByLabel('เปิด Deck Actions').first();
+  await action.waitFor({ state: 'visible', timeout: 15_000 });
+  await action.click();
+  await page.getByText('DECK ACTIONS', { exact: false }).first().waitFor({ timeout: 10_000 });
 }
 
 async function clickFirstVisible(locator) {
@@ -144,7 +154,14 @@ async function readLibraryDecks(page) {
     const entriesReq = tx.objectStore('paidEntries').getAll();
     const decks = await new Promise((resolve, reject) => {
       deckReq.onerror = () => reject(deckReq.error);
-      deckReq.onsuccess = () => resolve(deckReq.result.map((deck) => ({ id: deck.id, pack: deck.pack, title: deck.title, source: deck.source })));
+      deckReq.onsuccess = () => resolve(deckReq.result.map((deck) => ({
+        id: deck.id,
+        pack: deck.pack,
+        title: deck.title,
+        source: deck.source,
+        userGroup: deck.userGroup,
+        userSection: deck.userSection,
+      })));
     });
     const entries = await new Promise((resolve, reject) => {
       entriesReq.onerror = () => reject(entriesReq.error);
@@ -152,6 +169,26 @@ async function readLibraryDecks(page) {
     });
     return { decks, entries };
   }).catch((dbError) => [{ error: String(dbError) }]);
+}
+
+async function expectLibraryDeck(page, deckId, expected) {
+  const library = await readLibraryDecks(page);
+  const deck = library.decks?.find((item) => item.id === deckId);
+  if (!deck) throw new Error(`Expected library deck ${deckId}, got ${JSON.stringify(library)}`);
+  for (const [field, value] of Object.entries(expected)) {
+    if (deck[field] !== value) {
+      throw new Error(`Expected ${deckId}.${field} to be ${value}, got ${deck[field]}. Library: ${JSON.stringify(library)}`);
+    }
+  }
+}
+
+async function expectLibraryDeckDeleted(page, deckId) {
+  const library = await readLibraryDecks(page);
+  const deck = library.decks?.find((item) => item.id === deckId);
+  const entry = library.entries?.find((item) => item.pack === deckId);
+  if (deck || entry) {
+    throw new Error(`Expected deleted deck ${deckId} to be gone. Library: ${JSON.stringify(library)}`);
+  }
 }
 
 const tmp = await mkdtemp(path.join(tmpdir(), 'nihon-bunkai-import-export-'));
@@ -204,6 +241,19 @@ try {
   await page.goto(urlFor(`/deck/${importedDeckId}`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await waitForTextOrDump(page, importedDeckTitle, 'Deck hub title');
   await waitForTextOrDump(page, importedTerm, 'Deck hub sample');
+  await openDeckActions(page);
+  await page.getByText('User Content · แก้ metadata ได้', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByPlaceholder('ชื่อ deck').fill(renamedDeckTitle);
+  await page.getByPlaceholder('เช่น Manual imports').fill(movedGroup);
+  await page.getByPlaceholder('เช่น N2 / Week 1').fill(movedSection);
+  await page.getByLabel('บันทึก deck').click();
+  await page.getByText(renamedDeckTitle, { exact: false }).first().waitFor({ timeout: 15_000 });
+  await expectLibraryDeck(page, importedDeckId, {
+    title: renamedDeckTitle,
+    source: 'manual',
+    userGroup: movedGroup,
+    userSection: movedSection,
+  });
 
   await page.goto(urlFor(`/deck/${importedDeckId}/memorize`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 15_000 });
@@ -212,12 +262,13 @@ try {
   await page.getByText(importedTerm, { exact: false }).waitFor({ timeout: 15_000 });
 
   await page.goto(urlFor('/'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await ensureBrowseDeckVisible(page, renamedDeckTitle);
   await openLibraryActions(page);
   await clickText(page, 'Export one deck');
   await page.getByText('เลือก deck ที่จะ export', { exact: false }).waitFor({ timeout: 15_000 });
   await waitForTextOrDump(page, 'Groups only', 'Single export hierarchy controls');
   const csvDownloadPromise = page.waitForEvent('download');
-  await clickLastText(page, importedDeckTitle);
+  await clickLastText(page, renamedDeckTitle);
   const csvDownload = await waitForDownloadOrDump(page, csvDownloadPromise, 'CSV export');
   const csvFileName = csvDownload.suggestedFilename();
   if (!csvFileName.endsWith('.csv')) throw new Error(`Expected CSV download, got ${csvFileName}`);
@@ -227,7 +278,7 @@ try {
   await clickText(page, 'Batch export');
   await page.getByText('Batch export', { exact: false }).last().waitFor({ timeout: 15_000 });
   await waitForTextOrDump(page, 'Groups only', 'Batch export hierarchy controls');
-  await clickLastText(page, importedDeckTitle);
+  await clickLastText(page, renamedDeckTitle);
   await waitForTextOrDump(page, 'Batch export · 1/', 'Batch export partial selection');
   const zipDownloadPromise = page.waitForEvent('download');
   await clickText(page, 'Export ZIP');
@@ -235,9 +286,23 @@ try {
   const zipFileName = zipDownload.suggestedFilename();
   if (!zipFileName.endsWith('.zip')) throw new Error(`Expected ZIP download, got ${zipFileName}`);
 
+  await page.goto(urlFor(`/deck/${importedDeckId}`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await waitForTextOrDump(page, renamedDeckTitle, 'Renamed deck title before delete');
+  await openDeckActions(page);
+  await page.getByLabel('ลบ deck').click();
+  await page.getByText('กดลบอีกครั้งเพื่อยืนยัน', { exact: false }).waitFor({ timeout: 10_000 });
+  await page.getByLabel('ลบ deck').click();
+  await page.waitForURL(urlFor('/'), { timeout: 15_000 }).catch(async () => {
+    await page.getByText('Library', { exact: false }).first().waitFor({ timeout: 10_000 });
+  });
+  await expectLibraryDeckDeleted(page, importedDeckId);
+
   const result = {
     target,
     importedDeckTitle,
+    renamedDeckTitle,
+    movedGroup,
+    movedSection,
     csvFileName,
     zipFileName,
     warningCount: warnings.length,

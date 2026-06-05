@@ -38,3 +38,16 @@ export function buildStudySessionEntries(entries: Entry[], config: SessionConfig
   if (config.count === 'all') return ordered;
   return ordered.slice(0, config.count);
 }
+
+export function buildReshuffledStudySessionEntries(
+  entries: Entry[],
+  config: SessionConfig,
+  seed: string,
+  iteration: number,
+) {
+  return buildStudySessionEntries(
+    entries,
+    { ...config, order: 'shuffle' },
+    `${seed}:reshuffle:${iteration}`,
+  );
+}

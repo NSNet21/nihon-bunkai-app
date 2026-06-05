@@ -7,12 +7,13 @@ import { freeDeckParams } from '@/data/static-params';
 export function generateStaticParams() {
   return freeDeckParams();
 }
-import { FiChevronLeft, FiChevronRight, FiHome, FiSettings, FiSliders } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiHome, FiSettings, FiShuffle, FiSliders } from 'react-icons/fi';
 import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,7 +50,7 @@ import {
   sanitizeStudyModeConfig,
   studyModeConfigKey,
 } from '@/lib/study-mode-config';
-import { buildStudySessionEntries } from '@/lib/study-session';
+import { buildReshuffledStudySessionEntries, buildStudySessionEntries } from '@/lib/study-session';
 import {
   CARD_VISIBILITY_STORAGE_KEY,
   DEFAULT_CARD_VISIBILITY,
@@ -77,6 +78,7 @@ export default function StudyScreen() {
   const { decks: allDecks } = useAllDecks();
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
+  const shuffleIterationRef = useRef(0);
   const [flashcardConfig] = usePersistedState(
     studyModeConfigKey('flashcard'),
     DEFAULT_STUDY_MODE_CONFIGS.flashcard,
@@ -139,8 +141,8 @@ export default function StudyScreen() {
       const nextRows = entryId
         ? rows
         : sessionCount
-          ? rows.slice(0, sessionCount)
-          : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
+            ? rows.slice(0, sessionCount)
+            : buildStudySessionEntries(rows, safeFlashcardConfig, `${deckId}:flashcard`);
       setEntries(nextRows);
       // Jump to entryId if provided (from Search tap-through OR Continue card
       // restoring a prior session). If the entry no longer exists in this
@@ -198,6 +200,14 @@ export default function StudyScreen() {
   const isComplete = entries.length > 0 && index >= entries.length;
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
+  const canShuffleSession = !entryId && entries.length > 1 && results.length === 0;
+  const shufflePulse = useSharedValue(0);
+  const shuffleCardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: shufflePulse.value > 0.5 ? -3 : shufflePulse.value > 0 ? 3 : 0 },
+      { scale: shufflePulse.value > 0 ? 0.992 : 1 },
+    ],
+  }));
 
   /* Persist study position so Browse can offer "Continue · {deck} · {idx}/{total}".
      Bail when there's no real entry (loading / empty / past-end / no deck). */
@@ -272,6 +282,33 @@ export default function StudyScreen() {
     if (!canNext) return;
     setIsFlipped(false);
     setIndex((i) => i + 1);
+  }
+
+  function handleShuffleSession() {
+    if (!canShuffleSession) {
+      if (results.length > 0) {
+        showToast('Shuffle ได้ก่อนให้คะแนนรอบนี้', { kind: 'info' });
+      }
+      return;
+    }
+    if (!deckId) return;
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
+    setIsFlipped(false);
+    setIndex(0);
+    setResults([]);
+    shuffleIterationRef.current += 1;
+    setEntries((rows) => buildReshuffledStudySessionEntries(
+      rows,
+      { count: 'all', order: 'normal' },
+      `${deckId}:flashcard`,
+      shuffleIterationRef.current,
+    ));
+    shufflePulse.value = 0;
+    shufflePulse.value = withSequence(
+      withTiming(1, { duration: 80 }),
+      withTiming(0, { duration: 180 }),
+    );
   }
 
   function handleRestart() {
@@ -379,6 +416,19 @@ export default function StudyScreen() {
                   <ThemedText type="small" themeColor="textSecondary">
                     {index + 1} / {entries.length}
                   </ThemedText>
+                  <Pressable
+                    onPress={handleShuffleSession}
+                    disabled={!canShuffleSession && results.length === 0}
+                    accessibilityRole="button"
+                    accessibilityLabel="สลับลำดับรอบเรียนนี้"
+                    style={({ pressed }) => [
+                      styles.headerConfigBtn,
+                      { borderColor: colors.border, backgroundColor: colors.background },
+                      pressed && { opacity: 0.7 },
+                      !canShuffleSession && results.length === 0 && { opacity: 0.35 },
+                    ]}>
+                    <FiShuffle size={16} color={colors.text} strokeWidth={2} />
+                  </Pressable>
                   {showMobileHome ? (
                     <Pressable
                       onPress={() => router.push('/' as never)}
@@ -430,7 +480,7 @@ export default function StudyScreen() {
                     iconSize={railIcon}
                   />
                 )}
-                <View style={styles.cardSlot}>
+                <Animated.View style={[styles.cardSlot, shuffleCardStyle]}>
                   <Flashcard
                     entry={current}
                     isFlipped={isFlipped}
@@ -476,7 +526,7 @@ export default function StudyScreen() {
                       isDark={scheme === 'dark'}
                     />
                   )}
-                </View>
+                </Animated.View>
                 {!overlayRails && (
                   <SideRail
                     direction="right"

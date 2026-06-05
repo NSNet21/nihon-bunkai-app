@@ -22,9 +22,9 @@ export function generateStaticParams() {
   return freeDeckParams();
 }
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiSliders } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiEye, FiEyeOff, FiShuffle, FiSliders } from 'react-icons/fi';
 import Markdown from 'react-native-markdown-display';
-import { useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,7 +48,7 @@ import {
   studyModeConfigKey,
   type StudyModeConfig,
 } from '@/lib/study-mode-config';
-import { buildStudySessionEntries } from '@/lib/study-session';
+import { buildReshuffledStudySessionEntries, buildStudySessionEntries } from '@/lib/study-session';
 
 export default function MemorizeScreen() {
   const { deckId, entryId, ids } = useLocalSearchParams<{ deckId?: string; entryId?: string; ids?: string }>();
@@ -86,6 +86,7 @@ export default function MemorizeScreen() {
   const deck = deckId ? allDecks.find((d) => d.id === deckId) : undefined;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [index, setIndex] = useState(0);
+  const shuffleIterationRef = useRef(0);
   const [flashcardConfig] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('flashcard'),
     DEFAULT_STUDY_MODE_CONFIGS.flashcard,
@@ -207,6 +208,33 @@ export default function MemorizeScreen() {
     if (canNext) setIndex((i) => i + 1);
   }
 
+  const shufflePulse = useSharedValue(0);
+  const shuffleCardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: shufflePulse.value > 0.5 ? -3 : shufflePulse.value > 0 ? 3 : 0 },
+      { scale: shufflePulse.value > 0 ? 0.992 : 1 },
+    ],
+  }));
+
+  const canShuffleSession = !entryId && !isGroupMode && entries.length > 1;
+  function handleShuffleSession() {
+    if (!canShuffleSession || !deckId) return;
+    setShowAnswer(true);
+    setIndex(0);
+    shuffleIterationRef.current += 1;
+    setEntries((rows) => buildReshuffledStudySessionEntries(
+      rows,
+      { count: 'all', order: 'normal' },
+      `${deckId}:flashcard`,
+      shuffleIterationRef.current,
+    ));
+    shufflePulse.value = 0;
+    shufflePulse.value = withSequence(
+      withTiming(1, { duration: 80 }),
+      withTiming(0, { duration: 180 }),
+    );
+  }
+
   /* JS-thread refs mirrored into shared values so the gesture worklet
      can read can-prev/can-next without triggering Pan rebuild. */
   const canPrevSV = useSharedValue(canPrev);
@@ -253,6 +281,7 @@ export default function MemorizeScreen() {
      RNGH's tap arena on its own). */
   const railTapPrev = useMemo(() => Gesture.Tap().maxDistance(10), []);
   const railTapNext = useMemo(() => Gesture.Tap().maxDistance(10), []);
+  const shuffleTap = useMemo(() => Gesture.Tap().maxDistance(10), []);
   /* Sliders config button — own Tap gesture so its hit zone wins the
      RNGH arena over `tapToggle` (which would otherwise also fire
      show/hide on the same touch). Mirrors the speaker / rail pattern. */
@@ -265,7 +294,7 @@ export default function MemorizeScreen() {
   );
   const tapToggle = Gesture.Tap()
     .maxDistance(10)
-    .requireExternalGestureToFail(speakerTapHero, speakerTapReading, railTapPrev, railTapNext, configTap)
+    .requireExternalGestureToFail(speakerTapHero, speakerTapReading, railTapPrev, railTapNext, configTap, shuffleTap)
     .onEnd((_e, success) => {
       if (!success) return;
       scheduleOnRN(toggleAnswer);
@@ -317,11 +346,12 @@ export default function MemorizeScreen() {
               />
             )}
           <GestureDetector gesture={cardGesture}>
-            <View
+            <Animated.View
               accessibilityRole="none"
               accessibilityLabel={showAnswer ? 'แตะเพื่อซ่อนคำตอบ' : 'แตะเพื่อแสดงคำตอบ'}
               style={[
                 styles.card,
+                shuffleCardStyle,
                 { borderColor: colors.border, backgroundColor: colors.backgroundElement },
               ]}>
             <View style={[styles.cardStripe, { backgroundColor: Accent.base }]} />
@@ -380,6 +410,23 @@ export default function MemorizeScreen() {
                   pressed && { opacity: 0.7 },
                 ]}>
                 <FiSliders size={16} color={colors.text} strokeWidth={2} />
+              </Pressable>
+            </GestureDetector>
+
+            <GestureDetector gesture={shuffleTap}>
+              <Pressable
+                onPress={handleShuffleSession}
+                disabled={!canShuffleSession}
+                accessibilityRole="button"
+                accessibilityLabel="สลับลำดับรอบเรียนนี้"
+                style={({ pressed }) => [
+                  styles.shuffleBtnFloat,
+                  { right: (hasScrollbar ? (compact ? 12 : 22) : 10) + 42 },
+                  { borderColor: colors.border, backgroundColor: colors.background },
+                  pressed && { opacity: 0.7 },
+                  !canShuffleSession && { opacity: 0.35 },
+                ]}>
+                <FiShuffle size={15} color={colors.text} strokeWidth={2} />
               </Pressable>
             </GestureDetector>
 
@@ -540,7 +587,7 @@ export default function MemorizeScreen() {
                 </View>
               </GestureDetector>
             )}
-            </View>
+            </Animated.View>
           </GestureDetector>
             {!compact && (
               <SideRailBtn
@@ -753,6 +800,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 22,
+    width: 32,
+    height: 32,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  shuffleBtnFloat: {
+    position: 'absolute',
+    top: 8,
     width: 32,
     height: 32,
     borderWidth: 1,

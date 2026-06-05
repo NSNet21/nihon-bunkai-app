@@ -57,6 +57,53 @@ async function firstCardText(route) {
   }
 }
 
+async function manualShuffleFirstCardText(route, extractFirstTerm) {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 446, height: 628 } });
+  const warnings = [];
+  const errors = [];
+
+  page.on('console', (message) => {
+    if (message.type() === 'warning') warnings.push(message.text());
+    if (message.type() === 'error') errors.push(message.text());
+  });
+
+  await page.addInitScript(() => {
+    localStorage.setItem('nb.onboarded', 'true');
+  });
+
+  try {
+    const beforeText = await loadCardText(page, route);
+    const beforeTerm = extractFirstTerm(beforeText);
+    const button = page.getByLabel('สลับลำดับรอบเรียนนี้').first();
+    await button.waitFor({ state: 'visible', timeout: 15_000 });
+    await button.click({ timeout: 10_000 });
+    await page.waitForFunction(
+      ({ before, kind }) => {
+        const lines = document.body.innerText.split('\n').map((line) => line.trim()).filter(Boolean);
+        if (kind === 'quiz') {
+          const cardIndex = lines.findIndex((line) => /^CARD 01\b/.test(line));
+          return cardIndex >= 0 && lines[cardIndex + 1] && lines[cardIndex + 1] !== before;
+        }
+        const fieldsIndex = lines.findIndex((line) => line === 'VISIBLE FIELDS');
+        return fieldsIndex >= 0 && lines[fieldsIndex + 1] && lines[fieldsIndex + 1] !== before;
+      },
+      { before: beforeTerm, kind: route.includes('/quiz') ? 'quiz' : 'memorize' },
+      { timeout: 15_000 },
+    );
+    const afterText = await page.locator('body').innerText({ timeout: 10_000 });
+    return {
+      beforeTerm,
+      afterTerm: extractFirstTerm(afterText),
+      text: afterText,
+      warnings,
+      errors,
+    };
+  } finally {
+    await browser.close();
+  }
+}
+
 const normalBrowser = await chromium.launch({ headless: true });
 const normalPage = await normalBrowser.newPage({ viewport: { width: 446, height: 628 } });
 await normalPage.addInitScript(() => {
@@ -67,6 +114,8 @@ await normalBrowser.close();
 
 const quiz = await firstCardText(`/deck/${deckId}/quiz`);
 const memorize = await firstCardText(`/deck/${deckId}/memorize`);
+const quizManual = await manualShuffleFirstCardText(`/deck/${deckId}/quiz`, quizFirstTerm);
+const memorizeManual = await manualShuffleFirstCardText(`/deck/${deckId}/memorize`, memorizeFirstTerm);
 const normalFirstTerm = quizFirstTerm(normalText);
 const quizFirstTermValue = quizFirstTerm(quiz.text);
 const memorizeFirstTermValue = memorizeFirstTerm(memorize.text);
@@ -83,10 +132,16 @@ const result = {
   quizUsesShuffle: quizFirstTermValue !== normalFirstTerm,
   memorizeUsesShuffle: memorizeFirstTermValue !== normalFirstTerm,
   quizAndMemorizeUseSameFirstTerm: quizFirstTermValue === memorizeFirstTermValue,
-  warningCount: quiz.warnings.length + memorize.warnings.length,
-  errorCount: quiz.errors.length + memorize.errors.length,
-  warnings: [...quiz.warnings, ...memorize.warnings].slice(0, 8),
-  errors: [...quiz.errors, ...memorize.errors].slice(0, 8),
+  quizManualBeforeTerm: quizManual.beforeTerm,
+  quizManualAfterTerm: quizManual.afterTerm,
+  memorizeManualBeforeTerm: memorizeManual.beforeTerm,
+  memorizeManualAfterTerm: memorizeManual.afterTerm,
+  quizManualShuffleWorked: quizManual.beforeTerm !== quizManual.afterTerm,
+  memorizeManualShuffleWorked: memorizeManual.beforeTerm !== memorizeManual.afterTerm,
+  warningCount: quiz.warnings.length + memorize.warnings.length + quizManual.warnings.length + memorizeManual.warnings.length,
+  errorCount: quiz.errors.length + memorize.errors.length + quizManual.errors.length + memorizeManual.errors.length,
+  warnings: [...quiz.warnings, ...memorize.warnings, ...quizManual.warnings, ...memorizeManual.warnings].slice(0, 8),
+  errors: [...quiz.errors, ...memorize.errors, ...quizManual.errors, ...memorizeManual.errors].slice(0, 8),
 };
 
 console.log(JSON.stringify(result, null, 2));
@@ -99,6 +154,12 @@ if (!result.memorizeUsesShuffle) {
 }
 if (!result.quizAndMemorizeUseSameFirstTerm) {
   throw new Error('Quiz and Memorize did not use the same flashcard shuffle order');
+}
+if (!result.quizManualShuffleWorked) {
+  throw new Error('Quiz manual shuffle button did not change the first card');
+}
+if (!result.memorizeManualShuffleWorked) {
+  throw new Error('Memorize manual shuffle button did not change the first card');
 }
 if (result.errorCount > 0) {
   throw new Error('Console errors detected during shuffle session smoke');

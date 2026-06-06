@@ -68,6 +68,7 @@
     "smoke:term-card": "node tools/term-card-regression-smoke.mjs",
     "smoke:deck-route": "node tools/deck-route-regression-smoke.mjs",
     "smoke:shuffle-session": "node tools/shuffle-session-smoke.mjs",
+    "smoke:study-mode-fsrs": "node tools/study-mode-fsrs-smoke.mjs",
     "smoke:import-export": "node tools/import-export-flow-smoke.mjs"
   },
   "private": true

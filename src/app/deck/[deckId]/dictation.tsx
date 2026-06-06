@@ -1,5 +1,5 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { FiChevronLeft, FiHome, FiRefreshCw, FiSettings } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing, RateColors } from '@/constants/theme';
+import { useAuth } from '@/context/auth';
 import { useThemeColors } from '@/context/theme';
 import type { Entry } from '@/data/types';
 import { freeDeckParams } from '@/data/static-params';
@@ -16,6 +17,11 @@ import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { checkDictationAnswer } from '@/lib/dictation';
 import { studyFallbackHref } from '@/lib/navigation-back';
+import {
+  applyStudyModeRating,
+  ratingFromCorrectness,
+  recordCompletedStudySession,
+} from '@/lib/study-session-results';
 import {
   DEFAULT_STUDY_MODE_CONFIGS,
   deriveStudyFields,
@@ -38,6 +44,7 @@ export default function DictationScreen() {
   const rateColors = RateColors[scheme];
   const backFallbackHref = studyFallbackHref(deckId);
   const showMobileHome = viewportW < 768;
+  const { user } = useAuth();
 
   const { deck, routeState: deckRouteState } = useDeckRouteDeck(deckId);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -47,6 +54,11 @@ export default function DictationScreen() {
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
+  const [results, setResults] = useState<ReturnType<typeof ratingFromCorrectness>[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartedAtRef = useRef<number | null>(null);
+  const sessionLoggedRef = useRef(false);
+  const answerLockedRef = useRef(false);
 
   const [config] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('dictation'),
@@ -61,6 +73,11 @@ export default function DictationScreen() {
     setSubmitted(false);
     setIsCorrect(false);
     setCorrectCount(0);
+    setResults([]);
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
+    sessionLoggedRef.current = false;
+    answerLockedRef.current = false;
 
     let cancelled = false;
     if (!deckId) {
@@ -85,15 +102,29 @@ export default function DictationScreen() {
   const expectedAnswer = current ? valueForField(current, fields.answerField).trim() : '';
   const isComplete = entries.length > 0 && index >= entries.length;
 
-  function handleSubmit() {
-    if (!current || submitted || !answer.trim()) return;
+  async function handleSubmit() {
+    if (!current || !deck || submitted || answerLockedRef.current || !answer.trim()) return;
+    answerLockedRef.current = true;
     const correct = checkDictationAnswer(answer, expectedAnswer);
+    const rating = ratingFromCorrectness(correct);
+    if (sessionIdRef.current === null) {
+      sessionIdRef.current = crypto.randomUUID();
+      sessionStartedAtRef.current = Date.now();
+    }
+    await applyStudyModeRating({
+      deckId: deck.id,
+      entryNo: current.no,
+      rating,
+      userId: user?.id,
+    });
     setSubmitted(true);
     setIsCorrect(correct);
+    setResults((prev) => [...prev, rating]);
     if (correct) setCorrectCount((count) => count + 1);
   }
 
   function handleNext() {
+    answerLockedRef.current = false;
     setAnswer('');
     setSubmitted(false);
     setIsCorrect(false);
@@ -101,12 +132,39 @@ export default function DictationScreen() {
   }
 
   function handleRestart() {
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
+    sessionLoggedRef.current = false;
+    answerLockedRef.current = false;
     setIndex(0);
     setAnswer('');
     setSubmitted(false);
     setIsCorrect(false);
     setCorrectCount(0);
+    setResults([]);
   }
+
+  useEffect(() => {
+    if (
+      !isComplete ||
+      !deck ||
+      sessionIdRef.current === null ||
+      sessionStartedAtRef.current === null ||
+      sessionLoggedRef.current
+    ) {
+      return;
+    }
+    sessionLoggedRef.current = true;
+    void recordCompletedStudySession({
+      sessionId: sessionIdRef.current,
+      deck,
+      totalCards: entries.length,
+      ratings: results,
+      startedAt: sessionStartedAtRef.current,
+      userId: user?.id,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isComplete]);
 
   if (!deckId || deckRouteState !== 'ready' || entriesLoading) {
     const isLoading = deckRouteState === 'loading' || entriesLoading;

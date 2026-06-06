@@ -1,5 +1,5 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiCheck, FiChevronLeft, FiHome, FiRefreshCw, FiSettings, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { Accent, Colors, MaxContentWidth, Radii, Spacing, RateColors } from '@/constants/theme';
 import { useThemeColors } from '@/context/theme';
+import { useAuth } from '@/context/auth';
 import type { Entry } from '@/data/types';
 import { freeDeckParams } from '@/data/static-params';
 import { entriesForDeckAsync } from '@/hooks/use-decks';
@@ -21,6 +22,11 @@ import {
   type MultipleChoiceAttempt,
 } from '@/lib/multiple-choice';
 import { studyFallbackHref } from '@/lib/navigation-back';
+import {
+  applyStudyModeRating,
+  ratingFromCorrectness,
+  recordCompletedStudySession,
+} from '@/lib/study-session-results';
 import {
   DEFAULT_STUDY_MODE_CONFIGS,
   deriveStudyFields,
@@ -43,6 +49,7 @@ export default function MultipleChoiceScreen() {
   const rateColors = RateColors[scheme];
   const backFallbackHref = studyFallbackHref(deckId);
   const showMobileHome = viewportW < 768;
+  const { user } = useAuth();
 
   const { deck, routeState: deckRouteState } = useDeckRouteDeck(deckId);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -50,6 +57,11 @@ export default function MultipleChoiceScreen() {
   const [index, setIndex] = useState(0);
   const [attempt, setAttempt] = useState<MultipleChoiceAttempt | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
+  const [results, setResults] = useState<ReturnType<typeof ratingFromCorrectness>[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartedAtRef = useRef<number | null>(null);
+  const sessionLoggedRef = useRef(false);
+  const answerLockedRef = useRef(false);
 
   const [config] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('multiple-choice'),
@@ -62,6 +74,11 @@ export default function MultipleChoiceScreen() {
     setIndex(0);
     setAttempt(null);
     setCorrectCount(0);
+    setResults([]);
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
+    sessionLoggedRef.current = false;
+    answerLockedRef.current = false;
 
     let cancelled = false;
     if (!deckId) {
@@ -89,25 +106,66 @@ export default function MultipleChoiceScreen() {
     return buildMultipleChoiceQuestion(current, entries, safeConfig.goal);
   }, [current, entries, safeConfig.goal]);
 
-  function handleChoice(choice: string) {
-    if (!question || attempt) return;
+  async function handleChoice(choice: string) {
+    if (!question || !current || !deck || attempt || answerLockedRef.current) return;
+    answerLockedRef.current = true;
     const result = gradeMultipleChoiceAttempt(choice, question.correct);
+    const rating = ratingFromCorrectness(result.isCorrect);
+    if (sessionIdRef.current === null) {
+      sessionIdRef.current = crypto.randomUUID();
+      sessionStartedAtRef.current = Date.now();
+    }
+    await applyStudyModeRating({
+      deckId: deck.id,
+      entryNo: current.no,
+      rating,
+      userId: user?.id,
+    });
     setAttempt(result);
+    setResults((prev) => [...prev, rating]);
     if (result.isCorrect) {
       setCorrectCount((count) => count + 1);
     }
   }
 
   function handleNext() {
+    answerLockedRef.current = false;
     setAttempt(null);
     setIndex((value) => value + 1);
   }
 
   function handleRestart() {
+    sessionIdRef.current = null;
+    sessionStartedAtRef.current = null;
+    sessionLoggedRef.current = false;
+    answerLockedRef.current = false;
     setIndex(0);
     setAttempt(null);
     setCorrectCount(0);
+    setResults([]);
   }
+
+  useEffect(() => {
+    if (
+      !isComplete ||
+      !deck ||
+      sessionIdRef.current === null ||
+      sessionStartedAtRef.current === null ||
+      sessionLoggedRef.current
+    ) {
+      return;
+    }
+    sessionLoggedRef.current = true;
+    void recordCompletedStudySession({
+      sessionId: sessionIdRef.current,
+      deck,
+      totalCards: entries.length,
+      ratings: results,
+      startedAt: sessionStartedAtRef.current,
+      userId: user?.id,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isComplete]);
 
   if (!deckId || deckRouteState !== 'ready' || entriesLoading) {
     const isLoading = deckRouteState === 'loading' || entriesLoading;

@@ -48,6 +48,7 @@ import {
   type BrowseRow,
 } from '@/lib/browse-group-search';
 import { getDeckReviewCandidate, type DeckReviewCandidate } from '@/lib/deck-progress';
+import { shouldShowFlashcardContinue } from '@/lib/continue-route';
 import {
   deleteUserLibraryGroup,
   deleteUserLibrarySection,
@@ -123,6 +124,11 @@ export default function BrowseScreen() {
     typeof lastSessionLearn.total === 'number' &&
     lastSessionLearn.index < lastSessionLearn.total - 1;
   const showReviewContinue = !!reviewCandidate;
+  const showFlashcardContinue = shouldShowFlashcardContinue({
+    hasFlashcardSession: showContinue,
+    hasReviewCandidate: showReviewContinue,
+  });
+  const showAnyContinue = showContinueLearn || showFlashcardContinue || showReviewContinue;
 
   useFocusEffect(
     useCallback(() => {
@@ -303,17 +309,20 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {librarySubtitle}
               </ThemedText>
-              {/* Parent kicker for the Continue cards — without it, the
-                  two FLASHCARD/LEARN CONTINUE labels read as orphans. GPT
-                  polish round 2026-05-27. Renders only when at least one
-                  Continue card is showing, so the kicker never appears
-                  empty. */}
-              {(showContinue || showContinueLearn || showReviewContinue) && (
+              {/* Continue cluster header — gives Learn/Review resume cards
+                  the same section rhythm as Library, while keeping the old
+                  Flashcard resume hidden when a due-review CTA is available. */}
+              {showAnyContinue && (
                 <View style={styles.continueGroupHead}>
                   <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
-                  <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
-                    // CONTINUE · เรียนต่อ
-                  </ThemedText>
+                  <View style={styles.continueTitleStack}>
+                    <ThemedText type="defaultSemiBold" style={[styles.continueTitle, { color: Accent.base }]}>
+                      เรียนต่อ
+                    </ThemedText>
+                    <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
+                      // CONTINUE · session / review
+                    </ThemedText>
+                  </View>
                 </View>
               )}
               {/* LEARN above QUIZ — passive review usually precedes active
@@ -321,7 +330,7 @@ export default function BrowseScreen() {
               {showContinueLearn && lastSessionLearn && (
                 <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
               )}
-              {showContinue && lastSession && (
+              {showFlashcardContinue && lastSession && (
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
               {showReviewContinue && reviewCandidate && (
@@ -1517,18 +1526,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     alignItems: 'center',
   },
-  /* Continue group head — kicker that gives parent meaning to the 2
-     FLASHCARD/LEARN Continue cards. Mirrors the Hub TEST section pip+mono
-     pattern for consistency. */
+  /* Continue group head — section title matching Library rhythm. */
   continueGroupHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.three,
     /* Section transition into Continue cluster — slightly larger than
        headerWrap.gap (8) so the kicker reads as section divider. */
     marginTop: Spacing.three,
   },
-  continuePip: { width: 5, height: 5 },
+  continuePip: { width: 18, height: 2 },
+  continueTitleStack: {
+    gap: 3,
+  },
+  continueTitle: {
+    fontSize: 22,
+    letterSpacing: 1.3,
+  },
   continueKicker: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
     fontSize: 9,

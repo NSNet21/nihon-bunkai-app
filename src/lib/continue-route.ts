@@ -13,3 +13,13 @@ export function continueRouteHref(lastSession: LastSession, mode: ContinueMode) 
 export function continueModeBadge(mode: ContinueMode) {
   return mode === 'learn' ? 'LEARN' : 'FLASHCARD';
 }
+
+export function shouldShowFlashcardContinue({
+  hasFlashcardSession,
+  hasReviewCandidate,
+}: {
+  hasFlashcardSession: boolean;
+  hasReviewCandidate: boolean;
+}) {
+  return hasFlashcardSession && !hasReviewCandidate;
+}

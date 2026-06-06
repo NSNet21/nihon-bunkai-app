@@ -7,7 +7,7 @@
 
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { FiActivity, FiBookOpen, FiCalendar, FiChevronLeft, FiChevronRight, FiClock, FiMoreVertical, FiPlus, FiSearch } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,6 +25,16 @@ import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { filterDeckEntries } from '@/lib/deck-term-search';
 import { getDeckProgressSummary, type DeckProgressSummary } from '@/lib/deck-progress';
 import { isUserEditableDeck } from '@/lib/user-content';
+
+const searchFocusShadow = Platform.select({
+  web: { boxShadow: '0 0 0 2px rgba(224, 32, 44, 0.14)' } as unknown as ViewStyle,
+  default: {
+    shadowColor: Accent.base,
+    shadowOpacity: 0.16,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+}) as ViewStyle;
 
 /* Pre-render this route for every free deck so direct URL access
    (cold load, bookmark, share-link) gets the correct static HTML
@@ -45,6 +55,7 @@ export default function DeckTermListScreen() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [entriesLoading, setEntriesLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [deckActionsOpen, setDeckActionsOpen] = useState(false);
   const [addTermOpen, setAddTermOpen] = useState(false);
   const [progress, setProgress] = useState<DeckProgressSummary | null>(null);
@@ -225,11 +236,21 @@ export default function DeckTermListScreen() {
             ) : null}
           </View>
 
-          <View style={[styles.searchBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
-            <FiSearch size={17} color={query ? Accent.base : colors.textHint} strokeWidth={2} />
+          <View
+            style={[
+              styles.searchBox,
+              {
+                borderColor: searchFocused ? Accent.base : colors.border,
+                backgroundColor: searchFocused ? colors.backgroundElement : colors.background,
+              },
+              searchFocused && searchFocusShadow,
+            ]}>
+            <FiSearch size={17} color={query || searchFocused ? Accent.base : colors.textHint} strokeWidth={2} />
             <TextInput
               value={query}
               onChangeText={setQuery}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               placeholder="ค้นหาใน deck นี้"
               placeholderTextColor={colors.textHint}
               autoCapitalize="none"

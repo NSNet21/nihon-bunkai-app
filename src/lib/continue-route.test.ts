@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { continueModeBadge, continueRouteHref } from './continue-route';
+import { continueModeBadge, continueRouteHref, shouldShowFlashcardContinue } from './continue-route';
 import type { LastSession } from './last-session';
 
 const session: LastSession = {
@@ -29,5 +29,34 @@ describe('continueModeBadge', () => {
 
   it('keeps Learn continue as the term preview resume entry', () => {
     expect(continueModeBadge('learn')).toBe('LEARN');
+  });
+});
+
+describe('shouldShowFlashcardContinue', () => {
+  it('shows Flashcard Continue when no due Review card is competing for the same cluster', () => {
+    expect(
+      shouldShowFlashcardContinue({
+        hasFlashcardSession: true,
+        hasReviewCandidate: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('hides Flashcard Continue when Review Continue is available', () => {
+    expect(
+      shouldShowFlashcardContinue({
+        hasFlashcardSession: true,
+        hasReviewCandidate: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('stays hidden when there is no Flashcard session', () => {
+    expect(
+      shouldShowFlashcardContinue({
+        hasFlashcardSession: false,
+        hasReviewCandidate: true,
+      }),
+    ).toBe(false);
   });
 });

@@ -96,9 +96,35 @@ export function normalizeImportDestination(value: Partial<ImportDestinationValue
   return { group, section };
 }
 
+export function filterImportDestinationGroups(
+  groups: readonly ImportDestinationGroupOption[],
+  query: string,
+): ImportDestinationGroupOption[] {
+  const normalizedQuery = normalizeSearch(query);
+  if (!normalizedQuery) return [...groups];
+  return groups.filter((group) => matchesSearch(group.label, normalizedQuery));
+}
+
+export function filterImportDestinationSections(
+  group: ImportDestinationGroupOption,
+  query: string,
+): ImportDestinationSectionOption[] {
+  const normalizedQuery = normalizeSearch(query);
+  if (!normalizedQuery) return [...group.sections];
+  return group.sections.filter((section) => matchesSearch(section.label, normalizedQuery));
+}
+
 function clean(value: string | null | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function matchesSearch(label: string, normalizedQuery: string): boolean {
+  return label.toLowerCase().includes(normalizedQuery);
 }
 
 function slug(value: string): string {

@@ -6,7 +6,6 @@ import {
   FiChevronDown,
   FiChevronsDown,
   FiChevronsUp,
-  FiLayers,
   FiLock,
   FiMinusSquare,
   FiPlusSquare,
@@ -260,32 +259,8 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {librarySubtitle}
               </ThemedText>
-              {/* Multi-deck Study entry — utility row treatment per GPT
-                  round-3 verdict ("pill ควรเป็น tool/action ไม่ใช่
-                  content card"). Thin border on top only + tighter
-                  padding + stronger arrow distinguishes it from the
-                  Continue cards below. */}
-              <PressableScale
-                onPress={() => router.push('/group-picker')}
-                accessibilityRole="button"
-                accessibilityLabel="รวมหลาย pack เป็น session เดียว"
-                style={[
-                  styles.groupPickerEntry,
-                  { borderTopColor: colors.border, borderBottomColor: colors.border },
-                ]}>
-                <FiLayers size={13} color={Accent.base} strokeWidth={2} />
-                <View style={{ flex: 1 }}>
-                  <ThemedText style={[styles.groupPickerLabel, { color: Accent.base }]}>
-                    GROUP STUDY
-                  </ThemedText>
-                  <ThemedText style={[styles.groupPickerSub, { color: colors.textMuted }]}>
-                    รวมหลาย pack เป็น session เดียว
-                  </ThemedText>
-                </View>
-                <ThemedText style={[styles.groupPickerArrow, { color: Accent.base }]}>→</ThemedText>
-              </PressableScale>
               {/* Parent kicker for the Continue cards — without it, the
-                  two QUIZ/LEARN CONTINUE labels read as orphans. GPT
+                  two FLASHCARD/LEARN CONTINUE labels read as orphans. GPT
                   polish round 2026-05-27. Renders only when at least one
                   Continue card is showing, so the kicker never appears
                   empty. */}
@@ -901,39 +876,6 @@ const styles = StyleSheet.create({
     /* No extra marginTop — headerWrap.gap (8) handles it. Keeping the
        4px boost made subtitle drift away from the headline. */
   },
-  /* Multi-deck Study utility row — sits between hero sub and the Continue
-     cluster. Top + bottom hairline borders (no left/right) keep it
-     reading as a divider-style action row rather than a content card,
-     per GPT round-3 verdict. */
-  groupPickerEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    /* Round-5 P0 thinner utility strip — GPT round-4 still flagged this
-       as "heavy enough to compete with Continue cards". Drop padding to
-       6 + remove sub marginTop = single visual band, reads as command
-       hint instead of card. */
-    paddingVertical: 6,
-    paddingHorizontal: Spacing.one,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    /* Section transition from hero block. Larger than headerWrap.gap (8)
-       so this row stands apart from the headline+subtitle group. */
-    marginTop: Spacing.three,
-  },
-  groupPickerLabel: {
-    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-  },
-  groupPickerSub: {
-    fontSize: 11,
-  },
-  groupPickerArrow: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
   librarySectionDivider: {
     height: 2,
     position: 'relative',
@@ -1138,7 +1080,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   /* Continue group head — kicker that gives parent meaning to the 2
-     QUIZ/LEARN Continue cards. Mirrors the Hub TEST section pip+mono
+     FLASHCARD/LEARN Continue cards. Mirrors the Hub TEST section pip+mono
      pattern for consistency. */
   continueGroupHead: {
     flexDirection: 'row',

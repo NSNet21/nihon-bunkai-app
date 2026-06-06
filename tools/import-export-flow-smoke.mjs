@@ -166,6 +166,39 @@ async function waitForBodyTextOrDump(page, text, label, timeout = 15_000) {
   }
 }
 
+async function expectBatchExportActionVisible(page) {
+  const state = await page.evaluate(() => {
+    const action = document.querySelector('[data-export-action="zip"]');
+    const panel = document.querySelector('[data-library-actions-panel="true"]');
+    const rect = (el) => {
+      if (!el) return null;
+      const box = el.getBoundingClientRect();
+      return {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        bottom: box.bottom,
+        right: box.right,
+      };
+    };
+    return {
+      action: rect(action),
+      panel: rect(panel),
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    };
+  });
+  if (!state.action || !state.panel) {
+    throw new Error(`Batch export action/panel was not measurable: ${JSON.stringify(state)}`);
+  }
+  const isVisible = state.action.width > 0 && state.action.height > 0;
+  const insideViewport = state.action.bottom <= state.viewport.height - 2 && state.action.y >= 0;
+  const insidePanel = state.action.bottom <= state.panel.bottom - 2 && state.action.y >= state.panel.y;
+  if (!isVisible || !insideViewport || !insidePanel) {
+    throw new Error(`Batch export action is clipped or outside the modal: ${JSON.stringify(state)}`);
+  }
+}
+
 async function expectNoSelfImportRouteMissingFlash(page, route, expectedText) {
   const forbidden = [
     'ไม่พบหน้านี้',
@@ -318,8 +351,9 @@ try {
   await page.getByLabel('Import one file').click({ timeout: 10_000 });
   await page.getByText('เลือก import destination', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });
   await expectStackedImportDestinationPicker(page);
-  await page.getByLabel('+ Create new group').click({ timeout: 10_000 });
-  await page.getByPlaceholder('ชื่อ group ใหม่').fill(importGroup);
+  await page.getByPlaceholder('ค้นหา group หรือพิมพ์ชื่อใหม่').fill(importGroup);
+  await page.getByLabel(`Create group "${importGroup}"`).click({ timeout: 10_000 });
+  await page.getByText(`New · ${importGroup}`, { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });
   await page.getByPlaceholder('Inbox').fill(importSection);
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByText(`Use ${importGroup} / ${importSection}`, { exact: false }).click({ timeout: 10_000 });
@@ -367,6 +401,14 @@ try {
     userGroup: movedGroup,
     userSection: movedSection,
   });
+  await page.goto(urlFor('/'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await openLibraryActions(page);
+  await page.getByLabel('Manage groups').click({ timeout: 10_000 });
+  await page.getByText('Manage user groups', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByText(movedGroup, { exact: false }).first().waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByText(movedSection, { exact: false }).first().waitFor({ state: 'visible', timeout: 10_000 });
+  await page.getByText('Official Source แก้ไม่ได้', { exact: false }).first().waitFor({ state: 'visible', timeout: 10_000 });
+  await page.mouse.click(12, 12);
 
   await page.goto(urlFor(`/deck/${importedDeckId}/term/${importedDeckId}-1`), { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.getByLabel('เปิดเมนูคำนี้').click({ timeout: 10_000 });
@@ -422,7 +464,9 @@ try {
   await openLibraryActions(page);
   await clickText(page, 'Export one deck');
   await page.getByText('เลือก deck ที่จะ export', { exact: false }).waitFor({ timeout: 15_000 });
-  await waitForTextOrDump(page, 'Groups only', 'Single export hierarchy controls');
+  await waitForTextOrDump(page, 'All', 'Single export hierarchy scope control');
+  await waitForTextOrDump(page, 'Expand', 'Single export hierarchy expand control');
+  await waitForTextOrDump(page, 'Collapse', 'Single export hierarchy collapse control');
   const csvDownloadPromise = page.waitForEvent('download');
   await clickLastText(page, renamedDeckTitle);
   const csvDownload = await waitForDownloadOrDump(page, csvDownloadPromise, 'CSV export');
@@ -433,9 +477,12 @@ try {
   await openLibraryActions(page);
   await clickText(page, 'Batch export');
   await page.getByText('Batch export', { exact: false }).last().waitFor({ timeout: 15_000 });
-  await waitForTextOrDump(page, 'Groups only', 'Batch export hierarchy controls');
+  await waitForTextOrDump(page, 'All', 'Batch export hierarchy scope control');
+  await waitForTextOrDump(page, 'Expand', 'Batch export hierarchy expand control');
+  await waitForTextOrDump(page, 'Collapse', 'Batch export hierarchy collapse control');
   await clickLastText(page, renamedDeckTitle);
   await waitForTextOrDump(page, 'Batch export · 1/', 'Batch export partial selection');
+  await expectBatchExportActionVisible(page);
   const zipDownloadPromise = page.waitForEvent('download');
   await clickText(page, 'Export ZIP');
   const zipDownload = await waitForDownloadOrDump(page, zipDownloadPromise, 'ZIP export');

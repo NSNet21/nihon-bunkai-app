@@ -1,6 +1,24 @@
-import { useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiArchive, FiCheckSquare, FiDownload, FiHelpCircle, FiMinus, FiPlus, FiSquare, FiUpload, FiX } from 'react-icons/fi';
+import { forwardRef, useEffect, useMemo, useReducer, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import {
+  FiArchive,
+  FiCheckSquare,
+  FiChevronDown,
+  FiChevronsDown,
+  FiChevronsUp,
+  FiDownload,
+  FiEdit3,
+  FiFolder,
+  FiHelpCircle,
+  FiMinus,
+  FiMinusSquare,
+  FiPlus,
+  FiPlusSquare,
+  FiSearch,
+  FiSquare,
+  FiUpload,
+  FiX,
+} from 'react-icons/fi';
 
 import { ImportHowToContent } from '@/components/import-how-to-content';
 import type { Deck } from '@/data/types';
@@ -15,12 +33,21 @@ import {
   DEFAULT_IMPORT_GROUP,
   DEFAULT_IMPORT_SECTION,
   buildImportDestinationOptions,
+  filterImportDestinationGroups,
+  filterImportDestinationSections,
   normalizeImportDestination,
   type ImportDestinationGroupOption,
 } from '@/lib/import-export/import-destination';
 import { parseManualImportFiles, saveManualImport, type ManualImportParseResult } from '@/lib/import-export/manual-import';
+import {
+  removeUserLibraryGroup,
+  removeUserLibrarySection,
+  renameUserLibraryGroup,
+  renameUserLibrarySection,
+} from '@/lib/library-management';
+import { getDeckOrganization, isUserEditableDeck } from '@/lib/user-content';
 
-type Mode = 'actions' | 'how-to' | 'import-destination' | 'export-one' | 'export-batch';
+type Mode = 'actions' | 'how-to' | 'import-destination' | 'manage-groups' | 'export-one' | 'export-batch';
 type PendingImportMode = 'single' | 'batch' | null;
 
 type LibraryActionsModalProps = {
@@ -34,6 +61,7 @@ const ACTIONS = {
   howTo: 'How to import',
   importOne: 'Import one file',
   importBatch: 'Batch import',
+  manageGroups: 'Manage groups',
   exportOne: 'Export one deck',
   exportBatch: 'Batch export',
 } as const;
@@ -108,6 +136,7 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
   const exportableDecks = useMemo(() => selectExportableDecks(decks), [decks]);
   const destinationOptions = useMemo(() => buildImportDestinationOptions(decks), [decks]);
   const currentDestination = normalizeImportDestination({ group: importGroup, section: importSection });
+  const isExportPickerMode = mode === 'export-one' || mode === 'export-batch';
   const deckIdSets = useMemo(() => {
     const embeddedFree = new Set<string>();
     const local = new Set<string>();
@@ -117,6 +146,14 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
     }
     return { embeddedFree, local };
   }, [decks]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !visible) return;
+    document.documentElement.setAttribute('data-library-actions-modal', 'open');
+    return () => {
+      document.documentElement.removeAttribute('data-library-actions-modal');
+    };
+  }, [visible]);
 
   function close() {
     dispatch({ type: 'close' });
@@ -229,11 +266,13 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
           style={[
             styles.panel,
             mode === 'how-to' && styles.howToPanel,
+            isExportPickerMode && styles.exportPanel,
             { backgroundColor: colors.background, borderColor: colors.border },
           ]}
           onPressIn={markPanelInteractionStart}
           onPressOut={markPanelInteractionEnd}
-          onPress={(e) => e.stopPropagation?.()}>
+          onPress={(e) => e.stopPropagation?.()}
+          {...(Platform.OS === 'web' ? ({ dataSet: { libraryActionsPanel: 'true' } } as any) : null)}>
           <View style={styles.header}>
             <View>
               <ThemedText type="defaultSemiBold">Library actions</ThemedText>
@@ -250,11 +289,12 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
           </View>
 
           <ScrollView
-            style={styles.bodyScroll}
-            contentContainerStyle={styles.bodyScrollInner}
-            showsVerticalScrollIndicator
+            style={[styles.bodyScroll, isExportPickerMode && styles.bodyScrollNoNested]}
+            contentContainerStyle={[styles.bodyScrollInner, isExportPickerMode && styles.bodyScrollInnerFill]}
+            scrollEnabled={!isExportPickerMode}
+            showsVerticalScrollIndicator={!isExportPickerMode}
             keyboardShouldPersistTaps="handled"
-            {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'card' } } as any) : null)}>
+            {...(Platform.OS === 'web' ? ({ dataSet: isExportPickerMode ? undefined : { scroll: 'library-modal' } } as any) : null)}>
             {mode === 'actions' && (
               <View style={styles.actionList}>
                 <ActionRow
@@ -277,6 +317,13 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
                   icon={<FiArchive size={17} color={Accent.base} />}
                   disabled={busy}
                   onPress={() => startImport('batch')}
+                />
+                <ActionRow
+                  label={ACTIONS.manageGroups}
+                  hint="rename หรือจัด section/group ของ deck ที่ import เอง"
+                  icon={<FiFolder size={17} color={Accent.base} />}
+                  disabled={busy}
+                  onPress={() => openMode('manage-groups')}
                 />
                 <ActionRow
                   label={ACTIONS.exportOne}
@@ -330,6 +377,14 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
               />
             )}
 
+            {mode === 'manage-groups' && (
+              <GroupManagementPanel
+                decks={decks}
+                onBack={() => openMode('actions')}
+                onChanged={onImported}
+              />
+            )}
+
             {mode === 'export-one' && (
               <DeckPicker
                 decks={exportableDecks}
@@ -360,6 +415,222 @@ export function LibraryActionsModal({ visible, decks, onClose, onImported }: Lib
       </Pressable>
     </Modal>
   );
+}
+
+type UserSectionSummary = {
+  name: string;
+  deckCount: number;
+};
+
+type UserGroupSummary = {
+  name: string;
+  deckCount: number;
+  sections: UserSectionSummary[];
+};
+
+type GroupManagementSelection =
+  | { kind: 'group'; action: 'rename' | 'remove'; group: string }
+  | { kind: 'section'; action: 'rename' | 'remove'; group: string; section: string };
+
+function GroupManagementPanel({
+  decks,
+  onBack,
+  onChanged,
+}: {
+  decks: Deck[];
+  onBack: () => void;
+  onChanged: () => void;
+}) {
+  const colors = useThemePalette();
+  const { showToast } = useToast();
+  const groups = useMemo(() => buildUserGroupSummaries(decks), [decks]);
+  const [selection, setSelection] = useState<GroupManagementSelection | null>(null);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+
+  function choose(next: GroupManagementSelection) {
+    setSelection(next);
+    setStatus('');
+    setName(next.action === 'rename' ? (next.kind === 'group' ? next.group : next.section) : '');
+  }
+
+  async function applySelection() {
+    if (!selection || busy) return;
+    setBusy(true);
+    try {
+      const result = selection.kind === 'group'
+        ? selection.action === 'rename'
+          ? await renameUserLibraryGroup(selection.group, name)
+          : await removeUserLibraryGroup(selection.group)
+        : selection.action === 'rename'
+          ? await renameUserLibrarySection(selection.group, selection.section, name)
+          : await removeUserLibrarySection(selection.group, selection.section);
+      if (!result.ok) {
+        const message = result.reason ?? 'จัดการ group / section ไม่สำเร็จ';
+        setStatus(message);
+        showToast(message, { kind: 'error' });
+        return;
+      }
+      const message = `${selection.action === 'rename' ? 'Rename' : 'Move'} ${result.changed ?? 0} decks แล้ว`;
+      setStatus(message);
+      showToast(message, { kind: 'success' });
+      setSelection(null);
+      setName('');
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={styles.picker}>
+      <PickerHeader title="Manage user groups" onBack={onBack} />
+      <ThemedText type="small" themeColor="textSecondary">
+        จัด group/section สำหรับ Manual import และ Custom deck เท่านั้น · Official Source แก้ไม่ได้
+      </ThemedText>
+      {groups.length === 0 ? (
+        <View style={[styles.manageEmpty, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+          <ThemedText type="defaultSemiBold">ยังไม่มี user group</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            import หรือสร้าง custom deck ก่อน แล้วค่อยจัด group/section ได้
+          </ThemedText>
+        </View>
+      ) : (
+        <ScrollView
+          style={[styles.manageList, { borderColor: colors.border }]}
+          contentContainerStyle={styles.manageListInner}
+          keyboardShouldPersistTaps="handled"
+          {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'library-modal' } } as any) : null)}>
+          {groups.map((group) => (
+            <View key={group.name} style={[styles.manageGroup, { borderBottomColor: colors.border }]}>
+              <View style={styles.manageHeaderRow}>
+                <FiFolder size={16} color={Accent.base} strokeWidth={2} />
+                <View style={styles.manageTitleStack}>
+                  <ThemedText type="defaultSemiBold">{group.name}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">{group.deckCount} decks</ThemedText>
+                </View>
+                <MiniAction label="Rename" disabled={busy} onPress={() => choose({ kind: 'group', action: 'rename', group: group.name })} />
+                <MiniAction label="Remove" disabled={busy} onPress={() => choose({ kind: 'group', action: 'remove', group: group.name })} />
+              </View>
+              {group.sections.map((section) => (
+                <View key={`${group.name}:${section.name}`} style={styles.manageSectionRow}>
+                  <View style={styles.manageSectionRule} />
+                  <View style={styles.manageTitleStack}>
+                    <ThemedText type="smallBold">{section.name}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">{section.deckCount} decks</ThemedText>
+                  </View>
+                  <MiniAction
+                    label="Rename"
+                    disabled={busy}
+                    onPress={() => choose({ kind: 'section', action: 'rename', group: group.name, section: section.name })}
+                  />
+                  <MiniAction
+                    label="Remove"
+                    disabled={busy}
+                    onPress={() => choose({ kind: 'section', action: 'remove', group: group.name, section: section.name })}
+                  />
+                </View>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      {selection ? (
+        <View style={[styles.manageEditor, { borderColor: colors.border, backgroundColor: colors.surface2 }]}>
+          <ThemedText type="smallBold">
+            {selection.action === 'rename' ? 'Rename' : 'Remove'} {selection.kind === 'group' ? selection.group : `${selection.group} / ${selection.section}`}
+          </ThemedText>
+          {selection.action === 'rename' ? (
+            <View style={[
+              styles.destinationInputShell,
+              { borderColor: colors.border, backgroundColor: colors.background },
+            ]}>
+              <FiEdit3 size={15} color={Accent.base} strokeWidth={2} />
+              <TextInput
+                value={name}
+                editable={!busy}
+                onChangeText={setName}
+                placeholder={selection.kind === 'group' ? 'ชื่อ group ใหม่' : 'ชื่อ section ใหม่'}
+                placeholderTextColor={colors.textHint}
+                style={[styles.destinationInput, { color: colors.text }]}
+              />
+            </View>
+          ) : (
+            <ThemedText type="small" themeColor="textSecondary">
+              ไม่ลบ deck จริง · {selection.kind === 'group'
+                ? 'deck ใน group นี้จะถูกย้ายกลับ Manual imports / Inbox'
+                : 'deck ใน section นี้จะถูกย้ายไป Inbox ใน group เดิม'}
+            </ThemedText>
+          )}
+          <View style={styles.manageEditorActions}>
+            <Pressable
+              onPress={applySelection}
+              disabled={busy || (selection.action === 'rename' && name.trim().length === 0)}
+              accessibilityRole="button"
+              accessibilityLabel="ยืนยันจัดการ group หรือ section"
+              style={({ pressed }) => [
+                styles.primaryButton,
+                styles.manageApplyButton,
+                { backgroundColor: Accent.base, opacity: busy || (selection.action === 'rename' && name.trim().length === 0) ? 0.45 : 1 },
+                pressed && { opacity: 0.72 },
+              ]}>
+              <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>
+                {selection.action === 'rename' ? 'Save' : 'Move decks'}
+              </ThemedText>
+            </Pressable>
+            <MiniAction label="Cancel" disabled={busy} onPress={() => setSelection(null)} />
+          </View>
+        </View>
+      ) : null}
+
+      {status ? <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText> : null}
+    </View>
+  );
+}
+
+function MiniAction({ label, disabled, onPress }: { label: string; disabled?: boolean; onPress: () => void }) {
+  const colors = useThemePalette();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed, hovered }: any) => [
+        styles.miniAction,
+        { borderColor: hovered ? Accent.soft : colors.border, opacity: disabled ? 0.45 : 1 },
+        pressed && !disabled && { opacity: 0.7 },
+      ]}>
+      <ThemedText type="small" style={{ color: Accent.base }}>{label}</ThemedText>
+    </Pressable>
+  );
+}
+
+function buildUserGroupSummaries(decks: readonly Deck[]): UserGroupSummary[] {
+  const groups = new Map<string, Map<string, number>>();
+  for (const deck of decks) {
+    if (!isUserEditableDeck(deck)) continue;
+    const organization = getDeckOrganization(deck);
+    if (!organization.group) continue;
+    const section = organization.section ?? DEFAULT_IMPORT_SECTION;
+    let sections = groups.get(organization.group);
+    if (!sections) {
+      sections = new Map();
+      groups.set(organization.group, sections);
+    }
+    sections.set(section, (sections.get(section) ?? 0) + 1);
+  }
+  return [...groups.entries()]
+    .map(([name, sections]) => ({
+      name,
+      deckCount: [...sections.values()].reduce((sum, count) => sum + count, 0),
+      sections: [...sections.entries()]
+        .map(([sectionName, deckCount]) => ({ name: sectionName, deckCount }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'en')),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'));
 }
 
 function ImportHowTo({
@@ -415,9 +686,29 @@ function ImportDestinationPicker({
   const [creatingSection, setCreatingSection] = useState(() => !groups.some((group) => !group.disabled));
   const [newGroup, setNewGroup] = useState('');
   const [newSection, setNewSection] = useState(DEFAULT_IMPORT_SECTION);
+  const [groupQuery, setGroupQuery] = useState('');
+  const [sectionQuery, setSectionQuery] = useState('');
+  const [groupOptionsOpen, setGroupOptionsOpen] = useState(true);
+  const [sectionOptionsOpen, setSectionOptionsOpen] = useState(true);
+  const newGroupInputRef = useRef<TextInput>(null);
+  const newSectionInputRef = useRef<TextInput>(null);
 
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey);
   const selectedSection = selectedGroup?.sections.find((section) => !section.disabled && section.key === selectedSectionKey);
+  const visibleGroups = filterImportDestinationGroups(groups, groupQuery);
+  const visibleSections = selectedGroup ? filterImportDestinationSections(selectedGroup, sectionQuery) : [];
+  const groupDraft = groupQuery.trim();
+  const sectionDraft = sectionQuery.trim();
+  const groupBlockMeta = creatingGroup
+    ? `New · ${newGroup.trim() || 'ยังไม่ได้ตั้งชื่อ'}`
+    : selectedGroup
+      ? `${selectedGroup.label}${selectedGroup.disabled ? ' · Official Source' : ''}`
+      : 'Create new group';
+  const sectionBlockMeta = creatingGroup || creatingSection
+    ? `New · ${newSection.trim() || DEFAULT_IMPORT_SECTION}`
+    : selectedSection
+      ? selectedSection.label
+      : 'Create new section';
   const applyLabel = creatingGroup
     ? `Use ${newGroup.trim() || 'New group'} / ${newSection.trim() || DEFAULT_IMPORT_SECTION}`
     : creatingSection
@@ -431,6 +722,30 @@ function ImportDestinationPicker({
     setSelectedSectionKey(group.sections.find((section) => !section.disabled)?.key ?? '');
     setCreatingSection(false);
     setNewSection(DEFAULT_IMPORT_SECTION);
+    setSectionQuery('');
+    setGroupOptionsOpen(false);
+    setSectionOptionsOpen(true);
+  }
+
+  function focusInput(ref: RefObject<TextInput | null>) {
+    setTimeout(() => ref.current?.focus(), 60);
+  }
+
+  function startCreatingGroup(nextGroup = groupDraft) {
+    setCreatingGroup(true);
+    setCreatingSection(true);
+    setNewGroup(nextGroup);
+    setNewSection(sectionDraft || DEFAULT_IMPORT_SECTION);
+    setGroupOptionsOpen(true);
+    setSectionOptionsOpen(true);
+    focusInput(newGroupInputRef);
+  }
+
+  function startCreatingSection(nextSection = sectionDraft || DEFAULT_IMPORT_SECTION) {
+    setCreatingSection(true);
+    setNewSection(nextSection);
+    setSectionOptionsOpen(true);
+    focusInput(newSectionInputRef);
   }
 
   function apply() {
@@ -451,95 +766,144 @@ function ImportDestinationPicker({
       <View style={styles.destinationPickerGrid}>
         <View style={styles.destinationPickerColumn}>
           <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>GROUP</ThemedText>
-          <ScrollView style={[styles.destinationPickerList, { borderColor: colors.border }]}>
-            {groups.map((group) => (
-              <DestinationChoiceRow
-                key={group.key}
-                label={group.label}
-                meta={group.disabled ? `Official Source · ${group.sections.length} sections` : `${group.sections.length} sections`}
-                checked={!creatingGroup && selectedGroupKey === group.key}
-                disabled={busy || Boolean(group.disabled)}
-                onPress={() => chooseGroup(group)}
+          <CollapsiblePickerBlock
+            title="Group options"
+            meta={groupBlockMeta}
+            open={groupOptionsOpen}
+            onToggle={() => setGroupOptionsOpen((value) => !value)}
+            collapsedAction={(
+              <DestinationCreateRow
+                label="Create new group"
+                active={creatingGroup}
+                disabled={busy}
+                onPress={() => startCreatingGroup('')}
               />
-            ))}
-            <DestinationCreateRow
-              label="+ Create new group"
-              active={creatingGroup}
+            )}>
+            <DestinationTextInput
+              value={groupQuery}
               disabled={busy}
-              onPress={() => {
-                setCreatingGroup(true);
-                setCreatingSection(true);
-                setNewSection(DEFAULT_IMPORT_SECTION);
-              }}
+              onChangeText={setGroupQuery}
+              placeholder="ค้นหา group หรือพิมพ์ชื่อใหม่"
+              icon="search"
             />
-          </ScrollView>
-          {creatingGroup ? (
-            <TextInput
-              value={newGroup}
-              editable={!busy}
-              onChangeText={setNewGroup}
-              placeholder="ชื่อ group ใหม่"
-              placeholderTextColor={colors.textHint}
-              style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-            />
-          ) : null}
+            <ScrollView
+              style={[styles.destinationPickerList, { borderColor: colors.border }]}
+              {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'library-modal' } } as any) : null)}>
+              {visibleGroups.map((group) => (
+                <DestinationChoiceRow
+                  key={group.key}
+                  label={group.label}
+                  meta={group.disabled ? `Official Source · ${group.sections.length} sections` : `${group.sections.length} sections`}
+                  checked={!creatingGroup && selectedGroupKey === group.key}
+                  disabled={busy || Boolean(group.disabled)}
+                  onPress={() => chooseGroup(group)}
+                />
+              ))}
+              <DestinationCreateRow
+                label={groupDraft ? `Create group "${groupDraft}"` : 'Create new group'}
+                active={creatingGroup}
+                disabled={busy}
+                onPress={() => startCreatingGroup()}
+              />
+            </ScrollView>
+            {creatingGroup ? (
+              <DestinationTextInput
+                ref={newGroupInputRef}
+                value={newGroup}
+                disabled={busy}
+                onChangeText={setNewGroup}
+                placeholder="ชื่อ group ใหม่"
+              />
+            ) : null}
+          </CollapsiblePickerBlock>
         </View>
 
         <View style={styles.destinationPickerColumn}>
           <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>SECTION</ThemedText>
           {creatingGroup ? (
-            <View style={styles.destinationCreatePanel}>
+            <CollapsiblePickerBlock
+              title="Section options"
+              meta={sectionBlockMeta}
+              open={sectionOptionsOpen}
+              onToggle={() => setSectionOptionsOpen((value) => !value)}
+              collapsedAction={(
+                <DestinationCreateRow
+                  label="Create new section"
+                  active={creatingSection}
+                  disabled={busy}
+                  onPress={() => startCreatingSection('')}
+                />
+              )}>
               <ThemedText type="small" themeColor="textSecondary">
                 Group ใหม่ยังไม่มี section เดิม ระบบจะสร้าง section ใหม่สำหรับ import รอบนี้
               </ThemedText>
-              <TextInput
+              <DestinationTextInput
+                ref={newSectionInputRef}
                 value={newSection}
-                editable={!busy}
+                disabled={busy}
                 onChangeText={setNewSection}
                 placeholder={DEFAULT_IMPORT_SECTION}
-                placeholderTextColor={colors.textHint}
-                style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
               />
-            </View>
+            </CollapsiblePickerBlock>
           ) : selectedGroup ? (
-            <ScrollView style={[styles.destinationPickerList, { borderColor: colors.border }]}>
-              {selectedGroup.sections.map((section) => (
-                <DestinationChoiceRow
-                  key={section.key}
-                  label={section.label}
-                  meta={section.disabled ? 'Official Source · เลือกไม่ได้' : undefined}
-                  checked={!creatingSection && selectedSectionKey === section.key}
-                  disabled={busy || Boolean(section.disabled)}
-                  onPress={() => {
-                    if (section.disabled) return;
-                    setCreatingSection(false);
-                    setSelectedSectionKey(section.key);
-                  }}
+            <CollapsiblePickerBlock
+              title="Section options"
+              meta={sectionBlockMeta}
+              open={sectionOptionsOpen}
+              onToggle={() => setSectionOptionsOpen((value) => !value)}
+              collapsedAction={(
+                <DestinationCreateRow
+                  label="Create new section"
+                  active={creatingSection}
+                  disabled={busy}
+                  onPress={() => startCreatingSection()}
                 />
-              ))}
-              <DestinationCreateRow
-                label="+ Create new section"
-                active={creatingSection}
+              )}>
+              <DestinationTextInput
+                value={sectionQuery}
                 disabled={busy}
-                onPress={() => {
-                  setCreatingSection(true);
-                  setNewSection(DEFAULT_IMPORT_SECTION);
-                }}
+                onChangeText={setSectionQuery}
+                placeholder="ค้นหา section หรือพิมพ์ชื่อใหม่"
+                icon="search"
               />
-            </ScrollView>
+              <ScrollView
+                style={[styles.destinationPickerList, { borderColor: colors.border }]}
+                {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'library-modal' } } as any) : null)}>
+                {visibleSections.map((section) => (
+                  <DestinationChoiceRow
+                    key={section.key}
+                    label={section.label}
+                    meta={section.disabled ? 'Official Source · เลือกไม่ได้' : undefined}
+                    checked={!creatingSection && selectedSectionKey === section.key}
+                    disabled={busy || Boolean(section.disabled)}
+                    onPress={() => {
+                      if (section.disabled) return;
+                      setCreatingSection(false);
+                      setSelectedSectionKey(section.key);
+                      setSectionOptionsOpen(false);
+                    }}
+                  />
+                ))}
+                <DestinationCreateRow
+                  label={sectionDraft ? `Create section "${sectionDraft}"` : 'Create new section'}
+                  active={creatingSection}
+                  disabled={busy}
+                  onPress={() => startCreatingSection()}
+                />
+              </ScrollView>
+            </CollapsiblePickerBlock>
           ) : (
             <View style={styles.destinationCreatePanel}>
               <ThemedText type="small" themeColor="textSecondary">เลือก group ก่อน แล้ว section จะขึ้นตาม group นั้น</ThemedText>
             </View>
           )}
           {creatingSection && !creatingGroup ? (
-            <TextInput
+            <DestinationTextInput
+              ref={newSectionInputRef}
               value={newSection}
-              editable={!busy}
+              disabled={busy}
               onChangeText={setNewSection}
               placeholder={DEFAULT_IMPORT_SECTION}
-              placeholderTextColor={colors.textHint}
-              style={[styles.importInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
             />
           ) : null}
         </View>
@@ -595,6 +959,45 @@ function DestinationChoiceRow({
   );
 }
 
+const DestinationTextInput = forwardRef<TextInput, {
+  value: string;
+  disabled: boolean;
+  placeholder: string;
+  icon?: 'search';
+  onChangeText: (value: string) => void;
+}>(({ value, disabled, placeholder, icon, onChangeText }, ref) => {
+  const colors = useThemePalette();
+  const [focused, setFocused] = useState(false);
+  return (
+    <View
+      style={[
+        styles.destinationInputShell,
+        {
+          borderColor: focused ? Accent.base : colors.border,
+          backgroundColor: colors.background,
+        },
+        focused && styles.destinationInputShellFocused,
+      ]}>
+      {icon === 'search' ? <FiSearch size={15} color={focused ? Accent.base : colors.textHint} /> : null}
+      <TextInput
+        ref={ref}
+        value={value}
+        editable={!disabled}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textHint}
+        autoCapitalize="none"
+        autoCorrect={false}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[styles.destinationInput, { color: colors.text }]}
+      />
+    </View>
+  );
+});
+
+DestinationTextInput.displayName = 'DestinationTextInput';
+
 function DestinationCreateRow({
   label,
   active,
@@ -621,6 +1024,44 @@ function DestinationCreateRow({
       <FiPlus size={16} color={Accent.base} />
       <ThemedText type="smallBold" style={{ color: Accent.base }}>{label}</ThemedText>
     </Pressable>
+  );
+}
+
+function CollapsiblePickerBlock({
+  title,
+  meta,
+  open,
+  onToggle,
+  collapsedAction,
+  children,
+}: {
+  title: string;
+  meta: string;
+  open: boolean;
+  onToggle: () => void;
+  collapsedAction?: ReactNode;
+  children: ReactNode;
+}) {
+  const colors = useThemePalette();
+  return (
+    <View style={[styles.destinationBlock, { borderColor: colors.border, backgroundColor: colors.background }]}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityLabel={`${open ? 'ย่อ' : 'ขยาย'} ${title}`}
+        style={({ pressed, hovered }: any) => [
+          styles.destinationBlockHeader,
+          { borderBottomColor: open ? colors.border : 'transparent', backgroundColor: hovered ? colors.surface2 : 'transparent' },
+          pressed && { opacity: 0.72 },
+        ]}>
+        {open ? <FiMinus size={16} color={colors.textHint} /> : <FiPlus size={16} color={colors.textHint} />}
+        <View style={styles.destinationBlockTitle}>
+          <ThemedText type="smallBold">{title}</ThemedText>
+          <ThemedText type="small" themeColor="textHint" numberOfLines={1}>{meta}</ThemedText>
+        </View>
+      </Pressable>
+      {open ? <View style={styles.destinationBlockBody}>{children}</View> : collapsedAction}
+    </View>
   );
 }
 
@@ -703,7 +1144,7 @@ function DeckPicker({
 }) {
   const hierarchy = useMemo(() => buildExportHierarchy(decks), [decks]);
   return (
-    <View style={styles.picker}>
+    <View style={[styles.picker, styles.exportPicker]}>
       <PickerHeader title="เลือก deck ที่จะ export" onBack={onBack} />
       <HierarchyDeckList
         groups={hierarchy}
@@ -733,7 +1174,7 @@ function BatchPicker({
 }) {
   const hierarchy = useMemo(() => buildExportHierarchy(decks), [decks]);
   return (
-    <View style={styles.picker}>
+    <View style={[styles.picker, styles.exportPicker]}>
       <PickerHeader title={`Batch export · ${selected.size}/${decks.length}`} onBack={onBack} />
       <HierarchyDeckList
         groups={hierarchy}
@@ -747,9 +1188,11 @@ function BatchPicker({
         disabled={busy || selected.size === 0}
         style={({ pressed }) => [
           styles.primaryButton,
+          styles.exportZipButton,
           { backgroundColor: Accent.base },
           (pressed || busy || selected.size === 0) && { opacity: 0.65 },
-        ]}>
+        ]}
+        {...(Platform.OS === 'web' ? ({ dataSet: { exportAction: 'zip' } } as any) : null)}>
         <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>
           Export ZIP
         </ThemedText>
@@ -774,10 +1217,12 @@ function HierarchyDeckList({
   onToggle?: (deckId: string) => void;
 }) {
   const colors = useThemePalette();
+  const { height, width } = useWindowDimensions();
   const [openGroups, setOpenGroups] = useState(() => new Set(groups.map((group) => group.key)));
   const [openSections, setOpenSections] = useState(
     () => new Set(groups.flatMap((group) => group.sections.map((section) => section.key))),
   );
+  const [sectionsOnly, setSectionsOnly] = useState(false);
   const allGroupKeys = useMemo(() => groups.map((group) => group.key), [groups]);
   const allSectionKeys = useMemo(
     () => groups.flatMap((group) => group.sections.map((section) => section.key)),
@@ -785,16 +1230,19 @@ function HierarchyDeckList({
   );
 
   function expandAll() {
-    setOpenGroups(new Set(allGroupKeys));
+    if (!sectionsOnly) setOpenGroups(new Set(allGroupKeys));
     setOpenSections(new Set(allSectionKeys));
   }
   function collapseAll() {
-    setOpenGroups(new Set());
+    if (!sectionsOnly) setOpenGroups(new Set());
     setOpenSections(new Set());
   }
-  function showGroupsOnly() {
-    setOpenGroups(new Set(allGroupKeys));
-    setOpenSections(new Set());
+  function toggleToolbarScope() {
+    setSectionsOnly((prev) => {
+      const next = !prev;
+      if (next) setOpenGroups(new Set(allGroupKeys));
+      return next;
+    });
   }
   function toggleGroup(group: ExportHierarchyGroup) {
     setOpenGroups((prev) => toggleSet(prev, group.key));
@@ -809,34 +1257,51 @@ function HierarchyDeckList({
     }
   }
 
-  const allExpanded = openGroups.size === allGroupKeys.length && openSections.size === allSectionKeys.length;
-  const groupsOnly = openGroups.size === allGroupKeys.length && openSections.size === 0;
-  const collapsed = openGroups.size === 0;
+  const isCompact = width < 520;
+  const useTouchIcons = width < 900;
+  const expandLabel = isCompact ? 'Open' : 'Expand';
+  const collapseLabel = isCompact ? 'Fold' : 'Collapse';
+  const scopeLabel = sectionsOnly ? 'Group' : 'All';
+  const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
+  const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
   const controlStyle = { borderColor: colors.border, backgroundColor: colors.surface2 };
-  const activeControlStyle = { borderColor: Accent.base, backgroundColor: colors.surface2 };
+  const activeControlStyle = { borderColor: Accent.base, backgroundColor: Accent.bg };
+  const maxDeckListHeight = Math.max(180, Math.min(320, Math.floor(height * (isCompact ? 0.36 : 0.42))));
 
   return (
     <View style={styles.hierarchyWrap}>
       <View style={styles.hierarchyControlStack}>
         <View style={styles.hierarchyControlRow}>
-          <Pressable onPress={expandAll} style={[styles.indexChip, controlStyle, allExpanded && activeControlStyle]}>
-            <ThemedText type="small" style={allExpanded ? { color: Accent.base } : undefined} themeColor={allExpanded ? undefined : 'textSecondary'}>
-              Expand all
+          <Pressable onPress={toggleToolbarScope} style={[styles.indexChip, controlStyle, sectionsOnly && activeControlStyle]}>
+            <ThemedText type="small" style={{ color: sectionsOnly ? Accent.base : colors.textSecondary }}>
+              {scopeLabel}
             </ThemedText>
           </Pressable>
-          <Pressable onPress={showGroupsOnly} style={[styles.indexChip, controlStyle, groupsOnly && activeControlStyle]}>
-            <ThemedText type="small" style={groupsOnly ? { color: Accent.base } : undefined} themeColor={groupsOnly ? undefined : 'textSecondary'}>
-              Groups only
-            </ThemedText>
+          <Pressable onPress={expandAll} style={[styles.indexChip, controlStyle]}>
+            <View style={styles.toolBtnContent}>
+              <ExpandIcon size={14} color={colors.text} />
+              <ThemedText type="small" themeColor="textSecondary">
+                {expandLabel}
+              </ThemedText>
+            </View>
           </Pressable>
-          <Pressable onPress={collapseAll} style={[styles.indexChip, controlStyle, collapsed && activeControlStyle]}>
-            <ThemedText type="small" style={collapsed ? { color: Accent.base } : undefined} themeColor={collapsed ? undefined : 'textSecondary'}>
-              Collapse
-            </ThemedText>
+          <Pressable onPress={collapseAll} style={[styles.indexChip, controlStyle]}>
+            <View style={styles.toolBtnContent}>
+              <CollapseIcon size={14} color={colors.text} />
+              <ThemedText type="small" themeColor="textSecondary">
+                {collapseLabel}
+              </ThemedText>
+            </View>
           </Pressable>
         </View>
+        <ThemedText type="small" themeColor="textHint">
+          {sectionsOnly ? 'ใช้ Open/Fold กับ section ใน group ที่เปิดอยู่' : 'ใช้ Open/Fold กับทุกชั้น'}
+        </ThemedText>
       </View>
-      <ScrollView style={[styles.deckList, { borderTopColor: colors.border }]} contentContainerStyle={styles.deckListInner}>
+      <ScrollView
+        style={[styles.deckList, { borderTopColor: colors.border, maxHeight: maxDeckListHeight }]}
+        contentContainerStyle={styles.deckListInner}
+        {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'library-modal' } } as any) : null)}>
         {groups.map((group) => {
           const groupOpen = openGroups.has(group.key);
           const groupDecks = group.sections.flatMap((section) => section.decks);
@@ -958,15 +1423,6 @@ function HierarchyHeader({
           compact && styles.hierarchyTitleButtonCompact,
           pressed && { opacity: 0.7 },
         ]}>
-        {open ? <FiMinus
-          size={compact ? 15 : 17}
-          color={colors.textHint}
-          style={styles.hierarchyToggleIcon}
-        /> : <FiPlus
-          size={compact ? 15 : 17}
-          color={colors.textHint}
-          style={styles.hierarchyToggleIcon}
-        />}
         <View style={styles.hierarchyTitleText}>
           <ThemedText type={compact ? 'smallBold' : 'defaultSemiBold'}>{label}</ThemedText>
           <ThemedText
@@ -976,6 +1432,15 @@ function HierarchyHeader({
             {summary.meta}
           </ThemedText>
         </View>
+        <FiChevronDown
+          size={compact ? 15 : 18}
+          color={compact ? colors.textHint : colors.textSecondary}
+          style={{
+            flexShrink: 0,
+            marginRight: Spacing.one,
+            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+          }}
+        />
       </Pressable>
     </View>
   );
@@ -1101,6 +1566,9 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     maxHeight: '82%',
   },
+  exportPanel: {
+    height: '82%',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1121,6 +1589,15 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minHeight: 0,
     ...(Platform.OS === 'web' ? ({ scrollbarGutter: 'stable', scrollbarWidth: 'thin' } as any) : null),
+  },
+  bodyScrollNoNested: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  bodyScrollInnerFill: {
+    flexGrow: 1,
+    minHeight: 0,
   },
   bodyScrollInner: {
     paddingBottom: Spacing.one,
@@ -1152,6 +1629,29 @@ const styles = StyleSheet.create({
     minHeight: 88,
     gap: Spacing.two,
   },
+  destinationBlock: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  destinationBlockHeader: {
+    minHeight: 48,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  destinationBlockTitle: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  destinationBlockBody: {
+    gap: Spacing.two,
+    padding: Spacing.two,
+  },
   importField: {
     flex: 1,
     minWidth: 150,
@@ -1171,6 +1671,27 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
   },
+  destinationInputShell: {
+    minHeight: 40,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  destinationInputShellFocused: {
+    ...(Platform.OS === 'web' ? ({ boxShadow: '0 0 0 3px rgba(224, 32, 44, 0.14)' } as any) : null),
+  },
+  destinationInput: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 38,
+    paddingVertical: 0,
+    fontSize: 14,
+    fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null),
+  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1179,10 +1700,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  manageEmpty: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.one,
+  },
+  manageList: {
+    maxHeight: 300,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+  },
+  manageListInner: {
+    paddingBottom: Spacing.one,
+  },
+  manageGroup: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.two,
+    gap: Spacing.two,
+  },
+  manageHeaderRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  manageSectionRow: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingLeft: Spacing.three,
+  },
+  manageSectionRule: {
+    width: 16,
+    height: 2,
+    backgroundColor: Accent.base,
+    opacity: 0.7,
+  },
+  manageTitleStack: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  miniAction: {
+    minHeight: 30,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manageEditor: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  manageEditorActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  manageApplyButton: {
+    flex: 1,
+    minHeight: 38,
+    paddingVertical: Spacing.two,
+  },
   picker: {
     flexShrink: 1,
     minHeight: 0,
     gap: Spacing.three,
+  },
+  exportPicker: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
   },
   pickerHeader: {
     flexDirection: 'row',
@@ -1194,11 +1787,19 @@ const styles = StyleSheet.create({
     marginRight: Spacing.four,
   },
   deckList: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
     maxHeight: 320,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   deckListInner: { paddingBottom: Spacing.two },
-  hierarchyWrap: { gap: Spacing.two },
+  hierarchyWrap: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+    gap: Spacing.two,
+  },
   hierarchyControlStack: {
     gap: Spacing.two,
   },
@@ -1212,6 +1813,11 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
+  },
+  toolBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   hierarchyGroup: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -1272,10 +1878,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 1,
   },
-  hierarchyToggleIcon: {
-    flexShrink: 0,
-    marginRight: Spacing.one,
-  },
   hierarchyDeckRow: {
     paddingLeft: Spacing.five,
   },
@@ -1283,6 +1885,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.three,
     borderRadius: Radii.sm,
+  },
+  exportZipButton: {
+    flexShrink: 0,
   },
   status: {
     padding: Spacing.three,

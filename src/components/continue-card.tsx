@@ -7,21 +7,20 @@ import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
+import { continueModeBadge, continueRouteHref, type ContinueMode } from '@/lib/continue-route';
 import type { LastSession } from '@/lib/last-session';
-
-type Mode = 'quiz' | 'learn';
 
 type Props = {
   lastSession: LastSession;
   colors: typeof Colors.light;
-  /** Which mode to resume. Drives URL + label badge. Default 'quiz' */
-  mode?: Mode;
+  /** Which resume surface to open. Default 'quiz' keeps the existing flashcard session. */
+  mode?: ContinueMode;
 };
 
 /**
  * Browse hero CTA — resumes the user's most-recent study session.
- * `mode='quiz'` → /deck/[deckId]/quiz?entryId=Y (FSRS rating session).
- * `mode='learn'` → /deck/[deckId]/memorize?entryId=Y (passive review).
+ * `mode='quiz'` → /deck/[deckId]/quiz?entryId=Y (Flashcard session).
+ * `mode='learn'` → /deck/[deckId]/term/[entryId] (Term Preview).
  *
  * Only rendered when:
  *  - lastSession exists in localStorage
@@ -31,13 +30,10 @@ type Props = {
 export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
   const router = useRouter();
   const progress = Math.min(1, (lastSession.index + 1) / lastSession.total);
-  const route = mode === 'learn' ? 'memorize' : 'quiz';
-  const modeBadge = mode === 'learn' ? 'LEARN' : 'QUIZ';
+  const modeBadge = continueModeBadge(mode);
 
   function onPress() {
-    router.push(
-      `/deck/${lastSession.deckId}/${route}?entryId=${encodeURIComponent(lastSession.entryId)}` as never,
-    );
+    router.push(continueRouteHref(lastSession, mode) as never);
   }
 
   return (

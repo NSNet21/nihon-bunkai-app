@@ -30,20 +30,21 @@ import {
 } from '@/lib/card-display-config';
 import { deleteAvailability, deleteUserDeck } from '@/lib/deck-actions';
 import { resolveFirstEntryJump } from '@/lib/deck-jump';
-import { studyFallbackHref } from '@/lib/navigation-back';
+import { isContinueOrigin, studyFallbackHref } from '@/lib/navigation-back';
 import { buildReshuffledStudySessionEntries, buildSourcePositionMeta } from '@/lib/study-session';
 import { isOfficialDeck, isUserEditableDeck } from '@/lib/user-content';
 import type { TermEditingFields } from '@/lib/term-editing-form';
 
 export default function TermCardDisplayScreen() {
-  const { deckId, entryId } = useLocalSearchParams<{ deckId?: string; entryId?: string }>();
+  const { deckId, entryId, from } = useLocalSearchParams<{ deckId?: string; entryId?: string; from?: string | string[] }>();
   const { replace, push } = useRouter();
   const colors = useThemePalette();
   const { width, height } = useWindowDimensions();
   const [activeDeckId, setActiveDeckId] = useState(deckId);
   const [activeEntryId, setActiveEntryId] = useState(entryId);
   const hasHydrated = useHasHydrated();
-  const backFallbackHref = studyFallbackHref(activeDeckId);
+  const fromContinue = isContinueOrigin(from);
+  const backFallbackHref = studyFallbackHref(activeDeckId, { fromContinue });
   const showHeaderBack = !hasHydrated || width >= 768;
   const isMobileLayout = hasHydrated && width < 768;
   const isTabletLayout = hasHydrated && width >= 768 && width < 1180;
@@ -161,7 +162,7 @@ export default function TermCardDisplayScreen() {
   }
 
   function replaceTermUrl(nextDeckId: string, nextEntryId: string) {
-    const href = `/deck/${nextDeckId}/term/${nextEntryId}`;
+    const href = `/deck/${nextDeckId}/term/${nextEntryId}${fromContinue ? '?from=continue' : ''}`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.history.replaceState(window.history.state, '', href);
       return;

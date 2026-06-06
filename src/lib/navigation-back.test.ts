@@ -7,6 +7,10 @@ describe('studyFallbackHref', () => {
     expect(studyFallbackHref('kanji-n5-pack-02')).toBe('/deck/kanji-n5-pack-02');
   });
 
+  it('falls back to Browse when the study route came from Continue', () => {
+    expect(studyFallbackHref('kanji-n5-pack-02', { fromContinue: true })).toBe('/');
+  });
+
   it('falls back to Browse for group study routes', () => {
     expect(studyFallbackHref('__group__')).toBe('/');
   });

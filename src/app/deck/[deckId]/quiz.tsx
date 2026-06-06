@@ -45,13 +45,13 @@ import { entriesForDeckAsync } from '@/hooks/use-decks';
 import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import type { Entry } from '@/data/types';
 import type { LastSession } from '@/lib/last-session';
-import { studyFallbackHref } from '@/lib/navigation-back';
+import { isContinueOrigin, studyFallbackHref } from '@/lib/navigation-back';
 import {
   DEFAULT_STUDY_MODE_CONFIGS,
   sanitizeStudyModeConfig,
   studyModeConfigKey,
 } from '@/lib/study-mode-config';
-import { buildReshuffledStudySessionEntries, buildStudySessionEntries } from '@/lib/study-session';
+import { buildReshuffledStudySessionEntries, buildStudySessionEntries, canShuffleFlashcardSession } from '@/lib/study-session';
 import {
   CARD_VISIBILITY_STORAGE_KEY,
   DEFAULT_CARD_VISIBILITY,
@@ -63,9 +63,14 @@ import {
 } from '@/lib/card-display-config';
 
 export default function StudyScreen() {
-  const { deckId, entryId, count: countParam } = useLocalSearchParams<{ deckId?: string; entryId?: string; count?: string }>();
+  const { deckId, entryId, count: countParam, from } = useLocalSearchParams<{
+    deckId?: string;
+    entryId?: string;
+    count?: string;
+    from?: string | string[];
+  }>();
   const router = useRouter();
-  const backFallbackHref = studyFallbackHref(deckId);
+  const backFallbackHref = studyFallbackHref(deckId, { fromContinue: isContinueOrigin(from) });
   /* count search param (10/20/30/50) limits this session to first N
      entries. Set by Hub Quiz CTA or Config "เริ่มทดสอบ". Resume mode
      (entryId present) overrides count — user explicitly came to finish
@@ -215,7 +220,10 @@ export default function StudyScreen() {
   const isComplete = entries.length > 0 && index >= entries.length;
   const canPrev = index > 0;
   const canNext = index < entries.length - 1;
-  const canShuffleSession = !entryId && entries.length > 1 && results.length === 0;
+  const canShuffleSession = canShuffleFlashcardSession({
+    entriesLength: entries.length,
+    resultsLength: results.length,
+  });
   const cardMotion = useSharedValue(0);
   const cardMotionOffset = useSharedValue(0);
   const sessionCardStyle = useAnimatedStyle(() => ({

@@ -13,6 +13,8 @@ import {
   DEFAULT_IMPORT_GROUP,
   DEFAULT_IMPORT_SECTION,
   buildImportDestinationOptions,
+  filterImportDestinationGroups,
+  filterImportDestinationSections,
   normalizeImportDestination,
 } from '../import-destination';
 
@@ -165,6 +167,86 @@ describe('import destination options', () => {
       group: 'Weak N2 set',
       section: DEFAULT_IMPORT_SECTION,
     });
+  });
+
+  it('filters destination groups by user group labels while keeping official context matches disabled', () => {
+    const options = buildImportDestinationOptions([
+      {
+        id: 'manual-a',
+        title: 'Manual A',
+        source: 'manual',
+        userGroup: 'Kanji practice',
+        userSection: 'N5',
+        tags: ['manual'],
+      },
+      {
+        id: 'manual-b',
+        title: 'Manual B',
+        source: 'manual',
+        userGroup: 'Weak N2 set',
+        userSection: 'Week 1',
+        tags: ['manual'],
+      },
+      {
+        id: 'official-a',
+        title: 'Official A',
+        source: 'free',
+        level: 'N2',
+        type: 'vocab',
+        tags: ['vocab', 'n2'],
+      },
+    ] as any);
+
+    expect(filterImportDestinationGroups(options, 'kanji').map((group) => group.label)).toEqual(['Kanji practice']);
+    expect(filterImportDestinationGroups(options, 'n2')).toEqual([
+      {
+        key: 'weak-n2-set',
+        label: 'Weak N2 set',
+        source: 'user',
+        sections: [{ key: 'weak-n2-set:week-1', label: 'Week 1', source: 'user' }],
+      },
+      {
+        key: 'official:n2',
+        label: 'N2',
+        source: 'official',
+        disabled: true,
+        sections: [{ key: 'official:n2:vocab', label: 'Vocab', source: 'official', disabled: true }],
+      },
+    ]);
+  });
+
+  it('filters sections only inside the selected destination group', () => {
+    const options = buildImportDestinationOptions([
+      {
+        id: 'manual-a',
+        title: 'Manual A',
+        source: 'manual',
+        userGroup: 'Kanji practice',
+        userSection: 'Week 1',
+        tags: ['manual'],
+      },
+      {
+        id: 'manual-b',
+        title: 'Manual B',
+        source: 'manual',
+        userGroup: 'Vocab practice',
+        userSection: 'Week 1',
+        tags: ['manual'],
+      },
+      {
+        id: 'manual-c',
+        title: 'Manual C',
+        source: 'manual',
+        userGroup: 'Kanji practice',
+        userSection: 'N5 mistakes',
+        tags: ['manual'],
+      },
+    ] as any);
+
+    const kanjiGroup = options.find((group) => group.label === 'Kanji practice');
+    expect(kanjiGroup).toBeTruthy();
+    expect(filterImportDestinationSections(kanjiGroup!, 'week').map((section) => section.label)).toEqual(['Week 1']);
+    expect(filterImportDestinationSections(kanjiGroup!, 'n5').map((section) => section.label)).toEqual(['N5 mistakes']);
   });
 });
 

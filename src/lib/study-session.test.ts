@@ -5,6 +5,7 @@ import {
   buildReshuffledStudySessionEntries,
   buildSourcePositionMeta,
   buildStudySessionEntries,
+  canShuffleFlashcardSession,
 } from './study-session';
 import type { Entry } from '@/data/types';
 
@@ -58,6 +59,20 @@ describe('buildStudySessionEntries', () => {
     expect(baseConfig.order).toBe('normal');
     expect(result).toHaveLength(3);
     expect(result).not.toEqual([1, 2, 3]);
+  });
+});
+
+describe('canShuffleFlashcardSession', () => {
+  it('allows reshuffle before rating even when the session opened at a continue entry', () => {
+    expect(canShuffleFlashcardSession({ entriesLength: 20, resultsLength: 0 })).toBe(true);
+  });
+
+  it('blocks reshuffle after rating starts so session results are not reset mid-run', () => {
+    expect(canShuffleFlashcardSession({ entriesLength: 20, resultsLength: 1 })).toBe(false);
+  });
+
+  it('blocks reshuffle when there is only one card', () => {
+    expect(canShuffleFlashcardSession({ entriesLength: 1, resultsLength: 0 })).toBe(false);
   });
 });
 

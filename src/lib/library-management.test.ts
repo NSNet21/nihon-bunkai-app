@@ -14,6 +14,7 @@ vi.mock('./download-store', () => ({
     entries.delete(deck.pack);
     return true;
   }),
+  listLibraryDecks: vi.fn(async () => Array.from(decks.values())),
   getLibraryDeck: vi.fn(async (deckId: string) => decks.get(deckId)),
   putLibraryDeck: vi.fn(async (deck: Deck) => {
     decks.set(deck.id, deck);
@@ -37,7 +38,11 @@ import {
   createUserLibraryEntry,
   deleteUserLibraryEntry,
   deleteUserLibraryDeck,
+  removeUserLibraryGroup,
+  removeUserLibrarySection,
   moveUserLibraryDeck,
+  renameUserLibraryGroup,
+  renameUserLibrarySection,
   renameUserLibraryDeck,
   resetOfficialEntryOverride,
   saveOfficialEntryOverride,
@@ -86,6 +91,99 @@ describe('library management operations', () => {
     expect(decks.get(manualDeck.id)?.userSection).toBe('Week 1');
     expect(decks.get(manualDeck.id)?.tags).toContain('group:Kanji practice');
     expect(decks.get(manualDeck.id)?.tags).toContain('section:Week 1');
+  });
+
+  it('renames a user group across every manual/custom deck in that group', async () => {
+    decks.set('manual-two', {
+      ...manualDeck,
+      id: 'manual-two',
+      pack: 'manual-two',
+      title: 'Manual two',
+      userGroup: 'Manual imports',
+      userSection: 'Inbox',
+      tags: ['manual', 'group:Manual imports', 'section:Inbox'],
+    });
+    decks.set('custom-one', {
+      ...manualDeck,
+      id: 'custom-one',
+      pack: 'custom-one',
+      title: 'Custom one',
+      source: 'custom',
+      userGroup: 'Manual imports',
+      userSection: 'Week 1',
+      tags: ['custom', 'group:Manual imports', 'section:Week 1'],
+    });
+    decks.set('official', {
+      ...manualDeck,
+      id: 'official',
+      pack: 'official',
+      source: 'entitlement',
+      userGroup: 'Manual imports',
+      userSection: 'Inbox',
+    });
+
+    const result = await renameUserLibraryGroup('Manual imports', 'My practice');
+
+    expect(result).toEqual({ ok: true, changed: 3 });
+    expect(decks.get(manualDeck.id)?.userGroup).toBe('My practice');
+    expect(decks.get('manual-two')?.userGroup).toBe('My practice');
+    expect(decks.get('custom-one')?.userGroup).toBe('My practice');
+    expect(decks.get('custom-one')?.userSection).toBe('Week 1');
+    expect(decks.get('official')?.userGroup).toBe('Manual imports');
+  });
+
+  it('renames one section inside a user group without touching sibling sections', async () => {
+    decks.set(manualDeck.id, {
+      ...manualDeck,
+      userGroup: 'Manual imports',
+      userSection: 'Inbox',
+      tags: ['manual', 'group:Manual imports', 'section:Inbox'],
+    });
+    decks.set('manual-two', {
+      ...manualDeck,
+      id: 'manual-two',
+      pack: 'manual-two',
+      title: 'Manual two',
+      userGroup: 'Manual imports',
+      userSection: 'Inbox',
+      tags: ['manual', 'group:Manual imports', 'section:Inbox'],
+    });
+    decks.set('manual-week', {
+      ...manualDeck,
+      id: 'manual-week',
+      pack: 'manual-week',
+      title: 'Manual week',
+      userGroup: 'Manual imports',
+      userSection: 'Week 1',
+      tags: ['manual', 'group:Manual imports', 'section:Week 1'],
+    });
+
+    const result = await renameUserLibrarySection('Manual imports', 'Inbox', 'Regression');
+
+    expect(result).toEqual({ ok: true, changed: 2 });
+    expect(decks.get(manualDeck.id)?.userSection).toBe('Regression');
+    expect(decks.get('manual-two')?.userSection).toBe('Regression');
+    expect(decks.get('manual-week')?.userSection).toBe('Week 1');
+  });
+
+  it('removes a user section by moving matching decks to Inbox inside the same group', async () => {
+    await moveUserLibraryDeck(manualDeck.id, { group: 'Kanji practice', section: 'Week 1' });
+
+    const result = await removeUserLibrarySection('Kanji practice', 'Week 1');
+
+    expect(result).toEqual({ ok: true, changed: 1 });
+    expect(decks.get(manualDeck.id)?.userGroup).toBe('Kanji practice');
+    expect(decks.get(manualDeck.id)?.userSection).toBe('Inbox');
+  });
+
+  it('removes a user group by moving matching decks to the manual import inbox', async () => {
+    await moveUserLibraryDeck(manualDeck.id, { group: 'Kanji practice', section: 'Week 1' });
+
+    const result = await removeUserLibraryGroup('Kanji practice');
+
+    expect(result).toEqual({ ok: true, changed: 1 });
+    expect(decks.get(manualDeck.id)?.userGroup).toBe('Manual imports');
+    expect(decks.get(manualDeck.id)?.userSection).toBe('Inbox');
   });
 
   it('rejects official deck mutation', async () => {

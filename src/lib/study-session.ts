@@ -52,6 +52,16 @@ export function buildReshuffledStudySessionEntries(
   );
 }
 
+export function canShuffleFlashcardSession({
+  entriesLength,
+  resultsLength,
+}: {
+  entriesLength: number;
+  resultsLength: number;
+}) {
+  return entriesLength > 1 && resultsLength === 0;
+}
+
 function twoDigit(value: number) {
   return String(value).padStart(2, '0');
 }

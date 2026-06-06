@@ -81,6 +81,27 @@
   border-left: none;
 }
 
+/* Library actions modal owns its own scroll lanes. While it is open,
+   hide background page/list scrollbars so export pickers do not show
+   a second crimson scrollbar behind the modal. */
+html[data-library-actions-modal="open"] * {
+  scrollbar-width: none;
+}
+html[data-library-actions-modal="open"] *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+html[data-library-actions-modal="open"] [data-scroll="library-modal"] {
+  scrollbar-width: thin;
+}
+html[data-library-actions-modal="open"] [data-scroll="library-modal"]::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html[data-library-actions-modal="open"] [data-scroll="library-modal"]::-webkit-scrollbar-track {
+  border-left: none;
+}
+
 /* Memorize card scrollbar — wider 14px (easier to grab on the longer
    scroll session), used on the Memorize body. Targeted via
    `dataSet={{ scroll: 'card-memorize' }}`. */

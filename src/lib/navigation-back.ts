@@ -4,7 +4,16 @@ type BackRouter = {
   push: (href: string) => void;
 };
 
-export function studyFallbackHref(deckId?: string) {
+type StudyFallbackOptions = {
+  fromContinue?: boolean;
+};
+
+export function isContinueOrigin(value?: string | string[]) {
+  return Array.isArray(value) ? value.includes('continue') : value === 'continue';
+}
+
+export function studyFallbackHref(deckId?: string, options: StudyFallbackOptions = {}) {
+  if (options.fromContinue) return '/';
   if (!deckId || deckId === '__group__') return '/';
   return `/deck/${deckId}`;
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   continueModeBadge,
   continueRouteHref,
+  getBrowseLibraryRevealState,
   reviewContinueRouteHref,
   shouldShowFlashcardContinue,
 } from './continue-route';
@@ -71,5 +72,43 @@ describe('shouldShowFlashcardContinue', () => {
         hasReviewCandidate: true,
       }),
     ).toBe(false);
+  });
+});
+
+describe('getBrowseLibraryRevealState', () => {
+  it('keeps library pending until Continue readiness has resolved', () => {
+    expect(getBrowseLibraryRevealState({ continueReady: false, hasContinue: false })).toEqual({
+      showLibrary: false,
+      prioritizeContinue: false,
+      pendingLibrary: false,
+      motion: 'none',
+    });
+  });
+
+  it('reveals library immediately when Continue is ready and absent', () => {
+    expect(getBrowseLibraryRevealState({ continueReady: true, hasContinue: false })).toEqual({
+      showLibrary: true,
+      prioritizeContinue: false,
+      pendingLibrary: false,
+      motion: 'direct',
+    });
+  });
+
+  it('holds library in a quiet pending state when Continue exists but has not settled first', () => {
+    expect(getBrowseLibraryRevealState({ continueReady: true, hasContinue: true, continueSettled: false })).toEqual({
+      showLibrary: false,
+      prioritizeContinue: true,
+      pendingLibrary: true,
+      motion: 'after-continue',
+    });
+  });
+
+  it('reveals library after a real Continue section has settled', () => {
+    expect(getBrowseLibraryRevealState({ continueReady: true, hasContinue: true, continueSettled: true })).toEqual({
+      showLibrary: true,
+      prioritizeContinue: true,
+      pendingLibrary: false,
+      motion: 'after-continue',
+    });
   });
 });

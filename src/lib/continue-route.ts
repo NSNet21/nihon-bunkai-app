@@ -27,3 +27,45 @@ export function shouldShowFlashcardContinue({
 }) {
   return hasFlashcardSession && !hasReviewCandidate;
 }
+
+export type BrowseLibraryRevealState = {
+  showLibrary: boolean;
+  prioritizeContinue: boolean;
+  pendingLibrary: boolean;
+  motion: 'none' | 'direct' | 'after-continue';
+};
+
+export function getBrowseLibraryRevealState({
+  continueReady,
+  hasContinue,
+  continueSettled = false,
+}: {
+  continueReady: boolean;
+  hasContinue: boolean;
+  continueSettled?: boolean;
+}): BrowseLibraryRevealState {
+  if (!continueReady) {
+    return {
+      showLibrary: false,
+      prioritizeContinue: false,
+      pendingLibrary: false,
+      motion: 'none',
+    };
+  }
+
+  if (!hasContinue) {
+    return {
+      showLibrary: true,
+      prioritizeContinue: false,
+      pendingLibrary: false,
+      motion: 'direct',
+    };
+  }
+
+  return {
+    showLibrary: continueSettled,
+    prioritizeContinue: true,
+    pendingLibrary: !continueSettled,
+    motion: 'after-continue',
+  };
+}

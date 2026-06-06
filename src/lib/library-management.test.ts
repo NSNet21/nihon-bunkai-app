@@ -38,6 +38,8 @@ import {
   createUserLibraryEntry,
   deleteUserLibraryEntry,
   deleteUserLibraryDeck,
+  deleteUserLibraryGroup,
+  deleteUserLibrarySection,
   removeUserLibraryGroup,
   removeUserLibrarySection,
   moveUserLibraryDeck,
@@ -184,6 +186,99 @@ describe('library management operations', () => {
     expect(result).toEqual({ ok: true, changed: 1 });
     expect(decks.get(manualDeck.id)?.userGroup).toBe('Manual imports');
     expect(decks.get(manualDeck.id)?.userSection).toBe('Inbox');
+  });
+
+  it('deletes a user section and matching entry rows without touching sibling sections or official decks', async () => {
+    decks.set(manualDeck.id, {
+      ...manualDeck,
+      userGroup: 'Manual imports',
+      userSection: 'Regression',
+      tags: ['manual', 'group:Manual imports', 'section:Regression'],
+    });
+    decks.set('manual-sibling', {
+      ...manualDeck,
+      id: 'manual-sibling',
+      pack: 'manual-sibling',
+      title: 'Manual sibling',
+      userGroup: 'Manual imports',
+      userSection: 'Inbox',
+      tags: ['manual', 'group:Manual imports', 'section:Inbox'],
+    });
+    entries.set('manual-sibling', [{ no: 1, t: '残す', d: 'คงไว้', p: 'のこす', e: '' }]);
+    decks.set('official-overlap', {
+      ...manualDeck,
+      id: 'official-overlap',
+      pack: 'official-overlap',
+      title: 'Official overlap',
+      source: 'entitlement',
+      userGroup: 'Manual imports',
+      userSection: 'Regression',
+      tags: ['vocab', 'group:Manual imports', 'section:Regression'],
+    });
+    entries.set('official-overlap', [{ no: 1, t: '公式', d: 'ทางการ', p: 'こうしき', e: '' }]);
+
+    const result = await deleteUserLibrarySection('Manual imports', 'Regression');
+
+    expect(result).toEqual({ ok: true, changed: 1 });
+    expect(decks.has(manualDeck.id)).toBe(false);
+    expect(entries.has(manualDeck.pack)).toBe(false);
+    expect(decks.has('manual-sibling')).toBe(true);
+    expect(entries.has('manual-sibling')).toBe(true);
+    expect(decks.has('official-overlap')).toBe(true);
+    expect(entries.has('official-overlap')).toBe(true);
+  });
+
+  it('deletes a user group and matching entry rows without touching official decks', async () => {
+    decks.set(manualDeck.id, {
+      ...manualDeck,
+      userGroup: 'Manual imports',
+      userSection: 'Regression',
+      tags: ['manual', 'group:Manual imports', 'section:Regression'],
+    });
+    decks.set('custom-target', {
+      ...manualDeck,
+      id: 'custom-target',
+      pack: 'custom-target',
+      title: 'Custom target',
+      source: 'custom',
+      userGroup: 'Manual imports',
+      userSection: 'Inbox',
+      tags: ['custom', 'group:Manual imports', 'section:Inbox'],
+    });
+    entries.set('custom-target', [{ no: 1, t: '消す', d: 'ลบ', p: 'けす', e: '' }]);
+    decks.set('manual-other-group', {
+      ...manualDeck,
+      id: 'manual-other-group',
+      pack: 'manual-other-group',
+      title: 'Manual other group',
+      userGroup: 'Other group',
+      userSection: 'Inbox',
+      tags: ['manual', 'group:Other group', 'section:Inbox'],
+    });
+    entries.set('manual-other-group', [{ no: 1, t: '残る', d: 'เหลือ', p: 'のこる', e: '' }]);
+    decks.set('official-overlap', {
+      ...manualDeck,
+      id: 'official-overlap',
+      pack: 'official-overlap',
+      title: 'Official overlap',
+      source: 'entitlement',
+      userGroup: 'Manual imports',
+      userSection: 'Regression',
+      tags: ['vocab', 'group:Manual imports', 'section:Regression'],
+    });
+    entries.set('official-overlap', [{ no: 1, t: '公式', d: 'ทางการ', p: 'こうしき', e: '' }]);
+
+    const result = await deleteUserLibraryGroup('Manual imports');
+
+    expect(result).toEqual({ ok: true, changed: 2 });
+    expect(decks.has(manualDeck.id)).toBe(false);
+    expect(entries.has(manualDeck.pack)).toBe(false);
+    expect(decks.has('custom-target')).toBe(false);
+    expect(entries.has('custom-target')).toBe(false);
+    expect(decks.has('manual-other-group')).toBe(true);
+    expect(entries.has('manual-other-group')).toBe(true);
+    expect(decks.has('official-overlap')).toBe(true);
+    expect(entries.has('official-overlap')).toBe(true);
   });
 
   it('rejects official deck mutation', async () => {

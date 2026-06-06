@@ -3,13 +3,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import {
+  FiAlertTriangle,
   FiChevronDown,
   FiChevronsDown,
   FiChevronsUp,
+  FiEdit3,
+  FiInbox,
   FiLock,
   FiMinusSquare,
+  FiMoreVertical,
   FiPlusSquare,
   FiSearch,
+  FiTrash2,
   FiX,
 } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,6 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ContinueCard } from '@/components/continue-card';
+import { DeckManagementModal } from '@/components/deck-management-modal';
 import { LibraryActionsModal } from '@/components/library-actions-modal';
 import { PressableScale } from '@/components/pressable-scale';
 import { ScrollToTop } from '@/components/scroll-to-top';
@@ -37,8 +43,17 @@ import {
   filterBrowseDecks,
   getLibrarySearchFocusRailState,
   groupSearchHasQuery,
+  type BrowseActionContext,
   type BrowseRow,
 } from '@/lib/browse-group-search';
+import {
+  deleteUserLibraryGroup,
+  deleteUserLibrarySection,
+  removeUserLibraryGroup,
+  removeUserLibrarySection,
+  renameUserLibraryGroup,
+  renameUserLibrarySection,
+} from '@/lib/library-management';
 import type { LastSession } from '@/lib/last-session';
 
 const SCROLL_TOP_THRESHOLD = 400;
@@ -72,6 +87,8 @@ export default function BrowseScreen() {
   const listRef = useRef<FlashListRef<BrowseRow>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
+  const [browseAction, setBrowseAction] = useState<BrowseActionContext | null>(null);
+  const [deckActionDeck, setDeckActionDeck] = useState<Deck | null>(null);
   const colors = useThemePalette();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
 
@@ -210,6 +227,8 @@ export default function BrowseScreen() {
           isOpen={item.isOpen}
           childCount={item.childCount}
           onToggle={toggleLevel}
+          actionContext={item.actionContext}
+          onOpenAction={setBrowseAction}
         />
       );
     else if (item.kind === 'categoryHeader')
@@ -220,9 +239,11 @@ export default function BrowseScreen() {
           isOpen={item.isOpen}
           childCount={item.childCount}
           onToggle={toggleCategory}
+          actionContext={item.actionContext}
+          onOpenAction={setBrowseAction}
         />
       );
-    else inner = <DeckRow deck={item.deck} isLast={item.isLast} />;
+    else inner = <DeckRow deck={item.deck} isLast={item.isLast} actionContext={item.actionContext} onOpenAction={setDeckActionDeck} />;
 
     return <View style={styles.rowWrap}>{inner}</View>;
   }, [toggleLevel, toggleCategory]);
@@ -322,6 +343,27 @@ export default function BrowseScreen() {
         empty={groupSearchEmpty}
         onChangeQuery={setGroupSearchQuery}
         onClose={() => setLibrarySearchOpen(false)}
+      />
+      <BrowseOrganizationActionModal
+        action={browseAction}
+        onClose={() => setBrowseAction(null)}
+        onChanged={() => {
+          refresh();
+          setBrowseAction(null);
+        }}
+      />
+      <DeckManagementModal
+        visible={!!deckActionDeck}
+        deck={deckActionDeck ?? undefined}
+        onClose={() => setDeckActionDeck(null)}
+        onChanged={() => {
+          refresh();
+          setDeckActionDeck(null);
+        }}
+        onDeleted={() => {
+          refresh();
+          setDeckActionDeck(null);
+        }}
       />
       <ScrollToTop
         visible={showScrollTop}
@@ -691,12 +733,16 @@ const LevelHeader = memo(function LevelHeader({
   isOpen,
   childCount,
   onToggle,
+  actionContext,
+  onOpenAction,
 }: {
   level: string;
   title: string;
   isOpen: boolean;
   childCount: number;
   onToggle: (level: string) => void;
+  actionContext?: BrowseActionContext;
+  onOpenAction: (action: BrowseActionContext) => void;
 }) {
   const colors = useThemePalette();
   const handlePress = useCallback(() => onToggle(level), [level, onToggle]);
@@ -712,6 +758,13 @@ const LevelHeader = memo(function LevelHeader({
       <View style={styles.chevronWrap}>
         <AnimatedChevron isOpen={isOpen} size={18} color={colors.textSecondary} />
       </View>
+      {actionContext ? (
+        <BrowseActionTrigger
+          action={actionContext}
+          label={`เปิด actions สำหรับ group ${title}`}
+          onOpenAction={onOpenAction}
+        />
+      ) : null}
     </Pressable>
   );
 });
@@ -722,12 +775,16 @@ const CategoryHeader = memo(function CategoryHeader({
   isOpen,
   childCount,
   onToggle,
+  actionContext,
+  onOpenAction,
 }: {
   levelKey: string;
   title: string;
   isOpen: boolean;
   childCount: number;
   onToggle: (key: string) => void;
+  actionContext?: BrowseActionContext;
+  onOpenAction: (action: BrowseActionContext) => void;
 }) {
   const colors = useThemePalette();
   const handlePress = useCallback(() => onToggle(levelKey), [levelKey, onToggle]);
@@ -742,11 +799,28 @@ const CategoryHeader = memo(function CategoryHeader({
       <View style={styles.chevronWrap}>
         <AnimatedChevron isOpen={isOpen} size={14} color={colors.textHint} />
       </View>
+      {actionContext ? (
+        <BrowseActionTrigger
+          action={actionContext}
+          label={`เปิด actions สำหรับ section ${title}`}
+          onOpenAction={onOpenAction}
+        />
+      ) : null}
     </Pressable>
   );
 });
 
-const DeckRow = memo(function DeckRow({ deck, isLast }: { deck: Deck; isLast: boolean }) {
+const DeckRow = memo(function DeckRow({
+  deck,
+  isLast,
+  actionContext,
+  onOpenAction,
+}: {
+  deck: Deck;
+  isLast: boolean;
+  actionContext?: BrowseActionContext;
+  onOpenAction: (deck: Deck) => void;
+}) {
   const colors = useThemePalette();
   const router = useRouter();
 
@@ -811,12 +885,335 @@ const DeckRow = memo(function DeckRow({ deck, isLast }: { deck: Deck; isLast: bo
                 </ThemedText>
               </View>
             )}
+            {actionContext ? (
+              <BrowseActionTrigger
+                action={actionContext}
+                label={`เปิด Deck Actions สำหรับ ${deck.title}`}
+                onOpenAction={() => onOpenAction(deck)}
+              />
+            ) : null}
           </View>
         </View>
       </ThemedView>
     </PressableScale>
   );
 });
+
+function BrowseActionTrigger({
+  action,
+  label,
+  onOpenAction,
+}: {
+  action: BrowseActionContext;
+  label: string;
+  onOpenAction: (action: BrowseActionContext) => void;
+}) {
+  const colors = useThemePalette();
+  return (
+    <Pressable
+      onPress={(event: any) => {
+        event?.stopPropagation?.();
+        onOpenAction(action);
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed, hovered }: any) => [
+        styles.browseActionTrigger,
+        { borderColor: pressed || hovered ? Accent.soft : colors.border, backgroundColor: colors.background },
+        pressed && { opacity: 0.75 },
+      ]}>
+      {({ pressed, hovered }: any) => (
+        <FiMoreVertical size={15} color={pressed || hovered ? Accent.base : colors.textSecondary} strokeWidth={2} />
+      )}
+    </Pressable>
+  );
+}
+
+function BrowseOrganizationActionModal({
+  action,
+  onClose,
+  onChanged,
+}: {
+  action: BrowseActionContext | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const colors = useThemePalette();
+  const [mode, setMode] = useState<'menu' | 'rename' | 'remove' | 'delete'>('menu');
+  const [value, setValue] = useState('');
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    if (!action) return;
+    setMode('menu');
+    setValue(action.title);
+    setConfirmText('');
+    setStatus('');
+    setBusy(false);
+  }, [action]);
+
+  if (!action || action.target === 'deck') return null;
+
+  const targetLabel = action.target === 'group' ? 'group' : 'section';
+  const confirmReady = confirmText.trim() === action.title;
+  const renameReady = value.trim().length > 0 && value.trim() !== action.title;
+
+  async function runRename() {
+    if (!action || busy || !renameReady) return;
+    setBusy(true);
+    setStatus('');
+    try {
+      const result = action.target === 'group'
+        ? await renameUserLibraryGroup(action.group ?? action.title, value)
+        : await renameUserLibrarySection(action.group ?? '', action.section ?? action.title, value);
+      if (!result.ok) {
+        setStatus(result.reason ?? 'Rename ไม่สำเร็จ');
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runRemove() {
+    if (!action || busy) return;
+    setBusy(true);
+    setStatus('');
+    try {
+      const result = action.target === 'group'
+        ? await removeUserLibraryGroup(action.group ?? action.title)
+        : await removeUserLibrarySection(action.group ?? '', action.section ?? action.title);
+      if (!result.ok) {
+        setStatus(result.reason ?? 'Remove ไม่สำเร็จ');
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runDelete() {
+    if (!action || busy || !confirmReady) return;
+    setBusy(true);
+    setStatus('');
+    try {
+      const result = action.target === 'group'
+        ? await deleteUserLibraryGroup(action.group ?? action.title)
+        : await deleteUserLibrarySection(action.group ?? '', action.section ?? action.title);
+      if (!result.ok) {
+        setStatus(result.reason ?? 'Delete ไม่สำเร็จ');
+        return;
+      }
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal visible={!!action} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.browseActionBackdrop} onPress={onClose}>
+        <Pressable
+          onPress={(event: any) => event.stopPropagation?.()}
+          style={[styles.browseActionPanel, { borderColor: colors.border, borderTopColor: Accent.base, backgroundColor: colors.background }]}>
+          <View style={styles.browseActionHead}>
+            <View style={styles.browseActionTitleStack}>
+              <View style={styles.titleRow}>
+                <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+                <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
+                  // {targetLabel.toUpperCase()} ACTIONS
+                </ThemedText>
+              </View>
+              <ThemedText type="defaultSemiBold" numberOfLines={1}>
+                {action.title}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {action.childCount ?? 0} decks · User Content
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ปิด Browse actions"
+              style={({ pressed }) => [styles.browseActionClose, { borderColor: colors.border }, pressed && { opacity: 0.75 }]}>
+              <FiX size={16} color={colors.text} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          {mode === 'menu' ? (
+            <View style={styles.browseActionList}>
+              <BrowseActionRow
+                icon={<FiEdit3 size={16} color={Accent.base} strokeWidth={2} />}
+                title={`Rename ${targetLabel}`}
+                body="เปลี่ยนชื่อเฉพาะ user/imported content"
+                onPress={() => setMode('rename')}
+              />
+              <BrowseActionRow
+                icon={<FiInbox size={16} color={Accent.base} strokeWidth={2} />}
+                title={`Remove ${targetLabel} only`}
+                body={action.target === 'group'
+                  ? 'คง deck ไว้ แล้วย้ายไป Manual imports / Inbox'
+                  : 'คง deck ไว้ แล้วย้ายไป Inbox ใน group เดิม'}
+                onPress={() => setMode('remove')}
+              />
+              <BrowseActionRow
+                danger
+                icon={<FiTrash2 size={16} color={Accent.base} strokeWidth={2} />}
+                title={`Delete ${targetLabel} and decks`}
+                body="ลบ child deck/data ของ user content ใน node นี้"
+                onPress={() => setMode('delete')}
+              />
+            </View>
+          ) : null}
+
+          {mode === 'rename' ? (
+            <View style={styles.browseActionForm}>
+              <ThemedText type="small" themeColor="textSecondary">ชื่อใหม่</ThemedText>
+              <TextInput
+                value={value}
+                onChangeText={setValue}
+                placeholder={`Rename ${targetLabel}`}
+                placeholderTextColor={colors.textHint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[styles.browseActionInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.background }]}
+              />
+              <View style={styles.browseActionFooter}>
+                <SecondaryActionButton label="Back" onPress={() => setMode('menu')} />
+                <PrimaryActionButton label="Save" disabled={!renameReady || busy} onPress={() => void runRename()} />
+              </View>
+            </View>
+          ) : null}
+
+          {mode === 'remove' ? (
+            <View style={styles.browseActionForm}>
+              <ThemedText type="defaultSemiBold">Remove only</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.browseActionCopy}>
+                {action.target === 'group'
+                  ? 'Group นี้จะหายจาก Browse แต่ deck ข้างในยังอยู่ และจะถูกย้ายไป Manual imports / Inbox'
+                  : 'Section นี้จะหายจาก Browse แต่ deck ข้างในยังอยู่ และจะถูกย้ายไป Inbox ใน group เดิม'}
+              </ThemedText>
+              <View style={styles.browseActionFooter}>
+                <SecondaryActionButton label="Back" onPress={() => setMode('menu')} />
+                <PrimaryActionButton label="Remove only" disabled={busy} onPress={() => void runRemove()} />
+              </View>
+            </View>
+          ) : null}
+
+          {mode === 'delete' ? (
+            <View style={styles.browseActionForm}>
+              <View style={[styles.browseDangerBox, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+                <FiAlertTriangle size={18} color={Accent.base} strokeWidth={2} />
+                <ThemedText type="small" style={[styles.browseActionCopy, { color: Accent.base }]}>
+                  Destructive: จะลบ deck/data ของ user content ใน {targetLabel} นี้จริง
+                </ThemedText>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                พิมพ์ `{action.title}` เพื่อยืนยัน
+              </ThemedText>
+              <TextInput
+                value={confirmText}
+                onChangeText={setConfirmText}
+                placeholder={action.title}
+                placeholderTextColor={colors.textHint}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[styles.browseActionInput, { borderColor: confirmReady ? Accent.soft : colors.border, color: colors.text, backgroundColor: colors.background }]}
+              />
+              <View style={styles.browseActionFooter}>
+                <SecondaryActionButton label="Back" onPress={() => setMode('menu')} />
+                <PrimaryActionButton label="Delete" disabled={!confirmReady || busy} danger onPress={() => void runDelete()} />
+              </View>
+            </View>
+          ) : null}
+
+          {status ? (
+            <View style={[styles.browseActionStatus, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+              <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText>
+            </View>
+          ) : null}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function BrowseActionRow({
+  icon,
+  title,
+  body,
+  danger,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  const colors = useThemePalette();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      style={({ pressed }) => [
+        styles.browseActionRow,
+        { borderColor: danger ? Accent.soft : colors.border, backgroundColor: danger ? Accent.bg : colors.backgroundElement },
+        pressed && { opacity: 0.78 },
+      ]}>
+      {icon}
+      <View style={styles.browseActionRowText}>
+        <ThemedText type="defaultSemiBold" style={danger ? { color: Accent.base } : undefined}>{title}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">{body}</ThemedText>
+      </View>
+    </Pressable>
+  );
+}
+
+function SecondaryActionButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const colors = useThemePalette();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.browseSecondaryButton, { borderColor: colors.border }, pressed && { opacity: 0.75 }]}>
+      <ThemedText type="small" themeColor="textSecondary">{label}</ThemedText>
+    </Pressable>
+  );
+}
+
+function PrimaryActionButton({
+  label,
+  disabled,
+  danger,
+  onPress,
+}: {
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.browsePrimaryButton,
+        { backgroundColor: danger ? Accent.base : Accent.base, opacity: disabled ? 0.45 : 1 },
+        pressed && !disabled && { opacity: 0.78 },
+      ]}>
+      <ThemedText type="smallBold" style={styles.browsePrimaryButtonText}>{label}</ThemedText>
+    </Pressable>
+  );
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1183,6 +1580,124 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingVertical: 2,
     borderRadius: Radii.sm,
+  },
+  browseActionTrigger: {
+    width: 34,
+    height: 34,
+    borderRadius: Radii.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  browseActionBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.four,
+  },
+  browseActionPanel: {
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '88%',
+    borderWidth: 1,
+    borderTopWidth: 3,
+    borderRadius: Radii.md,
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  browseActionHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  browseActionTitleStack: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  browseActionClose: {
+    width: 34,
+    height: 34,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  browseActionList: {
+    gap: Spacing.two,
+  },
+  browseActionRow: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  browseActionRowText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  browseActionForm: {
+    gap: Spacing.three,
+  },
+  browseActionInput: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Platform.OS === 'web' ? 9 : 6,
+    fontSize: 15,
+  },
+  browseActionCopy: {
+    lineHeight: 20,
+  },
+  browseActionFooter: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  browseSecondaryButton: {
+    minHeight: 42,
+    minWidth: 92,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+  },
+  browsePrimaryButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+  },
+  browsePrimaryButtonText: {
+    color: '#fff',
+  },
+  browseDangerBox: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+  },
+  browseActionStatus: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.two,
   },
   pressed: { opacity: 0.7 },
 });

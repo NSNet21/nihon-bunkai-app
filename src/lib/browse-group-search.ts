@@ -1,10 +1,20 @@
 import type { Deck } from '@/data/types';
 import { getDeckOrganization, isUserEditableDeck } from './user-content';
 
+export type BrowseActionContext = {
+  source: 'user';
+  target: 'group' | 'section' | 'deck';
+  group?: string;
+  section?: string;
+  deckId?: string;
+  title: string;
+  childCount?: number;
+};
+
 export type BrowseRow =
-  | { kind: 'levelHeader';    title: string; key: string; level: string; isOpen: boolean; childCount: number }
-  | { kind: 'categoryHeader'; title: string; key: string; level: string; category: string; isOpen: boolean; childCount: number }
-  | { kind: 'deck';           deck: Deck;    key: string; isLast: boolean };
+  | { kind: 'levelHeader';    title: string; key: string; level: string; isOpen: boolean; childCount: number; actionContext?: BrowseActionContext }
+  | { kind: 'categoryHeader'; title: string; key: string; level: string; category: string; isOpen: boolean; childCount: number; actionContext?: BrowseActionContext }
+  | { kind: 'deck';           deck: Deck;    key: string; isLast: boolean; actionContext?: BrowseActionContext };
 
 const CATEGORY_ORDER: Deck['type'][] = ['kanji', 'grammar', 'vocab', 'glossary'];
 const CATEGORY_LABEL: Record<Deck['type'], string> = {
@@ -115,7 +125,23 @@ export function buildBrowseRows(
 
     const levelOpen = forceOpen || !closedLevels.has(level);
     const totalChildren = Array.from(categories.values()).reduce((sum, category) => sum + category.decks.length, 0);
-    rows.push({ kind: 'levelHeader', title: group.title, key: `lvl-${level}`, level, isOpen: levelOpen, childCount: totalChildren });
+    rows.push({
+      kind: 'levelHeader',
+      title: group.title,
+      key: `lvl-${level}`,
+      level,
+      isOpen: levelOpen,
+      childCount: totalChildren,
+      actionContext: group.source === 'user'
+        ? {
+          source: 'user',
+          target: 'group',
+          group: group.title,
+          title: group.title,
+          childCount: totalChildren,
+        }
+        : undefined,
+    });
     if (!levelOpen) continue;
 
     const orderedCategories = [...categories.values()].sort((a, b) => compareCategories(a, b));
@@ -135,12 +161,39 @@ export function buildBrowseRows(
           category: category.key,
           isOpen: categoryOpen,
           childCount: categoryDecks.length,
+          actionContext: group.source === 'user'
+            ? {
+              source: 'user',
+              target: 'section',
+              group: group.title,
+              section: category.title,
+              title: category.title,
+              childCount: categoryDecks.length,
+            }
+            : undefined,
         });
         if (!categoryOpen) continue;
       }
 
       categoryDecks.forEach((deck, index) => {
-        rows.push({ kind: 'deck', deck, key: deck.id, isLast: index === categoryDecks.length - 1 });
+        const organization = isUserEditableDeck(deck) ? getDeckOrganization(deck) : {};
+        rows.push({
+          kind: 'deck',
+          deck,
+          key: deck.id,
+          isLast: index === categoryDecks.length - 1,
+          actionContext: organization.group
+            ? {
+              source: 'user',
+              target: 'deck',
+              group: organization.group,
+              section: organization.section,
+              deckId: deck.id,
+              title: deck.title,
+              childCount: deck.entryCount,
+            }
+            : undefined,
+        });
       });
     }
   }

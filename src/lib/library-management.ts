@@ -149,6 +149,38 @@ export async function removeUserLibraryGroup(group: string): Promise<LibraryBulk
   );
 }
 
+export async function deleteUserLibrarySection(
+  group: string,
+  section: string,
+): Promise<LibraryBulkMutationResult> {
+  const cleanGroup = cleanRequired(group);
+  const cleanSection = cleanRequired(section);
+  if (!cleanGroup) return { ok: false, reason: EMPTY_GROUP_REASON };
+  if (!cleanSection) return { ok: false, reason: EMPTY_SECTION_REASON };
+  return deleteUserLibraryDecksByOrganization(
+    (organization) => organization.group === cleanGroup && organization.section === cleanSection,
+    {
+      missingReason: MISSING_SECTION_REASON,
+      action: 'section-delete',
+      group: cleanGroup,
+      section: cleanSection,
+    },
+  );
+}
+
+export async function deleteUserLibraryGroup(group: string): Promise<LibraryBulkMutationResult> {
+  const cleanGroup = cleanRequired(group);
+  if (!cleanGroup) return { ok: false, reason: EMPTY_GROUP_REASON };
+  return deleteUserLibraryDecksByOrganization(
+    (organization) => organization.group === cleanGroup,
+    {
+      missingReason: MISSING_GROUP_REASON,
+      action: 'group-delete',
+      group: cleanGroup,
+    },
+  );
+}
+
 export async function deleteUserLibraryDeck(deckId: string): Promise<LibraryMutationResult> {
   const deck = await getMutableLibraryDeck(deckId);
   if ('ok' in deck) return deck;
@@ -274,6 +306,27 @@ async function mutateUserLibraryDecksByOrganization(
   }
   notifyLibraryChanged({ source: 'user-content', ...eventDetail, changed: String(matching.length) });
   return { ok: true, changed: matching.length };
+}
+
+async function deleteUserLibraryDecksByOrganization(
+  match: (organization: DeckOrganization, deck: LibraryDeckRecord) => boolean,
+  eventDetail: Record<string, string>,
+): Promise<LibraryBulkMutationResult> {
+  const decks = await listLibraryDecks();
+  const matching = decks.filter((deck) => {
+    if (!isUserEditableDeck(deck as Deck)) return false;
+    return match(readDeckOrganization(deck), deck);
+  });
+  if (matching.length === 0) return { ok: false, reason: eventDetail.missingReason };
+
+  let changed = 0;
+  for (const deck of matching) {
+    const deleted = await deleteLibraryDeckAndEntries(deck.id);
+    if (deleted) changed += 1;
+  }
+  if (changed === 0) return { ok: false, reason: eventDetail.missingReason };
+  notifyLibraryChanged({ source: 'user-content', ...eventDetail, changed: String(changed) });
+  return { ok: true, changed };
 }
 
 function readDeckOrganization(deck: LibraryDeckRecord): DeckOrganization {

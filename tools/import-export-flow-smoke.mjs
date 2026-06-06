@@ -78,6 +78,25 @@ async function openDeckActions(page) {
   await page.getByText('DECK ACTIONS', { exact: false }).first().waitFor({ timeout: 10_000 });
 }
 
+async function openBrowseContextActions(page, label) {
+  const trigger = page.getByLabel(label).first();
+  await trigger.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
+  await trigger.click({ timeout: 10_000 });
+  await page.getByText('Rename', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByText('Remove', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByText('Delete', { exact: false }).first().waitFor({ timeout: 10_000 });
+}
+
+async function openBrowseDeckActions(page, label) {
+  const trigger = page.getByLabel(label).first();
+  await trigger.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
+  await trigger.click({ timeout: 10_000 });
+  await page.getByText('DECK ACTIONS', { exact: false }).first().waitFor({ timeout: 10_000 });
+  await page.getByPlaceholder('ชื่อ deck').waitFor({ timeout: 10_000 });
+  await page.getByPlaceholder('เช่น Manual imports').waitFor({ timeout: 10_000 });
+  await page.getByPlaceholder('เช่น N2 / Week 1').waitFor({ timeout: 10_000 });
+}
+
 async function expectStackedImportDestinationPicker(page) {
   const groupLabel = page.getByText('GROUP', { exact: true }).first();
   const sectionLabel = page.getByText('SECTION', { exact: true }).first();
@@ -402,6 +421,13 @@ try {
     userSection: movedSection,
   });
   await page.goto(urlFor('/'), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await ensureBrowseDeckVisible(page, renamedDeckTitle);
+  await openBrowseContextActions(page, `เปิด actions สำหรับ group ${movedGroup}`);
+  await page.getByLabel('ปิด Browse actions').click({ timeout: 10_000 });
+  await openBrowseContextActions(page, `เปิด actions สำหรับ section ${movedSection}`);
+  await page.getByLabel('ปิด Browse actions').click({ timeout: 10_000 });
+  await openBrowseDeckActions(page, `เปิด Deck Actions สำหรับ ${renamedDeckTitle}`);
+  await page.getByRole('button', { name: 'ปิด Deck Actions', exact: true }).click({ timeout: 10_000 });
   await openLibraryActions(page);
   await page.getByLabel('Manage groups').click({ timeout: 10_000 });
   await page.getByText('Manage user groups', { exact: false }).waitFor({ state: 'visible', timeout: 10_000 });

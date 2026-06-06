@@ -128,4 +128,54 @@ describe('buildBrowseRows', () => {
       'vocab-n5-pack96',
     ]);
   });
+
+  it('adds editable action context only for user group, section, and deck rows', () => {
+    const rows = buildBrowseRows([
+      decks[0],
+      {
+        id: 'vocab-n5-pack96',
+        type: 'vocab',
+        level: 'N5',
+        title: 'Vocab N5 · Pack 96',
+        entryCount: 3,
+        isFree: false,
+        pack: 'vocab-n5-pack96',
+        tags: ['vocab', 'n5', 'group:Manual Smoke Group', 'section:Regression'],
+        userGroup: 'Manual Smoke Group',
+        userSection: 'Regression',
+        source: 'manual',
+      },
+    ], new Set(), new Set(), false);
+
+    const officialGroup = rows.find((row) => row.kind === 'levelHeader' && row.title === 'N5');
+    const userGroup = rows.find((row) => row.kind === 'levelHeader' && row.title === 'Manual Smoke Group');
+    const userSection = rows.find((row) => row.kind === 'categoryHeader' && row.title === 'Regression');
+    const userDeck = rows.find((row) => row.kind === 'deck' && row.deck.id === 'vocab-n5-pack96');
+
+    expect(officialGroup?.actionContext).toBeUndefined();
+    expect(userGroup?.actionContext).toEqual({
+      source: 'user',
+      target: 'group',
+      group: 'Manual Smoke Group',
+      title: 'Manual Smoke Group',
+      childCount: 1,
+    });
+    expect(userSection?.actionContext).toEqual({
+      source: 'user',
+      target: 'section',
+      group: 'Manual Smoke Group',
+      section: 'Regression',
+      title: 'Regression',
+      childCount: 1,
+    });
+    expect(userDeck?.actionContext).toEqual({
+      source: 'user',
+      target: 'deck',
+      group: 'Manual Smoke Group',
+      section: 'Regression',
+      deckId: 'vocab-n5-pack96',
+      title: 'Vocab N5 · Pack 96',
+      childCount: 3,
+    });
+  });
 });

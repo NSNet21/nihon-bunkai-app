@@ -424,10 +424,14 @@ export function Flashcard({
                 intercepting clicks + wheel — backface-visibility:hidden on
                 preserve-3d elements doesn't always block hit-testing on web. */}
             <Animated.View
+              /* Keep pointerEvents as PROP (not style) here. Reanimated's
+                 Animated.View can fail to apply style.pointerEvents
+                 consistently across web/native, which lets the inactive
+                 face intercept speaker taps, card clicks, and wheel scroll. */
+              pointerEvents={isFlipped ? 'none' : 'auto'}
               style={[
                 styles.face,
                 styles.faceCenter,
-                { pointerEvents: isFlipped ? 'none' : 'auto' },
                 { backgroundColor: colors.backgroundElement, padding: facePad },
                 /* Front face: kill text selection on web so drag never gets
                    hijacked by browser's text-select. Back face KEEPS default
@@ -493,7 +497,8 @@ export function Flashcard({
 
           {/* Back face — D (meaning) + E (explanation), each toggleable */}
           <Animated.View
-            style={[styles.face, { pointerEvents: isFlipped ? 'auto' : 'none' }, { backgroundColor: colors.backgroundElement }, backStyle]}>
+            pointerEvents={isFlipped ? 'auto' : 'none'}
+            style={[styles.face, { backgroundColor: colors.backgroundElement }, backStyle]}>
             <ScrollView
               style={[
                 styles.backScroll,
@@ -563,7 +568,7 @@ export function Flashcard({
             disappearing edge-on at 90°. Shares swipeStyle so FootDots
             translates with the card during swipe (otherwise progress sits
             still while the card flies away — looks broken). */}
-        <Animated.View style={[styles.cardOverlay, { pointerEvents: 'box-none' }, swipeStyle]}>
+        <Animated.View pointerEvents="box-none" style={[styles.cardOverlay, swipeStyle]}>
           {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
         </Animated.View>
         </Animated.View>

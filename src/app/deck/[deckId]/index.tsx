@@ -9,6 +9,7 @@ import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { FiActivity, FiBookOpen, FiCalendar, FiChevronLeft, FiChevronRight, FiClock, FiMoreVertical, FiPlus, FiSearch } from 'react-icons/fi';
+import Animated, { Easing, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -268,20 +269,22 @@ export default function DeckTermListScreen() {
           ) : null}
 
           {entriesLoading ? (
-            <RouteLoadingIndicator style={styles.entriesLoading} />
+            <DeckTermsPending colors={colors} />
           ) : filteredEntries.length > 0 ? (
-            <View style={[styles.termList, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-              {filteredEntries.map((entry, index) => (
-                <TermRow
-                  key={entry.id}
-                  entry={entry}
-                  index={index}
-                  total={filteredEntries.length}
-                  colors={colors}
-                  onPress={() => goTerm(entry)}
-                />
-              ))}
-            </View>
+            <Animated.View entering={FadeInUp.duration(180).easing(Easing.bezier(0.4, 0, 0.2, 1))}>
+              <View style={[styles.termList, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+                {filteredEntries.map((entry, index) => (
+                  <TermRow
+                    key={entry.id}
+                    entry={entry}
+                    index={index}
+                    total={filteredEntries.length}
+                    colors={colors}
+                    onPress={() => goTerm(entry)}
+                  />
+                ))}
+              </View>
+            </Animated.View>
           ) : (
             <View style={[styles.emptyState, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
               <ThemedText type="defaultSemiBold">ไม่พบคำที่ตรงกับการค้นหา</ThemedText>
@@ -379,11 +382,9 @@ function DeckProgressBlock({
       </View>
 
       {!ready ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          กำลังอ่านความคืบหน้า...
-        </ThemedText>
+        <DeckPreviewPendingLine colors={colors} label="กำลังอ่านความคืบหน้า" />
       ) : hasProgress && progress ? (
-        <View style={styles.progressGrid}>
+        <Animated.View entering={FadeInUp.duration(170).easing(Easing.bezier(0.4, 0, 0.2, 1))} style={styles.progressGrid}>
           <ProgressMetric
             icon={<FiActivity size={14} color={Accent.base} strokeWidth={2} />}
             label="แตะแล้ว"
@@ -420,12 +421,34 @@ function DeckProgressBlock({
               colors={colors}
             />
           ) : null}
-        </View>
+        </Animated.View>
       ) : (
         <ThemedText type="small" themeColor="textSecondary">
           ยังไม่มีประวัติรอบเรียนใน deck นี้
         </ThemedText>
       )}
+    </View>
+  );
+}
+
+function DeckPreviewPendingLine({ colors, label }: { colors: typeof Colors.light; label: string }) {
+  return (
+    <View style={styles.pendingLine}>
+      <View style={[styles.pendingRail, { backgroundColor: Accent.base }]} />
+      <View style={styles.pendingTextStack}>
+        <ThemedText type="smallBold" style={{ color: colors.textSecondary }}>{label}</ThemedText>
+        <ThemedText type="small" style={{ color: colors.textHint }}>// รอข้อมูลในเครื่อง</ThemedText>
+      </View>
+    </View>
+  );
+}
+
+function DeckTermsPending({ colors }: { colors: typeof Colors.light }) {
+  return (
+    <View style={[styles.termsPendingBlock, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+      <DeckPreviewPendingLine colors={colors} label="กำลังจัดคำใน deck นี้" />
+      <View style={[styles.termsPendingRow, { borderColor: colors.border, backgroundColor: colors.background }]} />
+      <View style={[styles.termsPendingRow, { borderColor: colors.border, backgroundColor: colors.background }]} />
     </View>
   );
 }
@@ -729,6 +752,19 @@ const styles = StyleSheet.create({
   progressMetricLabel: {
     fontSize: 11,
   },
+  pendingLine: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  pendingRail: {
+    width: 3,
+    alignSelf: 'stretch',
+  },
+  pendingTextStack: {
+    gap: 2,
+  },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -784,8 +820,18 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     overflow: 'hidden',
   },
-  entriesLoading: {
-    minHeight: 180,
+  termsPendingBlock: {
+    minHeight: 168,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  termsPendingRow: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    opacity: 0.58,
   },
   termRow: {
     minHeight: 74,

@@ -755,16 +755,18 @@ const LevelHeader = memo(function LevelHeader({
       <ThemedText type="small" themeColor="textSecondary" style={styles.countBadge}>
         {childCount}
       </ThemedText>
-      <View style={styles.chevronWrap}>
-        <AnimatedChevron isOpen={isOpen} size={18} color={colors.textSecondary} />
+      <View style={styles.headerUtilityCluster}>
+        {actionContext ? (
+          <BrowseActionTrigger
+            action={actionContext}
+            label={actionContext.disabled ? `Official Source แก้ไม่ได้: group ${title}` : `เปิด actions สำหรับ group ${title}`}
+            onOpenAction={onOpenAction}
+          />
+        ) : null}
+        <View style={styles.chevronWrap}>
+          <AnimatedChevron isOpen={isOpen} size={18} color={colors.textSecondary} />
+        </View>
       </View>
-      {actionContext ? (
-        <BrowseActionTrigger
-          action={actionContext}
-          label={`เปิด actions สำหรับ group ${title}`}
-          onOpenAction={onOpenAction}
-        />
-      ) : null}
     </Pressable>
   );
 });
@@ -796,16 +798,18 @@ const CategoryHeader = memo(function CategoryHeader({
       <ThemedText type="small" themeColor="textHint" style={styles.countBadge}>
         {childCount}
       </ThemedText>
-      <View style={styles.chevronWrap}>
-        <AnimatedChevron isOpen={isOpen} size={14} color={colors.textHint} />
+      <View style={styles.headerUtilityCluster}>
+        {actionContext ? (
+          <BrowseActionTrigger
+            action={actionContext}
+            label={actionContext.disabled ? `Official Source แก้ไม่ได้: section ${title}` : `เปิด actions สำหรับ section ${title}`}
+            onOpenAction={onOpenAction}
+          />
+        ) : null}
+        <View style={styles.chevronWrap}>
+          <AnimatedChevron isOpen={isOpen} size={14} color={colors.textHint} />
+        </View>
       </View>
-      {actionContext ? (
-        <BrowseActionTrigger
-          action={actionContext}
-          label={`เปิด actions สำหรับ section ${title}`}
-          onOpenAction={onOpenAction}
-        />
-      ) : null}
     </Pressable>
   );
 });
@@ -909,21 +913,32 @@ function BrowseActionTrigger({
   onOpenAction: (action: BrowseActionContext) => void;
 }) {
   const colors = useThemePalette();
+  const disabled = action.disabled || action.source !== 'user';
   return (
     <Pressable
       onPress={(event: any) => {
         event?.stopPropagation?.();
+        if (disabled) return;
         onOpenAction(action);
       }}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={disabled ? { disabled: true } : undefined}
       style={({ pressed, hovered }: any) => [
         styles.browseActionTrigger,
-        { borderColor: pressed || hovered ? Accent.soft : colors.border, backgroundColor: colors.background },
-        pressed && { opacity: 0.75 },
+        {
+          borderColor: pressed || hovered ? Accent.soft : 'transparent',
+          backgroundColor: pressed || hovered ? colors.background : 'transparent',
+          opacity: disabled ? 0.35 : 1,
+        },
+        pressed && !disabled && { opacity: 0.75 },
       ]}>
       {({ pressed, hovered }: any) => (
-        <FiMoreVertical size={15} color={pressed || hovered ? Accent.base : colors.textSecondary} strokeWidth={2} />
+        <FiMoreVertical
+          size={15}
+          color={disabled ? colors.textHint : pressed || hovered ? Accent.base : colors.textSecondary}
+          strokeWidth={2}
+        />
       )}
     </Pressable>
   );
@@ -1543,7 +1558,18 @@ const styles = StyleSheet.create({
   },
   categoryTitle: { letterSpacing: 1.2 },
   countBadge: { marginLeft: Spacing.one },
-  chevronWrap: { marginLeft: 'auto' },
+  headerUtilityCluster: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  chevronWrap: {
+    width: 26,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerPressed: { opacity: 0.6 },
   deckCard: { borderRadius: 0 },
   deckCardInner: {
@@ -1582,8 +1608,8 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
   },
   browseActionTrigger: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     borderRadius: Radii.sm,
     borderWidth: 1,
     alignItems: 'center',

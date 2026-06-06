@@ -1,5 +1,6 @@
 /**
  * Global ⌘/Ctrl+K shortcut → jump to /search.
+ * Global ⌘/Ctrl+B or ⌘/Ctrl+Home shortcut → jump to Browse.
  *
  * Web only (desktop keyboards). Mobile + tablet touch users use the tab bar.
  * iPad/tablet with a hardware keyboard naturally still works — we don't
@@ -12,6 +13,7 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { getGlobalShortcutAction } from '@/lib/global-shortcuts';
 
 export function SearchShortcut() {
   const router = useRouter();
@@ -21,10 +23,13 @@ export function SearchShortcut() {
 
     function onKeydown(e: KeyboardEvent) {
       /* Use e.code (physical key) — survives Thai/JP keyboard layouts where e.key changes. */
-      const isK = e.code === 'KeyK';
-      const withMod = e.ctrlKey || e.metaKey;
-      if (!isK || !withMod) return;
+      const action = getGlobalShortcutAction(e);
+      if (!action) return;
       e.preventDefault();
+      if (action === 'browse') {
+        router.push(`/?scrollTop=${Date.now()}` as never);
+        return;
+      }
       router.push('/(tabs)/search');
       /* Tell the search screen to grab the input — works even when route is already active.
          Dispatched after navigate so the search screen is mounted by the time it fires. */

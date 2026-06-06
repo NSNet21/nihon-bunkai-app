@@ -2,13 +2,15 @@ import type { Deck } from '@/data/types';
 import { getDeckOrganization, isUserEditableDeck } from './user-content';
 
 export type BrowseActionContext = {
-  source: 'user';
+  source: 'user' | 'official';
   target: 'group' | 'section' | 'deck';
   group?: string;
   section?: string;
   deckId?: string;
   title: string;
   childCount?: number;
+  disabled?: boolean;
+  reason?: string;
 };
 
 export type BrowseRow =
@@ -140,7 +142,14 @@ export function buildBrowseRows(
           title: group.title,
           childCount: totalChildren,
         }
-        : undefined,
+        : {
+          source: 'official',
+          target: 'group',
+          title: group.title,
+          childCount: totalChildren,
+          disabled: true,
+          reason: 'Official Source แก้ไม่ได้',
+        },
     });
     if (!levelOpen) continue;
 
@@ -170,7 +179,14 @@ export function buildBrowseRows(
               title: category.title,
               childCount: categoryDecks.length,
             }
-            : undefined,
+            : {
+              source: 'official',
+              target: 'section',
+              title: category.title,
+              childCount: categoryDecks.length,
+              disabled: true,
+              reason: 'Official Source แก้ไม่ได้',
+            },
         });
         if (!categoryOpen) continue;
       }

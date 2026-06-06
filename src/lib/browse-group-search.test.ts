@@ -152,7 +152,14 @@ describe('buildBrowseRows', () => {
     const userSection = rows.find((row) => row.kind === 'categoryHeader' && row.title === 'Regression');
     const userDeck = rows.find((row) => row.kind === 'deck' && row.deck.id === 'vocab-n5-pack96');
 
-    expect(officialGroup?.actionContext).toBeUndefined();
+    expect(officialGroup?.actionContext).toEqual({
+      source: 'official',
+      target: 'group',
+      title: 'N5',
+      childCount: 1,
+      disabled: true,
+      reason: 'Official Source แก้ไม่ได้',
+    });
     expect(userGroup?.actionContext).toEqual({
       source: 'user',
       target: 'group',

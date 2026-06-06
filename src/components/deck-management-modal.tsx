@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiArchive, FiEdit3, FiFolder, FiTrash2, FiX } from 'react-icons/fi';
 
 import type { Deck } from '@/data/types';
@@ -18,6 +18,7 @@ import {
   renameUserLibraryDeck,
 } from '@/lib/library-management';
 import { getDeckOrganization, isUserEditableDeck } from '@/lib/user-content';
+import { getEditorInputShellStyle, getEditorTextInputWebStyle } from '@/lib/editor-input-style';
 
 type DeckManagementModalProps = {
   visible: boolean;
@@ -145,89 +146,97 @@ export function DeckManagementModal({
             </Pressable>
           </View>
 
-          <View style={[styles.deckBadge, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-            <FiArchive size={17} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
-            <View style={styles.deckBadgeText}>
-              <ThemedText type="defaultSemiBold" numberOfLines={1}>
-                {deck?.title ?? 'Deck'}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {editable ? 'User Content · แก้ metadata ได้' : 'Official Source · แก้ไม่ได้'}
-              </ThemedText>
+          <ScrollView
+            style={styles.bodyScroll}
+            contentContainerStyle={styles.bodyContent}
+            keyboardShouldPersistTaps="handled"
+            {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'card' } } as any) : null)}>
+            <View style={[styles.deckBadge, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+              <FiArchive size={17} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
+              <View style={styles.deckBadgeText}>
+                <ThemedText type="defaultSemiBold" numberOfLines={1}>
+                  {deck?.title ?? 'Deck'}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {editable ? 'User Content · แก้ metadata ได้' : 'Official Source · แก้ไม่ได้'}
+                </ThemedText>
+              </View>
             </View>
-          </View>
 
-          <View style={[styles.formBlock, !editable && { opacity: 0.5 }]}>
-            <Field
-              label="ชื่อ deck"
-              value={title}
-              disabled={!editable || busy}
-              placeholder="ชื่อ deck"
-              icon={<FiEdit3 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />}
-              onChange={setTitle}
-            />
-            <Field
-              label="Group"
-              value={group}
-              disabled={!editable || busy}
-              placeholder="เช่น Manual imports"
-              icon={<FiFolder size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />}
-              onChange={setGroup}
-            />
-            <Field
-              label="Section"
-              value={section}
-              disabled={!editable || busy}
-              placeholder="เช่น N2 / Week 1"
-              icon={<FiFolder size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />}
-              onChange={setSection}
-            />
-          </View>
-
-          {!editable ? (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-              Official Source เป็นเนื้อหาหลักของ Nihon Bunkai จึง rename, move, หรือ delete ไม่ได้ใน v1
-            </ThemedText>
-          ) : null}
-
-          <View style={styles.actionRow}>
-            <Pressable
-              onPress={() => void save()}
-              disabled={!canSave || busy}
-              accessibilityRole="button"
-              accessibilityLabel="บันทึก deck"
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                { backgroundColor: Accent.base, opacity: canSave && !busy ? 1 : 0.45 },
-                pressed && canSave && { opacity: 0.78 },
-              ]}>
-              <ThemedText type="defaultSemiBold" style={styles.primaryText}>
-                บันทึก
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => void deleteDeck()}
-              disabled={!editable || busy}
-              accessibilityRole="button"
-              accessibilityLabel="ลบ deck"
-              style={({ pressed }) => [
-                styles.deleteBtn,
-                { borderColor: editable ? Accent.soft : colors.border, opacity: editable && !busy ? 1 : 0.45 },
-                confirmDelete && { backgroundColor: Accent.bg },
-                pressed && editable && { opacity: 0.75 },
-              ]}>
-              <FiTrash2 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
-              <ThemedText type="small" style={{ color: editable ? Accent.base : colors.textSecondary }}>
-                {confirmDelete ? 'ยืนยันลบ' : 'ลบ'}
-              </ThemedText>
-            </Pressable>
-          </View>
-
-          {status ? (
-            <View style={[styles.status, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-              <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText>
+            <View style={styles.formBlock}>
+              <Field
+                label="ชื่อ deck"
+                value={title}
+                disabled={!editable || busy}
+                placeholder="ชื่อ deck"
+                icon={<FiEdit3 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />}
+                onChange={setTitle}
+              />
+              <Field
+                label="Group"
+                value={group}
+                disabled={!editable || busy}
+                placeholder="เช่น Manual imports"
+                icon={<FiFolder size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />}
+                onChange={setGroup}
+              />
+              <Field
+                label="Section"
+                value={section}
+                disabled={!editable || busy}
+                placeholder="เช่น N2 / Week 1"
+                icon={<FiFolder size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />}
+                onChange={setSection}
+              />
             </View>
-          ) : null}
+
+            {!editable ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+                Official Source เป็นเนื้อหาหลักของ Nihon Bunkai จึง rename, move, หรือ delete ไม่ได้ใน v1
+              </ThemedText>
+            ) : null}
+          </ScrollView>
+
+          <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+            <View style={styles.actionRow}>
+              <Pressable
+                onPress={() => void save()}
+                disabled={!canSave || busy}
+                accessibilityRole="button"
+                accessibilityLabel="บันทึก deck"
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  { backgroundColor: Accent.base, opacity: canSave && !busy ? 1 : 0.45 },
+                  pressed && canSave && { opacity: 0.78 },
+                ]}>
+                <ThemedText type="defaultSemiBold" style={styles.primaryText}>
+                  บันทึก
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => void deleteDeck()}
+                disabled={!editable || busy}
+                accessibilityRole="button"
+                accessibilityLabel="ลบ deck"
+                style={({ pressed }) => [
+                  styles.deleteBtn,
+                  { borderColor: editable ? Accent.soft : colors.border, opacity: editable && !busy ? 1 : 0.45 },
+                  confirmDelete && { backgroundColor: Accent.bg },
+                  pressed && editable && { opacity: 0.75 },
+                ]}>
+                <FiTrash2 size={15} color={editable ? Accent.base : colors.textHint} strokeWidth={2} />
+                <ThemedText type="small" style={{ color: editable ? Accent.base : colors.textSecondary }}>
+                  {confirmDelete ? 'ยืนยันลบ' : 'ลบ'}
+                </ThemedText>
+              </Pressable>
+            </View>
+
+            {status ? (
+              <View style={[styles.status, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+                <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText>
+              </View>
+            ) : null}
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -250,10 +259,14 @@ function Field({
   onChange: (value: string) => void;
 }) {
   const colors = useThemePalette();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
-      <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>{label}</ThemedText>
-      <View style={[styles.inputShell, { borderColor: colors.border, backgroundColor: colors.background }]}>
+      <ThemedText style={[styles.fieldLabel, { color: focused && !disabled ? Accent.base : colors.textHint }]}>{label}</ThemedText>
+      <View style={[
+        styles.inputShell,
+        getEditorInputShellStyle({ colors, focused, disabled }),
+      ]}>
         {icon}
         <TextInput
           value={value}
@@ -263,7 +276,13 @@ function Field({
           placeholderTextColor={colors.textHint}
           autoCapitalize="none"
           autoCorrect={false}
-          style={[styles.input, { color: colors.text }]}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={[
+            styles.input,
+            { color: colors.text },
+            Platform.OS === 'web' ? getEditorTextInputWebStyle() : null,
+          ]}
         />
       </View>
     </View>
@@ -281,17 +300,19 @@ const styles = StyleSheet.create({
   panel: {
     width: '100%',
     maxWidth: 460,
+    maxHeight: '92%',
     borderWidth: 1,
     borderTopWidth: 3,
     borderRadius: Radii.md,
-    padding: Spacing.four,
-    gap: Spacing.three,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
+    padding: Spacing.four,
+    paddingBottom: Spacing.three,
   },
   titleRow: {
     flexDirection: 'row',
@@ -331,6 +352,14 @@ const styles = StyleSheet.create({
   formBlock: {
     gap: Spacing.three,
   },
+  bodyScroll: {
+    flexShrink: 1,
+  },
+  bodyContent: {
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.three,
+    gap: Spacing.three,
+  },
   field: {
     gap: Spacing.one,
   },
@@ -360,6 +389,11 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.four,
     gap: Spacing.two,
   },
   primaryBtn: {

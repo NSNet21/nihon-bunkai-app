@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 import { FiChevronRight } from 'react-icons/fi';
-import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
@@ -38,7 +37,7 @@ export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
   }
 
   return (
-    <Animated.View entering={FadeIn.duration(220)}>
+    <View>
       <PressableScale
         onPress={onPress}
         accessibilityRole="button"
@@ -72,7 +71,7 @@ export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
           </View>
         </View>
       </PressableScale>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -90,7 +89,7 @@ export function ReviewContinueCard({
   }
 
   return (
-    <Animated.View entering={FadeIn.duration(220)}>
+    <View>
       <PressableScale
         onPress={onPress}
         accessibilityRole="button"
@@ -118,7 +117,7 @@ export function ReviewContinueCard({
           </View>
         </View>
       </PressableScale>
-    </Animated.View>
+    </View>
   );
 }
 

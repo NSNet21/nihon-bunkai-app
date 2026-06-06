@@ -35,6 +35,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
 import { useAllDecks } from '@/hooks/use-decks';
+import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { Deck } from '@/data/types';
@@ -93,10 +94,12 @@ export default function BrowseScreen() {
   const [browseAction, setBrowseAction] = useState<BrowseActionContext | null>(null);
   const [deckActionDeck, setDeckActionDeck] = useState<Deck | null>(null);
   const [reviewCandidate, setReviewCandidate] = useState<DeckReviewCandidate | null>(null);
+  const [reviewCandidateReady, setReviewCandidateReady] = useState(false);
   const colors = useThemePalette();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
+  const hasHydrated = useHasHydrated();
 
-  const { decks, refresh } = useAllDecks();
+  const { decks, loading: decksLoading, refresh } = useAllDecks();
   const [lastSession] = usePersistedState<LastSession | null>('last-session', null);
   const [lastSessionLearn] = usePersistedState<LastSession | null>('last-session-learn', null);
 
@@ -128,13 +131,20 @@ export default function BrowseScreen() {
     hasFlashcardSession: showContinue,
     hasReviewCandidate: showReviewContinue,
   });
-  const showAnyContinue = showContinueLearn || showFlashcardContinue || showReviewContinue;
+  const continueClusterReady = hasHydrated && !decksLoading && reviewCandidateReady;
+  const showAnyContinue = continueClusterReady && (showContinueLearn || showFlashcardContinue || showReviewContinue);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      if (decksLoading) {
+        return () => {
+          cancelled = true;
+        };
+      }
       if (decks.length === 0) {
         setReviewCandidate(null);
+        setReviewCandidateReady(true);
         return () => {
           cancelled = true;
         };
@@ -142,17 +152,23 @@ export default function BrowseScreen() {
 
       void getDeckReviewCandidate(decks)
         .then((candidate) => {
-          if (!cancelled) setReviewCandidate(candidate);
+          if (!cancelled) {
+            setReviewCandidate(candidate);
+            setReviewCandidateReady(true);
+          }
         })
         .catch((error) => {
           if (__DEV__) console.warn('[browse-review] read failed:', error);
-          if (!cancelled) setReviewCandidate(null);
+          if (!cancelled) {
+            setReviewCandidate(null);
+            setReviewCandidateReady(true);
+          }
         });
 
       return () => {
         cancelled = true;
       };
-    }, [decks]),
+    }, [decks, decksLoading]),
   );
 
   /* Recompute group keys when decks change (free + paid merged). */
@@ -327,13 +343,13 @@ export default function BrowseScreen() {
               )}
               {/* LEARN above QUIZ — passive review usually precedes active
                   testing in the user's flow (user preference 2026-05-27). */}
-              {showContinueLearn && lastSessionLearn && (
+              {continueClusterReady && showContinueLearn && lastSessionLearn && (
                 <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
               )}
-              {showFlashcardContinue && lastSession && (
+              {continueClusterReady && showFlashcardContinue && lastSession && (
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
               )}
-              {showReviewContinue && reviewCandidate && (
+              {continueClusterReady && showReviewContinue && reviewCandidate && (
                 <ReviewContinueCard candidate={reviewCandidate} colors={colors} />
               )}
               <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />

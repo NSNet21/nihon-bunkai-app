@@ -1,104 +1,104 @@
 <!-- cspell:disable -->
 
-# Browse / Deck Preview Loading Polish Design
+# ดีไซน์ Loading Polish สำหรับ Browse / Deck Preview
 
-Date: 2026-06-07
-Status: Approved design draft for review
-Surface: Companion App
+วันที่: 2026-06-07
+สถานะ: design draft ที่ตกลงทิศทางแล้ว รอ review
+พื้นที่งาน: Companion App
 
-## Goal
+## เป้าหมาย
 
-Make Browse and Deck Preview feel like they render intentionally instead of assembling in visible async stages. The fix is scoped to loading/readiness behavior, reserved space, and very light section motion. This is not a broad UI redesign.
+ทำให้หน้า Browse และ Deck Preview รู้สึกว่าโหลด/แสดงผลอย่างตั้งใจ ไม่ใช่เหมือน UI ต่อชิ้นส่วนขึ้นมาทีละจังหวะจาก async data หลายแหล่ง งานนี้จำกัดเฉพาะ loading/readiness behavior, reserved space, และ motion เบา ๆ ระดับ section เท่านั้น ไม่ใช่การ redesign UI กว้าง ๆ
 
-## Current Problem
+## ปัญหาปัจจุบัน
 
-Browse and Deck Preview read from several timing sources:
+Browse และ Deck Preview อ่านข้อมูลจากหลายแหล่งที่พร้อมไม่พร้อมคนละจังหวะ:
 
-- embedded/free decks and IndexedDB library decks
-- localStorage Continue sessions
-- IndexedDB SRS progress and review candidates
-- lazy deck entries
+- embedded/free decks และ library decks จาก IndexedDB
+- Continue sessions จาก localStorage
+- progress ของ SRS และ review candidates จาก IndexedDB
+- entries ของ deck ที่โหลดแบบ lazy
 
-These sources can resolve in different frames. Even when the data is correct, the UI can feel like it flickers because Continue, progress, and list sections appear or swap at slightly different times.
+ข้อมูลเหล่านี้อาจ resolve คนละ frame กัน แม้ข้อมูลถูกต้อง แต่ UI จะรู้สึก flicker ได้ เพราะ Continue, progress, และ list sections โผล่หรือสลับในจังหวะที่เหลื่อมกันเล็กน้อย
 
-## Browse Design
+## ดีไซน์ Browse
 
-Browse keeps the page shell immediate:
+Browse ควรให้ page shell ขึ้นทันที:
 
-- background, accent stripe, ghost kanji, safe area, and `// BROWSE` header render immediately
-- Continue readiness remains gated by hydration, deck loading, and SRS review-candidate readiness
-- once Continue readiness resolves, Browse uses a priority rule:
-  - if Continue exists, show the Continue section first
-  - after Continue is available, reveal the Library section as the next intentional step
-  - if Continue does not exist, reveal the Library section immediately
+- background, accent stripe, ghost kanji, safe area, และ header `// BROWSE` render ทันที
+- readiness ของ Continue ยัง gate ด้วย hydration, deck loading, และ SRS review-candidate readiness
+- เมื่อรู้ผล Continue readiness แล้ว Browse ใช้ priority rule:
+  - ถ้ามี Continue ให้แสดง Continue section ก่อน
+  - หลัง Continue พร้อมแล้ว ค่อย reveal Library section เป็น step ถัดไปอย่างตั้งใจ
+  - ถ้าไม่มี Continue ให้ reveal Library section ทันที
 
-The Library section includes the `คลังคำศัพท์` heading, toolbar, and deck/group rows. While a real Continue section is taking priority, Library may hold a quiet reserved pending area instead of jumping in at the same time.
+Library section รวม heading `คลังคำศัพท์`, toolbar, และ deck/group rows ระหว่างที่ Continue section มี priority จริง ๆ Library อาจถือพื้นที่ด้วย pending area แบบเงียบ ๆ แทนการกระโดดเข้ามาพร้อมกัน
 
-No shimmer should be used. No row-by-row stagger should be added because that would reinforce the staged-render feeling.
+ไม่ใช้ shimmer และไม่เพิ่ม row-by-row stagger เพราะจะยิ่งทำให้รู้สึกว่า UI render เป็นชั้น ๆ อยู่
 
-## Deck Preview Design
+## ดีไซน์ Deck Preview
 
-Deck Preview keeps route-level behavior intact:
+Deck Preview คง route-level behavior เดิมไว้:
 
-- if the deck route is still resolving or not found, keep the existing route-state handling
-- once the deck is known, render Back and the deck hero normally
-- Progress and Terms use reserved pending blocks while their async reads complete
+- ถ้า deck route ยัง resolving หรือ not found ให้ใช้ route-state handling เดิม
+- เมื่อรู้ deck แล้ว ให้ render Back และ deck hero ตามปกติ
+- Progress และ Terms ใช้ reserved pending blocks ระหว่างรอ async reads เสร็จ
 
-Progress pending state should occupy the same visual block as the final progress card. Terms pending state should occupy the same lane as the final result/list area. The large centered spinner inside the content flow should be removed for this route unless the whole route itself is still loading.
+Progress pending state ควรอยู่ใน visual block เดียวกับ progress card ตัวจริง ส่วน Terms pending state ควรอยู่ใน lane เดียวกับ result/list area ตัวจริง สำหรับ route นี้ควรถอด spinner ใหญ่กลาง content flow ออก ยกเว้นกรณีที่ทั้ง route ยัง loading อยู่จริง ๆ
 
 ## Motion
 
-Motion is section-level and quiet:
+Motion เป็นระดับ section และต้องเบา:
 
-- Continue: optional opacity + small upward movement, about 4-6 px, around 140-180 ms
-- Library after Continue: opacity + small upward movement, about 6-8 px, around 160-220 ms
-- Library when no Continue exists: immediate or shorter transition, with no artificial waiting
-- DP pending replacement: content swaps inside the same reserved area with subtle opacity/translate only
+- Continue: ใช้ opacity + ขยับขึ้นเล็กน้อยประมาณ 4-6 px ได้ ระยะเวลาประมาณ 140-180 ms
+- Library หลัง Continue: ใช้ opacity + ขยับขึ้นเล็กน้อยประมาณ 6-8 px ระยะเวลาประมาณ 160-220 ms
+- Library เมื่อไม่มี Continue: ขึ้นทันทีหรือใช้ transition ที่สั้นกว่า โดยไม่มีการรอเทียม
+- DP pending replacement: สลับ content ภายในพื้นที่ reserved เดิม ด้วย opacity/translate เบา ๆ เท่านั้น
 
-Do not animate individual deck rows or term rows for this pass.
+ไม่ animate deck rows หรือ term rows ทีละแถวใน pass นี้
 
 ## Implementation Notes
 
-Expected code areas:
+ไฟล์ที่น่าจะเกี่ยวข้อง:
 
 - `src/app/(tabs)/index.tsx`
 - `src/app/deck/[deckId]/index.tsx`
-- optionally a small local helper/component for editorial pending blocks if it keeps duplication low
+- อาจเพิ่ม helper/component เล็ก ๆ สำหรับ editorial pending blocks ถ้าช่วยลด duplication ได้จริง
 
-Browse should derive a small readiness state rather than scattering boolean checks through JSX. The important behavior is:
+Browse ควร derive readiness state เล็ก ๆ แทนการกระจาย boolean checks ใน JSX หลายจุด behavior สำคัญคือ:
 
 - `continueClusterReady = hasHydrated && !decksLoading && reviewCandidateReady`
 - `hasContinue = showContinueLearn || showFlashcardContinue || showReviewContinue`
-- Library can reveal when `continueClusterReady && !hasContinue`, or after the Continue-priority reveal path has run
+- Library reveal ได้เมื่อ `continueClusterReady && !hasContinue` หรือหลังจาก Continue-priority reveal path ทำงานแล้ว
 
-Deck Preview should avoid rendering an empty progress text or a large spinner that changes the page rhythm. Use stable blocks with the existing border/background language.
+Deck Preview ควรหลีกเลี่ยง empty progress text หรือ spinner ใหญ่ที่ทำให้ rhythm ของหน้าเปลี่ยน ใช้ stable blocks ที่อิง border/background language เดิมของแอป
 
 ## Testing / Verification
 
-Run targeted checks after implementation:
+หลัง implementation ให้ run checks แบบเจาะจง:
 
-- unit tests around any extracted readiness helper
-- existing Continue/progress tests if touched
+- unit tests รอบ readiness helper ถ้ามีการ extract
+- existing Continue/progress tests ถ้าแตะ logic ที่เกี่ยวข้อง
 - `pnpm smoke:deck-route http://localhost:8097`
 - `pnpm smoke:perf http://localhost:8097`
-- mobile and desktop browser visual checks for Browse and Deck Preview
+- browser visual checks บน mobile และ desktop สำหรับ Browse และ Deck Preview
 
-Visual checks should confirm:
+Visual checks ควรยืนยันว่า:
 
-- Browse with Continue shows Continue before Library
-- Browse without Continue does not hold Library unnecessarily
-- DP does not show a large in-content spinner after the hero is already visible
-- no horizontal overflow
-- no console errors
-- known dev warnings remain acceptable if unchanged
+- Browse ที่มี Continue แสดง Continue ก่อน Library
+- Browse ที่ไม่มี Continue ไม่หน่วง Library โดยไม่จำเป็น
+- DP ไม่แสดง spinner ใหญ่กลาง content หลัง hero แสดงแล้ว
+- ไม่มี horizontal overflow
+- ไม่มี console errors
+- known dev warnings ยังยอมรับได้ถ้าไม่เปลี่ยนจากเดิม
 
 ## Non-goals
 
-- no broad Browse redesign
-- no global Review Queue
-- no new deck-row due badges
-- no changes to FSRS scheduling
-- no changes to import/export, deck organization, or official/user content rules
-- no full bilingual copy work
+- ไม่ redesign Browse กว้าง ๆ
+- ไม่เพิ่ม global Review Queue
+- ไม่เพิ่ม deck-row due badges
+- ไม่เปลี่ยน FSRS scheduling
+- ไม่เปลี่ยน import/export, deck organization, หรือ official/user content rules
+- ไม่ทำ full bilingual copy work
 
 <!-- cspell:enable -->

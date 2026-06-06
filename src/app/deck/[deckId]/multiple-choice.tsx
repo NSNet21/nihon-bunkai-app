@@ -137,14 +137,28 @@ export default function MultipleChoiceScreen() {
   }
 
   function scrollPrimaryActionIntoView() {
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        document
-          .querySelector(`[data-testid="${PRIMARY_ACTION_TEST_ID}"]`)
-          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    }, 0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollToEnd({ animated: false });
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const action = document.querySelector(`[data-testid="${PRIMARY_ACTION_TEST_ID}"]`);
+          const lane = document.querySelector(`[data-testid="${SCROLL_TEST_ID}"]`);
+          if (lane instanceof HTMLElement) {
+            lane.scrollTo({ top: lane.scrollHeight, behavior: 'auto' });
+          }
+          if (action instanceof HTMLElement) {
+            action.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
+            const rect = action.getBoundingClientRect();
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            if (rect.bottom > viewportHeight - 24) {
+              const delta = rect.bottom - viewportHeight + 32;
+              if (lane instanceof HTMLElement) lane.scrollTop += delta;
+              else window.scrollBy({ top: delta, behavior: 'auto' });
+            }
+          }
+        }
+      });
+    });
   }
 
   function handleNext() {
@@ -664,7 +678,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   choiceText: { fontSize: 17, lineHeight: 24, fontWeight: '700' },
-  feedbackBlock: { gap: Spacing.three, alignItems: 'stretch' },
+  feedbackBlock: { gap: Spacing.three, alignItems: 'stretch', marginBottom: Spacing.four },
   primaryBtn: {
     minHeight: 46,
     borderWidth: 1,

@@ -132,14 +132,28 @@ export default function DictationScreen() {
   }
 
   function scrollPrimaryActionIntoView() {
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        document
-          .querySelector(`[data-testid="${PRIMARY_ACTION_TEST_ID}"]`)
-          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    }, 0);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollToEnd({ animated: false });
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const action = document.querySelector(`[data-testid="${PRIMARY_ACTION_TEST_ID}"]`);
+          const lane = document.querySelector(`[data-testid="${SCROLL_TEST_ID}"]`);
+          if (lane instanceof HTMLElement) {
+            lane.scrollTo({ top: lane.scrollHeight, behavior: 'auto' });
+          }
+          if (action instanceof HTMLElement) {
+            action.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
+            const rect = action.getBoundingClientRect();
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            if (rect.bottom > viewportHeight - 24) {
+              const delta = rect.bottom - viewportHeight + 32;
+              if (lane instanceof HTMLElement) lane.scrollTop += delta;
+              else window.scrollBy({ top: delta, behavior: 'auto' });
+            }
+          }
+        }
+      });
+    });
   }
 
   function handleNext() {
@@ -401,6 +415,7 @@ export default function DictationScreen() {
             accessibilityLabel={submitted ? 'ข้อถัดไป' : 'ส่งคำตอบ'}
             style={({ pressed, hovered }: any) => [
               styles.primaryBtn,
+              styles.sessionPrimaryBtn,
               { backgroundColor: Accent.base, borderColor: Accent.base },
               !submitted && !answer.trim() && { opacity: 0.45 },
               (pressed || hovered) && { backgroundColor: Accent.strong, borderColor: Accent.strong },
@@ -673,6 +688,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sessionPrimaryBtn: { marginBottom: Spacing.four },
   primaryText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
   secondaryBtn: {
     minHeight: 46,

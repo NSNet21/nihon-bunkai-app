@@ -165,6 +165,13 @@ export async function getCardStatesForDeck(deckId: string): Promise<CardStateRow
   return d.cardStates.where('deckId').equals(deckId).toArray();
 }
 
+/** Get all due FSRS states at or before `now`. Used by Browse review entry. */
+export async function getDueCardStates(now = Date.now()): Promise<CardStateRow[]> {
+  const d = getDB();
+  if (!d) return [];
+  return d.cardStates.where('due').belowOrEqual(now).toArray();
+}
+
 /** Upsert a single card state. Updates `updatedAt` automatically.
  *  Atomic tx: writes the row + enqueues a pending_sync entry in ONE
  *  transaction. Deterministic queue id (`card:{entryId}`) → re-rating
@@ -243,6 +250,13 @@ export async function getRecentSessions(limit = 20): Promise<SessionLogRow[]> {
   const d = getDB();
   if (!d) return [];
   return d.sessionLogs.orderBy('startedAt').reverse().limit(limit).toArray();
+}
+
+/** Get all completed session logs, newest first. */
+export async function getAllSessionLogs(): Promise<SessionLogRow[]> {
+  const d = getDB();
+  if (!d) return [];
+  return d.sessionLogs.orderBy('startedAt').reverse().toArray();
 }
 
 /** Get completed session logs for one deck, newest first. */

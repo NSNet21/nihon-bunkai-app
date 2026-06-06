@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Deck } from '@/data/types';
 import type { CardStateRow, SessionLogRow, StreakMetaRow } from './srs-store';
-import { buildDeckProgressSummary, dueEntryNosFromCardStates } from './deck-progress';
+import { buildDeckProgressSummary, buildDeckReviewCandidate, dueEntryNosFromCardStates } from './deck-progress';
 
 const NOW = 1_800_000;
 
@@ -49,6 +50,20 @@ function streak(currentStreak: number): StreakMetaRow {
     totalSessions: currentStreak,
     totalCardsStudied: currentStreak * 5,
     updatedAt: NOW,
+  };
+}
+
+function deck(id: string, title = id): Deck {
+  return {
+    id,
+    title,
+    type: 'vocab',
+    level: 'N5',
+    entryCount: 20,
+    isFree: true,
+    pack: id,
+    tags: [id],
+    source: 'free',
   };
 }
 
@@ -113,5 +128,62 @@ describe('deck progress summary', () => {
       card('wrong-shape', 'deck-a', NOW - 1),
       card('deck-a::4', 'deck-a', NOW - 1),
     ], NOW)).toEqual([4]);
+  });
+});
+
+describe('browse review candidate', () => {
+  it('selects the most recently studied due deck', () => {
+    const candidate = buildDeckReviewCandidate(
+      [deck('deck-a'), deck('deck-b')],
+      [
+        card('deck-a::1', 'deck-a', NOW - 1),
+        card('deck-b::1', 'deck-b', NOW - 1),
+        card('deck-b::2', 'deck-b', NOW - 1),
+      ],
+      [
+        session('older', 'deck-b', NOW - 10_000, 1),
+        session('newer', 'deck-a', NOW - 1_000, 1),
+      ],
+      NOW,
+    );
+
+    expect(candidate).toEqual({
+      deckId: 'deck-a',
+      deckTitle: 'deck-a',
+      dueCount: 1,
+      latestSessionAt: NOW - 1_000,
+    });
+  });
+
+  it('falls back to highest due count when due decks have no sessions', () => {
+    const candidate = buildDeckReviewCandidate(
+      [deck('deck-a'), deck('deck-b')],
+      [
+        card('deck-a::1', 'deck-a', NOW - 1),
+        card('deck-b::1', 'deck-b', NOW - 1),
+        card('deck-b::2', 'deck-b', NOW - 1),
+      ],
+      [],
+      NOW,
+    );
+
+    expect(candidate?.deckId).toBe('deck-b');
+    expect(candidate?.dueCount).toBe(2);
+    expect(candidate?.latestSessionAt).toBeNull();
+  });
+
+  it('ignores due rows for decks that are not visible in Browse', () => {
+    const candidate = buildDeckReviewCandidate(
+      [deck('deck-a')],
+      [
+        card('deck-hidden::1', 'deck-hidden', NOW - 1),
+        card('deck-a::1', 'deck-a', NOW - 1),
+      ],
+      [session('hidden', 'deck-hidden', NOW - 1_000, 1)],
+      NOW,
+    );
+
+    expect(candidate?.deckId).toBe('deck-a');
+    expect(candidate?.dueCount).toBe(1);
   });
 });

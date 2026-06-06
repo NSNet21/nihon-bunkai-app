@@ -1,5 +1,5 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import {
@@ -25,7 +25,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { ContinueCard } from '@/components/continue-card';
+import { ContinueCard, ReviewContinueCard } from '@/components/continue-card';
 import { DeckManagementModal } from '@/components/deck-management-modal';
 import { LibraryActionsModal } from '@/components/library-actions-modal';
 import { PressableScale } from '@/components/pressable-scale';
@@ -47,6 +47,7 @@ import {
   type BrowseActionContext,
   type BrowseRow,
 } from '@/lib/browse-group-search';
+import { getDeckReviewCandidate, type DeckReviewCandidate } from '@/lib/deck-progress';
 import {
   deleteUserLibraryGroup,
   deleteUserLibrarySection,
@@ -90,6 +91,7 @@ export default function BrowseScreen() {
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
   const [browseAction, setBrowseAction] = useState<BrowseActionContext | null>(null);
   const [deckActionDeck, setDeckActionDeck] = useState<Deck | null>(null);
+  const [reviewCandidate, setReviewCandidate] = useState<DeckReviewCandidate | null>(null);
   const colors = useThemePalette();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
 
@@ -120,6 +122,32 @@ export default function BrowseScreen() {
     typeof lastSessionLearn.index === 'number' &&
     typeof lastSessionLearn.total === 'number' &&
     lastSessionLearn.index < lastSessionLearn.total - 1;
+  const showReviewContinue = !!reviewCandidate;
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      if (decks.length === 0) {
+        setReviewCandidate(null);
+        return () => {
+          cancelled = true;
+        };
+      }
+
+      void getDeckReviewCandidate(decks)
+        .then((candidate) => {
+          if (!cancelled) setReviewCandidate(candidate);
+        })
+        .catch((error) => {
+          if (__DEV__) console.warn('[browse-review] read failed:', error);
+          if (!cancelled) setReviewCandidate(null);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, [decks]),
+  );
 
   /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
@@ -280,7 +308,7 @@ export default function BrowseScreen() {
                   polish round 2026-05-27. Renders only when at least one
                   Continue card is showing, so the kicker never appears
                   empty. */}
-              {(showContinue || showContinueLearn) && (
+              {(showContinue || showContinueLearn || showReviewContinue) && (
                 <View style={styles.continueGroupHead}>
                   <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
                   <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
@@ -295,6 +323,9 @@ export default function BrowseScreen() {
               )}
               {showContinue && lastSession && (
                 <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
+              )}
+              {showReviewContinue && reviewCandidate && (
+                <ReviewContinueCard candidate={reviewCandidate} colors={colors} />
               )}
               <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
               <View style={styles.libraryBlockHead}>

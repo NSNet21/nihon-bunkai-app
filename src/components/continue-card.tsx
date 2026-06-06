@@ -8,6 +8,7 @@ import { ThemedText } from './themed-text';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
 import { continueModeBadge, continueRouteHref, type ContinueMode } from '@/lib/continue-route';
+import type { DeckReviewCandidate } from '@/lib/deck-progress';
 import type { LastSession } from '@/lib/last-session';
 
 type Props = {
@@ -66,6 +67,52 @@ export function ContinueCard({ lastSession, colors, mode = 'quiz' }: Props) {
             </View>
             <ThemedText style={[styles.count, { color: colors.textSecondary }]}>
               {lastSession.index + 1}/{lastSession.total}
+            </ThemedText>
+            <FiChevronRight size={20} color={Accent.base} strokeWidth={2} />
+          </View>
+        </View>
+      </PressableScale>
+    </Animated.View>
+  );
+}
+
+export function ReviewContinueCard({
+  candidate,
+  colors,
+}: {
+  candidate: DeckReviewCandidate;
+  colors: typeof Colors.light;
+}) {
+  const router = useRouter();
+
+  function onPress() {
+    router.push(`/deck/${candidate.deckId}/quiz?review=due` as never);
+  }
+
+  return (
+    <Animated.View entering={FadeIn.duration(220)}>
+      <PressableScale
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`ทบทวน ${candidate.deckTitle} · ${candidate.dueCount} รอทบทวน`}
+        style={[
+          styles.outer,
+          { backgroundColor: colors.backgroundElement, borderColor: colors.border },
+        ]}>
+        <View style={styles.stripe} />
+        <View style={styles.body}>
+          <ThemedText style={[styles.label, { color: colors.textHint }]}>
+            // REVIEW · รอทบทวน
+          </ThemedText>
+          <ThemedText type="defaultSemiBold" style={styles.title}>
+            {candidate.deckTitle}
+          </ThemedText>
+          <View style={styles.bottomRow}>
+            <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+              <View style={[styles.progressFill, { backgroundColor: Accent.base, width: '100%' }]} />
+            </View>
+            <ThemedText style={[styles.count, { color: colors.textSecondary }]}>
+              {candidate.dueCount} รอทบทวน
             </ThemedText>
             <FiChevronRight size={20} color={Accent.base} strokeWidth={2} />
           </View>

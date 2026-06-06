@@ -6,9 +6,9 @@
  */
 
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import { FiBookOpen, FiChevronLeft, FiChevronRight, FiMoreVertical, FiPlus, FiSearch } from 'react-icons/fi';
+import { FiActivity, FiBookOpen, FiCalendar, FiChevronLeft, FiChevronRight, FiClock, FiMoreVertical, FiPlus, FiSearch } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,6 +23,7 @@ import { useThemePalette } from '@/context/theme';
 import { entriesForDeckAsync } from '@/hooks/use-decks';
 import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import { filterDeckEntries } from '@/lib/deck-term-search';
+import { getDeckProgressSummary, type DeckProgressSummary } from '@/lib/deck-progress';
 import { isUserEditableDeck } from '@/lib/user-content';
 
 /* Pre-render this route for every free deck so direct URL access
@@ -46,6 +47,8 @@ export default function DeckTermListScreen() {
   const [query, setQuery] = useState('');
   const [deckActionsOpen, setDeckActionsOpen] = useState(false);
   const [addTermOpen, setAddTermOpen] = useState(false);
+  const [progress, setProgress] = useState<DeckProgressSummary | null>(null);
+  const [progressReady, setProgressReady] = useState(false);
   const filteredEntries = useMemo(() => filterDeckEntries(entries, query), [entries, query]);
 
   useEffect(() => {
@@ -59,6 +62,27 @@ export default function DeckTermListScreen() {
       })
       .finally(() => {
         if (!cancelled) setEntriesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [deckId]);
+
+  useEffect(() => {
+    if (!deckId) return;
+    let cancelled = false;
+    setProgress(null);
+    setProgressReady(false);
+    void getDeckProgressSummary(deckId)
+      .then((summary) => {
+        if (!cancelled) setProgress(summary);
+      })
+      .catch((error) => {
+        if (__DEV__) console.warn('[deck-progress] read failed:', error);
+        if (!cancelled) setProgress(null);
+      })
+      .finally(() => {
+        if (!cancelled) setProgressReady(true);
       });
     return () => {
       cancelled = true;
@@ -170,6 +194,8 @@ export default function DeckTermListScreen() {
             </View>
           </View>
 
+          <DeckProgressBlock progress={progress} ready={progressReady} colors={colors} />
+
           <View style={styles.sectionHead}>
             <View style={styles.sectionTitleRow}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
@@ -279,6 +305,118 @@ export default function DeckTermListScreen() {
       </SafeAreaView>
     </ThemedView>
   );
+}
+
+function DeckProgressBlock({
+  progress,
+  ready,
+  colors,
+}: {
+  progress: DeckProgressSummary | null;
+  ready: boolean;
+  colors: typeof Colors.light;
+}) {
+  const hasProgress = Boolean(progress && (progress.touchedCount > 0 || progress.sessionCount > 0));
+  const latestLabel = progress?.latestSessionAt ? formatProgressDate(progress.latestSessionAt) : null;
+
+  return (
+    <View style={[styles.progressBlock, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+      <View style={styles.progressHeader}>
+        <View style={styles.sectionTitleRow}>
+          <View style={[styles.pip, { backgroundColor: Accent.base }]} />
+          <ThemedText style={[styles.mono, { color: colors.textHint }]}>// PROGRESS · ความคืบหน้า</ThemedText>
+        </View>
+        {progress?.dueCount ? (
+          <View style={[styles.dueBadge, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+            <FiClock size={13} color={Accent.base} strokeWidth={2} />
+            <ThemedText style={[styles.dueBadgeText, { color: Accent.base }]}>
+              {`${progress.dueCount} รอทบทวน`}
+            </ThemedText>
+          </View>
+        ) : null}
+      </View>
+
+      {!ready ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          กำลังอ่านความคืบหน้า...
+        </ThemedText>
+      ) : hasProgress && progress ? (
+        <View style={styles.progressGrid}>
+          <ProgressMetric
+            icon={<FiActivity size={14} color={Accent.base} strokeWidth={2} />}
+            label="แตะแล้ว"
+            value={`${progress.touchedCount}`}
+            colors={colors}
+          />
+          <ProgressMetric
+            icon={<FiBookOpen size={14} color={Accent.base} strokeWidth={2} />}
+            label="รอบเรียน"
+            value={`${progress.sessionCount}`}
+            colors={colors}
+          />
+          {latestLabel ? (
+            <ProgressMetric
+              icon={<FiCalendar size={14} color={Accent.base} strokeWidth={2} />}
+              label="เรียนล่าสุด"
+              value={latestLabel}
+              colors={colors}
+            />
+          ) : null}
+          {progress.latestSessionScore !== null ? (
+            <ProgressMetric
+              icon={<FiActivity size={14} color={Accent.base} strokeWidth={2} />}
+              label="รอบล่าสุด"
+              value={`${Math.round(progress.latestSessionScore * 100)}%`}
+              colors={colors}
+            />
+          ) : null}
+          {progress.streakCount ? (
+            <ProgressMetric
+              icon={<FiClock size={14} color={Accent.base} strokeWidth={2} />}
+              label="ต่อเนื่อง"
+              value={`${progress.streakCount} วัน`}
+              colors={colors}
+            />
+          ) : null}
+        </View>
+      ) : (
+        <ThemedText type="small" themeColor="textSecondary">
+          ยังไม่มีประวัติรอบเรียนใน deck นี้
+        </ThemedText>
+      )}
+    </View>
+  );
+}
+
+function ProgressMetric({
+  icon,
+  label,
+  value,
+  colors,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  colors: typeof Colors.light;
+}) {
+  return (
+    <View style={[styles.progressMetric, { borderColor: colors.border, backgroundColor: colors.background }]}>
+      {icon}
+      <View style={styles.progressMetricText}>
+        <ThemedText style={[styles.progressMetricValue, { color: colors.text }]} numberOfLines={1}>
+          {value}
+        </ThemedText>
+        <ThemedText style={[styles.progressMetricLabel, { color: colors.textHint }]} numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </View>
+    </View>
+  );
+}
+
+function formatProgressDate(ms: number): string {
+  const date = new Date(ms);
+  return date.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' });
 }
 
 function BackLink({ colors }: { colors: typeof Colors.light }) {
@@ -475,6 +613,59 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     fontWeight: '600',
     textTransform: 'uppercase',
+  },
+  progressBlock: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  dueBadge: {
+    minHeight: 28,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  dueBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  progressGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  progressMetric: {
+    minHeight: 48,
+    minWidth: 112,
+    flexGrow: 1,
+    flexBasis: 112,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  progressMetricText: {
+    minWidth: 0,
+    flex: 1,
+  },
+  progressMetricValue: {
+    fontWeight: '700',
+  },
+  progressMetricLabel: {
+    fontSize: 11,
   },
   sectionHead: {
     flexDirection: 'row',

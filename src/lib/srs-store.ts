@@ -245,6 +245,14 @@ export async function getRecentSessions(limit = 20): Promise<SessionLogRow[]> {
   return d.sessionLogs.orderBy('startedAt').reverse().limit(limit).toArray();
 }
 
+/** Get completed session logs for one deck, newest first. */
+export async function getSessionLogsForDeck(deckId: string): Promise<SessionLogRow[]> {
+  const d = getDB();
+  if (!d) return [];
+  const rows = await d.sessionLogs.where('deckId').equals(deckId).toArray();
+  return rows.sort((a, b) => b.startedAt - a.startedAt);
+}
+
 /** Sync delta — sessions updated after `sinceMs`. */
 export async function getSessionLogsUpdatedSince(sinceMs: number): Promise<SessionLogRow[]> {
   const d = getDB();

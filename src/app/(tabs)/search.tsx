@@ -17,6 +17,14 @@ import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from 
 import type { ContentType, JlptLevel } from '@/data/types';
 import { navigateBackOrFallback, searchFallbackHref } from '@/lib/navigation-back';
 import type { SearchResult } from '@/lib/search-index';
+import {
+  buildSearchSectionList,
+  getSearchSectionLabelForKey,
+  type SearchListItem,
+  type SearchRowItem,
+  type SearchSectionKey,
+  type SearchSectionLabel,
+} from '@/lib/search-sections';
 import { searchFocusToken } from '@/lib/search-route-focus';
 
 const TYPE_LABEL: Record<ContentType, string> = {
@@ -41,18 +49,12 @@ const LEVEL_ORDER: Record<string, number> = { N5: 0, N4: 1, N3: 2, N2: 3, N1: 4 
 function levelWeight(level: JlptLevel | null): number {
   return level ? LEVEL_ORDER[level] ?? 5 : 5;
 }
+function searchSectionWeight(entry: SearchResult['entry']): number {
+  return entry.searchSectionOrder ?? levelWeight(entry.level);
+}
 function withHexAlpha(hex: string, alpha: string): string {
   return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alpha}` : hex;
 }
-type JumpKey = JlptLevel | 'GLOSSARY';
-const JUMP_KEYS: JumpKey[] = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
-const JUMP_LONG_LABEL: Record<JumpKey, string> = {
-  N5: 'N5 · พื้นฐาน', N4: 'N4 · ต้น', N3: 'N3 · กลาง',
-  N2: 'N2 · สูง', N1: 'N1 · สูงสุด', GLOSSARY: 'GLOSSARY · ศัพท์รวม',
-};
-const JUMP_SHORT_LABEL: Record<JumpKey, string> = {
-  N5: 'N5', N4: 'N4', N3: 'N3', N2: 'N2', N1: 'N1', GLOSSARY: 'GL',
-};
 
 /* FastScroller — editorial index marker on touch viewports. Slim
    graphite block rides on a hidden rail; both activate to crimson
@@ -70,9 +72,8 @@ const FAST_THUMB_HEIGHT = 30;    /* terse height — editorial */
    + the row count for the section caption; rows wrap the existing
    SearchResult shape. Discriminator field `__header` distinguishes
    the two in renderItem + getItemType. */
-type SectionHeaderItem = { __header: true; id: string; key: JumpKey; count: number };
-type RowItem = { __header?: false; id: string; result: SearchResult };
-type ListItem = SectionHeaderItem | RowItem;
+type ListItem = SearchListItem;
+type RowItem = SearchRowItem;
 type FastToastInfo = { group: string; term: string; reading: string; visible: boolean };
 const EMPTY_FAST_TOAST: FastToastInfo = { group: '', term: '', reading: '', visible: false };
 
@@ -255,14 +256,16 @@ export default function SearchScreen() {
 
   const hasQuery = debounced.trim().length > 0;
 
-  /* Pre-sort the corpus by JLPT level for the browse-all view —
-     N5 → N4 → N3 → N2 → N1 → Glossary. Stable secondary sort by `no`
-     keeps deck-internal order intact inside each section. */
+  /* Pre-sort the corpus by search section for the browse-all view:
+     official N5→N1→Glossary first, then user/imported sections.
+     Stable secondary sort by `no` keeps deck-internal order intact. */
   const sortedAllEntries = useMemo(() => {
     if (allEntries.length === 0) return allEntries;
     return [...allEntries].sort((a, b) => {
-      const lvl = levelWeight(a.level) - levelWeight(b.level);
-      return lvl !== 0 ? lvl : a.no - b.no;
+      const section = searchSectionWeight(a) - searchSectionWeight(b);
+      if (section !== 0) return section;
+      const label = (a.searchSectionLabel ?? '').localeCompare(b.searchSectionLabel ?? '', 'th');
+      return label !== 0 ? label : a.no - b.no;
     });
   }, [allEntries]);
 
@@ -287,21 +290,7 @@ export default function SearchScreen() {
     if (hasQuery) {
       return results.map((r) => ({ id: r.entry.id, result: r }));
     }
-    const items: ListItem[] = [];
-    let currentKey: JumpKey | null = null;
-    let lastHeaderIdx = -1;
-    for (const r of results) {
-      const k: JumpKey = r.entry.level ?? 'GLOSSARY';
-      if (k !== currentKey) {
-        currentKey = k;
-        lastHeaderIdx = items.length;
-        items.push({ __header: true, id: `__hdr_${k}`, key: k, count: 0 });
-      }
-      items.push({ id: r.entry.id, result: r });
-      const hdr = items[lastHeaderIdx] as SectionHeaderItem;
-      hdr.count += 1;
-    }
-    return items;
+    return buildSearchSectionList(results).items;
   }, [hasQuery, results]);
 
   /* Header indices in the LIST view (not the bare results array) so the
@@ -310,27 +299,29 @@ export default function SearchScreen() {
      (modal caption), AND the sorted array of header positions that
      FlashList's `stickyHeaderIndices` needs to pin headers to the
      top edge until the next one pushes them off. */
-  const { listJumpIndices, sectionCounts, stickyHeaderIndices } = useMemo(() => {
+  const { listJumpIndices, sectionCounts, sectionLabels, stickyHeaderIndices, availableJumpKeys } = useMemo(() => {
     if (hasQuery) {
-      return { listJumpIndices: null, sectionCounts: null, stickyHeaderIndices: undefined as number[] | undefined };
+      return {
+        listJumpIndices: null,
+        sectionCounts: null,
+        sectionLabels: null,
+        stickyHeaderIndices: undefined as number[] | undefined,
+        availableJumpKeys: [] as SearchSectionKey[],
+      };
     }
-    const indices = new Map<JumpKey, number>();
-    const counts = new Map<JumpKey, number>();
-    const sticky: number[] = [];
-    for (let i = 0; i < listData.length; i++) {
-      const it = listData[i];
-      if ('__header' in it && it.__header) {
-        indices.set(it.key, i);
-        counts.set(it.key, it.count);
-        sticky.push(i);
-      }
-    }
-    return { listJumpIndices: indices, sectionCounts: counts, stickyHeaderIndices: sticky };
-  }, [hasQuery, listData]);
+    const built = buildSearchSectionList(results);
+    return {
+      listJumpIndices: built.indices,
+      sectionCounts: built.counts,
+      sectionLabels: built.labels,
+      stickyHeaderIndices: built.stickyHeaderIndices,
+      availableJumpKeys: built.availableKeys,
+    };
+  }, [hasQuery, results]);
 
   const [jumpGridOpen, setJumpGridOpen] = useState(false);
 
-  const jumpTo = useCallback((key: JumpKey) => {
+  const jumpTo = useCallback((key: SearchSectionKey) => {
     const idx = listJumpIndices?.get(key);
     if (idx == null) return;
     listRef.current?.scrollToIndex({ index: idx, animated: true });
@@ -338,7 +329,7 @@ export default function SearchScreen() {
 
   const openJumpGrid = useCallback(() => setJumpGridOpen(true), []);
   const closeJumpGrid = useCallback(() => setJumpGridOpen(false), []);
-  const jumpFromGrid = useCallback((key: JumpKey) => {
+  const jumpFromGrid = useCallback((key: SearchSectionKey) => {
     jumpTo(key);
     setJumpGridOpen(false);
   }, [jumpTo]);
@@ -393,7 +384,7 @@ export default function SearchScreen() {
          horizontal jump at the sticky pin moment. Moving the inset
          here means both states paint with identical bg geometry. */
       const inner = ('__header' in item && item.__header)
-        ? <SectionHeaderRow keyName={item.key} count={item.count} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} />
+        ? <SectionHeaderRow sectionKey={item.key} count={item.count} labels={sectionLabels} themeColor={c} onPress={openJumpGrid} compact={compact} chrome={chromeSizes} />
         : <ResultRow
             result={item.result}
             onPress={() => openEntry(item.result.entry.deckId, item.result.entry.id)}
@@ -403,7 +394,7 @@ export default function SearchScreen() {
           />;
       return <View style={[styles.cellWrap, tabletRailStyle]}>{inner}</View>;
     },
-    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid, tabletRailStyle],
+    [c, openEntry, compact, rowSizes, chromeSizes, openJumpGrid, tabletRailStyle, sectionLabels],
   );
 
   /* FlashList recycles cells by type — telling it that headers and rows
@@ -623,6 +614,7 @@ export default function SearchScreen() {
             listRef={listRef}
             listData={listData}
             listJumpIndices={listJumpIndices}
+            sectionLabels={sectionLabels}
             metricsRef={fastScrollMetrics}
             thumbY={fastThumbY}
             isDragging={fastIsDragging}
@@ -694,8 +686,9 @@ export default function SearchScreen() {
       <JumpGridModal
         visible={jumpGridOpen}
         themeColor={c}
-        availableKeys={listJumpIndices ? JUMP_KEYS.filter((k) => listJumpIndices.has(k)) : []}
+        availableKeys={listJumpIndices ? availableJumpKeys : []}
         counts={sectionCounts}
+        labels={sectionLabels}
         onPick={jumpFromGrid}
         onClose={closeJumpGrid}
       />
@@ -704,8 +697,9 @@ export default function SearchScreen() {
 }
 
 interface SectionHeaderProps {
-  keyName: JumpKey;
+  sectionKey: SearchSectionKey;
   count: number;
+  labels: Map<SearchSectionKey, SearchSectionLabel> | null;
   themeColor: typeof Colors.light | typeof Colors.dark;
   onPress: () => void;
   compact: boolean;
@@ -720,7 +714,8 @@ interface SectionHeaderProps {
  *  width to match the row edges exactly (earlier scrollbar-gutter
  *  marginRight made the header end short of the rows, which read as
  *  an indent shift on every sticky-pin transition). */
-function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chrome }: SectionHeaderProps) {
+function SectionHeaderRow({ sectionKey, count, labels, themeColor: c, onPress, compact, chrome }: SectionHeaderProps) {
+  const label = getSearchSectionLabelForKey(sectionKey, labels).long;
   return (
     <Pressable
       onPress={onPress}
@@ -749,7 +744,7 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chr
         pressed && { opacity: 0.85 },
       ]}>
       <ThemedText style={[styles.sectionHeaderLabel, { color: c.textMuted, fontSize: chrome.headerLabel }]} numberOfLines={1}>
-        {JUMP_LONG_LABEL[keyName]} <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint, fontSize: chrome.headerCount }]}>· {count.toLocaleString()} รายการ</ThemedText>
+        {label} <ThemedText style={[styles.sectionHeaderCount, { color: c.textHint, fontSize: chrome.headerCount }]}>· {count.toLocaleString()} รายการ</ThemedText>
       </ThemedText>
     </Pressable>
   );
@@ -758,9 +753,10 @@ function SectionHeaderRow({ keyName, count, themeColor: c, onPress, compact, chr
 interface JumpGridModalProps {
   visible: boolean;
   themeColor: typeof Colors.light | typeof Colors.dark;
-  availableKeys: JumpKey[];
-  counts: Map<JumpKey, number> | null;
-  onPick: (key: JumpKey) => void;
+  availableKeys: SearchSectionKey[];
+  counts: Map<SearchSectionKey, number> | null;
+  labels: Map<SearchSectionKey, SearchSectionLabel> | null;
+  onPick: (key: SearchSectionKey) => void;
   onClose: () => void;
 }
 
@@ -769,7 +765,7 @@ interface JumpGridModalProps {
  *  Reverted from a tile grid (which felt empty with only a few
  *  sections on the free tier) to a tighter list shape that scales
  *  cleanly with however many sections the corpus exposes. */
-function JumpGridModal({ visible, themeColor: c, availableKeys, counts, onPick, onClose }: JumpGridModalProps) {
+function JumpGridModal({ visible, themeColor: c, availableKeys, counts, labels, onPick, onClose }: JumpGridModalProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
@@ -796,7 +792,7 @@ function JumpGridModal({ visible, themeColor: c, availableKeys, counts, onPick, 
                   pressed && { opacity: 0.7 },
                 ]}>
                 <ThemedText style={[styles.modalRowLabel, { color: c.text }]} numberOfLines={1}>
-                  {JUMP_LONG_LABEL[key]}
+                  {getSearchSectionLabelForKey(key, labels).long}
                 </ThemedText>
                 <ThemedText style={[styles.modalRowCount, { color: c.textHint }]}>
                   {(counts?.get(key) ?? 0).toLocaleString()}
@@ -941,7 +937,8 @@ function Chip({ text, color: c, accent, size, padH }: { text: string; color: typ
 interface FastScrollerProps {
   listRef: React.RefObject<FlashListRef<ListItem> | null>;
   listData: ListItem[];
-  listJumpIndices: Map<JumpKey, number> | null;
+  listJumpIndices: Map<SearchSectionKey, number> | null;
+  sectionLabels: Map<SearchSectionKey, SearchSectionLabel> | null;
   metricsRef: React.MutableRefObject<{ offset: number; contentHeight: number; viewportHeight: number; trackHeight: number }>;
   thumbY: SharedValue<number>;
   isDragging: SharedValue<boolean>;
@@ -961,7 +958,7 @@ interface FastScrollerProps {
  *  toast, so it never fights the native scrollbar lane on tablet. The
  *  thumb position is a Reanimated SharedValue so onScroll updates
  *  (every 16 ms) and gesture updates both stay on the UI thread. */
-function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, isDragging, visible, themeColor: c, showLabel, onLabelChange }: FastScrollerProps) {
+function FastScroller({ listRef, listData, listJumpIndices, sectionLabels, metricsRef, thumbY, isDragging, visible, themeColor: c, showLabel, onLabelChange }: FastScrollerProps) {
   const [trackHeight, setTrackHeight] = useState(0);
   const [labelVisible, setLabelVisible] = useState(false);
   const lastPublishedLabelRef = useRef<FastToastInfo>(EMPTY_FAST_TOAST);
@@ -1002,7 +999,7 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
     const maxThumb = Math.max(1, trackHeight - FAST_THUMB_HEIGHT);
     const ratio = Math.max(0, Math.min(1, y / maxThumb));
     const approxIdx = Math.min(listData.length - 1, Math.floor(ratio * listData.length));
-    let currentKey: JumpKey | null = null;
+    let currentKey: SearchSectionKey | null = null;
     let bestIdx = -1;
     if (listJumpIndices) {
       for (const [key, idx] of listJumpIndices) {
@@ -1031,11 +1028,13 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
     }
     const entry = currentItem?.result.entry;
     const group = entry
-      ? entry.type === 'glossary'
+      ? entry.searchSectionLabel
+        ? entry.searchSectionLabel
+        : entry.type === 'glossary'
         ? 'GLOSSARY'
         : `${entry.level ?? 'GLOSSARY'} · ${TYPE_LABEL[entry.type]}`
       : currentKey
-        ? JUMP_LONG_LABEL[currentKey]
+        ? getSearchSectionLabelForKey(currentKey, sectionLabels).long
         : '';
     const reading = entry?.p[0] && entry.p[0] !== entry.t ? entry.p[0] : '';
     return {
@@ -1044,7 +1043,7 @@ function FastScroller({ listRef, listData, listJumpIndices, metricsRef, thumbY, 
       reading,
       visible: false,
     };
-  }, [listJumpIndices, listData, trackHeight]);
+  }, [listJumpIndices, listData, sectionLabels, trackHeight]);
 
   const publishLabel = useCallback((info: FastToastInfo, visible: boolean) => {
     const nextVisible = showLabel && visible && Boolean(info.group || info.term || info.reading);

@@ -20,7 +20,8 @@
 import type Fuse from 'fuse.js';
 import type { FuseResultMatch, IFuseOptions } from 'fuse.js';
 
-import type { ContentType, Entry, JlptLevel } from '@/data/types';
+import type { ContentType, Deck, Entry, JlptLevel } from '@/data/types';
+import { getDeckOrganization, isUserEditableDeck } from './user-content';
 
 /** Lightweight projection used inside the index (no markdown E field). */
 export interface SearchableEntry {
@@ -34,6 +35,10 @@ export interface SearchableEntry {
   /** Expanded readings — array of clean strings (hiragana/katakana/romaji variants). Fuse searches array natively. */
   p: string[];
   no: number;
+  searchSectionKey?: string;
+  searchSectionLabel?: string;
+  searchSectionShortLabel?: string;
+  searchSectionOrder?: number;
 }
 
 export interface SearchResult {
@@ -47,7 +52,7 @@ export interface SearchResult {
 export interface SearchEngine {
   buildIndex(entries: SearchableEntry[]): Fuse<SearchableEntry>;
   search(fuse: Fuse<SearchableEntry>, query: string, limit?: number): SearchResult[];
-  toSearchable(entry: Entry, deckId: string, deckTitle: string): SearchableEntry;
+  toSearchable(entry: Entry, deck: Deck): SearchableEntry;
 }
 
 const FUSE_OPTIONS: IFuseOptions<SearchableEntry> = {
@@ -129,20 +134,40 @@ export function loadSearchEngine(): Promise<SearchEngine> {
           matches: r.matches,
         }));
       },
-      toSearchable(entry, deckId, deckTitle) {
+      toSearchable(entry, deck) {
+        const section = getSearchSectionMeta(deck);
         return {
           id: entry.id,
-          deckId,
-          deckTitle,
+          deckId: deck.id,
+          deckTitle: deck.title,
           type: entry.type,
           level: entry.level,
           t: entry.t,
           d: entry.d,
           p: expandReadings(entry.p),
           no: entry.no,
+          ...section,
         };
       },
     };
   })();
   return enginePromise;
+}
+
+function getSearchSectionMeta(deck: Deck): Pick<SearchableEntry, 'searchSectionKey' | 'searchSectionLabel' | 'searchSectionShortLabel' | 'searchSectionOrder'> {
+  if (!isUserEditableDeck(deck)) return {};
+  const organization = getDeckOrganization(deck);
+  if (!organization.group) return {};
+  const section = organization.section?.trim();
+  const label = section ? `${organization.group} · ${section}` : organization.group;
+  return {
+    searchSectionKey: `user:${slug(organization.group)}${section ? `:${slug(section)}` : ''}`,
+    searchSectionLabel: label,
+    searchSectionShortLabel: organization.group,
+    searchSectionOrder: 1000,
+  };
+}
+
+function slug(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9ก-๙ぁ-んァ-ン一-龯]+/gi, '-').replace(/^-+|-+$/g, '') || 'section';
 }

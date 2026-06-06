@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildBrowseCollapseKeys,
   buildBrowseRows,
   filterBrowseDecks,
   getLibrarySearchFocusRailState,
@@ -103,6 +104,65 @@ describe('buildBrowseRows', () => {
     const rows = buildBrowseRows(filtered, new Set(['N5']), new Set(['N5/vocab']), true);
 
     expect(rows.map((row) => row.key)).toContain('vocab-n5-pack01');
+  });
+
+  it('builds collapse keys from the same hierarchy used by browse rows', () => {
+    const { levelKeys, categoryKeys } = buildBrowseCollapseKeys([
+      decks[0],
+      {
+        id: 'vocab-n5-pack96',
+        type: 'vocab',
+        level: 'N5',
+        title: 'Vocab N5 · Pack 96',
+        entryCount: 3,
+        isFree: false,
+        pack: 'vocab-n5-pack96',
+        tags: ['vocab', 'n5', 'group:god of war', 'section:test'],
+        userGroup: 'god of war',
+        userSection: 'test',
+        source: 'manual',
+      },
+      {
+        id: 'glossary-pack01',
+        type: 'glossary',
+        level: null,
+        title: 'Glossary · Pack 01',
+        entryCount: 50,
+        isFree: true,
+        pack: 'glossary-pack01',
+        tags: ['glossary'],
+        source: 'free',
+      },
+    ]);
+
+    expect(levelKeys).toContain('N5');
+    expect(levelKeys).toContain('GLOSSARY');
+    expect(levelKeys).toContain('god of war');
+    expect(categoryKeys).toContain('N5/vocab');
+    expect(categoryKeys).toContain('GLOSSARY/glossary');
+    expect(categoryKeys).toContain('god of war/test');
+  });
+
+  it('keeps an official glossary section header for consistent hierarchy controls', () => {
+    const rows = buildBrowseRows([
+      {
+        id: 'glossary-pack01',
+        type: 'glossary',
+        level: null,
+        title: 'Glossary · Pack 01',
+        entryCount: 50,
+        isFree: true,
+        pack: 'glossary-pack01',
+        tags: ['glossary'],
+        source: 'free',
+      },
+    ], new Set(), new Set(), false);
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'lvl-GLOSSARY',
+      'cat-GLOSSARY/glossary',
+      'glossary-pack01',
+    ]);
   });
 
   it('places manual official-shaped imports in their user group and section', () => {

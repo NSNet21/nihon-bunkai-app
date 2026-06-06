@@ -69,7 +69,7 @@ export function useSearchIndex(): UseSearchIndex {
         const entries = await entriesForDeckAsync(deck.id);
         if (cancelled) return;
         for (const e of entries) {
-          flat.push(engine.toSearchable(e, deck.id, deck.title));
+          flat.push(engine.toSearchable(e, deck));
         }
       }
       engineRef.current = engine;

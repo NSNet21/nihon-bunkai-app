@@ -158,7 +158,7 @@ export function buildBrowseRows(
       const categoryDecks = category.decks;
 
       const categoryKey = `${level}/${category.key}`;
-      const showCategoryHeader = group.source === 'user' || categories.size > 1;
+      const showCategoryHeader = group.source === 'user' || categories.size > 1 || group.key === 'GLOSSARY';
       const categoryOpen = forceOpen || !closedCategories.has(categoryKey);
 
       if (showCategoryHeader) {
@@ -215,6 +215,22 @@ export function buildBrowseRows(
   }
 
   return rows;
+}
+
+export function buildBrowseCollapseKeys(allDecks: Deck[]) {
+  const levelKeys = new Set<string>();
+  const categoryKeys = new Set<string>();
+
+  for (const deck of allDecks) {
+    const placement = getBrowsePlacement(deck);
+    levelKeys.add(placement.groupKey);
+    categoryKeys.add(`${placement.groupKey}/${placement.categoryKey}`);
+  }
+
+  return {
+    levelKeys: [...levelKeys],
+    categoryKeys: [...categoryKeys],
+  };
 }
 
 function getBrowsePlacement(deck: Deck) {

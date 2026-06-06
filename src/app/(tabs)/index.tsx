@@ -39,6 +39,7 @@ import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Accent, BottomTabInset, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { Deck } from '@/data/types';
 import {
+  buildBrowseCollapseKeys,
   buildBrowseRows,
   filterBrowseDecks,
   getLibrarySearchFocusRailState,
@@ -122,14 +123,8 @@ export default function BrowseScreen() {
 
   /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
-    const lvls = new Set<string>();
-    const cats = new Set<string>();
-    for (const d of decks) {
-      const lvl = d.level ?? 'GLOSSARY';
-      lvls.add(lvl);
-      if (d.type !== 'glossary') cats.add(`${lvl}/${d.type}`);
-    }
-    return { allLevelKeys: Array.from(lvls), allCategoryKeys: Array.from(cats) };
+    const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(decks);
+    return { allLevelKeys: levelKeys, allCategoryKeys: categoryKeys };
   }, [decks]);
 
   /* Stable callbacks so memoized list rows (DeckRow / LevelHeader /

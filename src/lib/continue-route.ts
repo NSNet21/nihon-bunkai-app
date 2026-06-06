@@ -10,6 +10,10 @@ export function continueRouteHref(lastSession: LastSession, mode: ContinueMode) 
   return `/deck/${lastSession.deckId}/quiz?entryId=${entryId}&from=continue`;
 }
 
+export function reviewContinueRouteHref(deckId: string) {
+  return `/deck/${deckId}/quiz?review=due&from=continue`;
+}
+
 export function continueModeBadge(mode: ContinueMode) {
   return mode === 'learn' ? 'LEARN' : 'FLASHCARD';
 }

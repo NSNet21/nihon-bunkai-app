@@ -218,6 +218,8 @@ export default function StudyScreen() {
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [results, setResults] = useState<Rating[]>([]);
+  const [activeRating, setActiveRating] = useState<Rating | null>(null);
+  const ratingPendingRef = useRef(false);
   /* Session identity — created lazily on FIRST rating (so just opening a
      deck and walking away doesn't pollute the session log). Refs (not
      state) because we read them synchronously inside handlers + effects
@@ -307,32 +309,43 @@ export default function StudyScreen() {
   }, [deck, current]);
 
   async function handleRate(rating: Rating) {
-    /* Lazy-init session identity on FIRST rating. */
-    if (sessionIdRef.current === null) {
-      sessionIdRef.current = crypto.randomUUID();
-      sessionStartedAtRef.current = Date.now();
-    }
+    if (ratingPendingRef.current) return;
+    ratingPendingRef.current = true;
+    setActiveRating(rating);
+    cueCardMotion(5);
+    try {
+      /* Lazy-init session identity on FIRST rating. */
+      if (sessionIdRef.current === null) {
+        sessionIdRef.current = crypto.randomUUID();
+        sessionStartedAtRef.current = Date.now();
+      }
 
-    /* Persist FSRS scheduling for this entry. Local Dexie write is
-       atomic with pending_sync enqueue (see putCardState). If user is
-       signed in + auto-sync on, schedulePush coalesces writes into a
-       debounced batch upload. Guest user: write stays in queue + drains
-       on next sign-in. Rating is always Grade subset (UI only emits
-       Again/Hard/Good/Easy via RatingButtons — never Manual). */
-    if (current && deck) {
-      const entryId = makeEntryId(deck.id, current.no);
-      const existing = await getCardState(entryId);
-      const next = scheduleCard(existing, rating as Grade, entryId, deck.id);
-      await putCardState(next);
-      if (user) schedulePush(user.id);
-    }
+      /* Persist FSRS scheduling for this entry. Local Dexie write is
+         atomic with pending_sync enqueue (see putCardState). If user is
+         signed in + auto-sync on, schedulePush coalesces writes into a
+         debounced batch upload. Guest user: write stays in queue + drains
+         on next sign-in. Rating is always Grade subset (UI only emits
+         Again/Hard/Good/Easy via RatingButtons — never Manual). */
+      if (current && deck) {
+        const entryId = makeEntryId(deck.id, current.no);
+        const existing = await getCardState(entryId);
+        const next = scheduleCard(existing, rating as Grade, entryId, deck.id);
+        await putCardState(next);
+        if (user) schedulePush(user.id);
+      }
 
-    setResults((prev) => [...prev, rating]);
-    setIsFlipped(false);
-    /* Finishing the deck retires the Continue CTA — Browse only shows it
-       for sessions that still have cards left to study. */
-    if (index >= entries.length - 1) setLastSession(null);
-    setIndex((i) => i + 1);
+      setResults((prev) => [...prev, rating]);
+      setIsFlipped(false);
+      /* Finishing the deck retires the Continue CTA — Browse only shows it
+         for sessions that still have cards left to study. */
+      if (index >= entries.length - 1) setLastSession(null);
+      setIndex((i) => i + 1);
+    } finally {
+      setTimeout(() => {
+        ratingPendingRef.current = false;
+        setActiveRating(null);
+      }, 180);
+    }
   }
 
   function handlePrev() {
@@ -608,7 +621,7 @@ export default function StudyScreen() {
               </View>
               <RatingButtons
                 onRate={handleRate}
-                disabled={!isFlipped}
+                activeRating={activeRating}
                 intervals={intervalPreviews ?? undefined}
               />
               <BrandStrip colors={colors} />

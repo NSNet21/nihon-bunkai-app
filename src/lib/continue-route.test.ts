@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { continueModeBadge, continueRouteHref, shouldShowFlashcardContinue } from './continue-route';
+import {
+  continueModeBadge,
+  continueRouteHref,
+  reviewContinueRouteHref,
+  shouldShowFlashcardContinue,
+} from './continue-route';
 import type { LastSession } from './last-session';
 
 const session: LastSession = {
@@ -19,6 +24,14 @@ describe('continueRouteHref', () => {
 
   it('routes Flashcard continue to the existing quiz card session', () => {
     expect(continueRouteHref(session, 'quiz')).toBe('/deck/kanji-n5-pack02/quiz?entryId=kanji-n5-pack02-21&from=continue');
+  });
+});
+
+describe('reviewContinueRouteHref', () => {
+  it('marks due review entry from Browse as a Continue-origin route', () => {
+    expect(reviewContinueRouteHref('kanji-n5-pack02')).toBe(
+      '/deck/kanji-n5-pack02/quiz?review=due&from=continue',
+    );
   });
 });
 

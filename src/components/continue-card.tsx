@@ -7,7 +7,7 @@ import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
 
 import { Accent, Colors, Radii, Spacing } from '@/constants/theme';
-import { continueModeBadge, continueRouteHref, type ContinueMode } from '@/lib/continue-route';
+import { continueModeBadge, continueRouteHref, reviewContinueRouteHref, type ContinueMode } from '@/lib/continue-route';
 import type { DeckReviewCandidate } from '@/lib/deck-progress';
 import type { LastSession } from '@/lib/last-session';
 
@@ -86,7 +86,7 @@ export function ReviewContinueCard({
   const router = useRouter();
 
   function onPress() {
-    router.push(`/deck/${candidate.deckId}/quiz?review=due` as never);
+    router.push(reviewContinueRouteHref(candidate.deckId) as never);
   }
 
   return (

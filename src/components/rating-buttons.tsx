@@ -31,6 +31,7 @@ const BUTTONS = [
 type Props = {
   onRate: (rating: Rating) => void;
   disabled?: boolean;
+  activeRating?: Rating | null;
   /** Round-5 P0 — optional FSRS scheduling preview (days each rating
    *  would schedule). When provided, each button shows a tiny "+3D"
    *  hint below the label so the user sees the consequence of the
@@ -38,7 +39,7 @@ type Props = {
   intervals?: IntervalPreviews;
 };
 
-export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
+export function RatingButtons({ onRate, disabled = false, activeRating = null, intervals }: Props) {
   const { scheme } = useThemeColors();
   const palette = RateColors[scheme];
   const { width } = useWindowDimensions();
@@ -54,6 +55,7 @@ export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
         const fg = palette[`${btn.colorKey}Fg`];
         const bg = palette[`${btn.colorKey}Bg`];
         const days = intervals?.[btn.colorKey];
+        const isActive = activeRating === btn.rating;
         return (
           <PressableScale
             key={btn.label}
@@ -66,7 +68,8 @@ export function RatingButtons({ onRate, disabled = false, intervals }: Props) {
             style={[
               styles.button,
               isCompact && styles.buttonCompact,
-              { backgroundColor: bg },
+              { backgroundColor: bg, borderColor: isActive ? fg : 'transparent' },
+              isActive && styles.buttonActive,
               disabled && styles.disabled,
             ]}
             accessibilityRole="button"
@@ -120,12 +123,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.two,
+    borderWidth: 1,
     borderRadius: Radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 40,
     /* Slight vertical gap between label and interval hint. */
     gap: 2,
+  },
+  buttonActive: {
+    transform: [{ translateY: -1 }],
+    ...(Platform.OS === 'web' ? ({ boxShadow: '0 0 0 2px rgba(224, 32, 44, 0.15)' } as any) : null),
   },
   /* Mobile sizing — 6px vertical padding + 32px minHeight stays inside
      iOS HIG's 32pt minimum for non-primary controls (FSRS rating is

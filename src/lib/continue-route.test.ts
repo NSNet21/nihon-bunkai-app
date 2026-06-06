@@ -94,21 +94,21 @@ describe('getBrowseLibraryRevealState', () => {
     });
   });
 
-  it('holds library in a quiet pending state when Continue exists but has not settled first', () => {
+  it('reveals library in the same frame when Continue exists', () => {
     expect(getBrowseLibraryRevealState({ continueReady: true, hasContinue: true, continueSettled: false })).toEqual({
-      showLibrary: false,
-      prioritizeContinue: true,
-      pendingLibrary: true,
-      motion: 'after-continue',
+      showLibrary: true,
+      prioritizeContinue: false,
+      pendingLibrary: false,
+      motion: 'direct',
     });
   });
 
-  it('reveals library after a real Continue section has settled', () => {
+  it('does not delay library after Continue has settled because the sections reveal together', () => {
     expect(getBrowseLibraryRevealState({ continueReady: true, hasContinue: true, continueSettled: true })).toEqual({
       showLibrary: true,
-      prioritizeContinue: true,
+      prioritizeContinue: false,
       pendingLibrary: false,
-      motion: 'after-continue',
+      motion: 'direct',
     });
   });
 });

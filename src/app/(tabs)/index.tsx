@@ -134,11 +134,9 @@ export default function BrowseScreen() {
   });
   const continueClusterReady = hasHydrated && !decksLoading && reviewCandidateReady;
   const showAnyContinue = continueClusterReady && (showContinueLearn || showFlashcardContinue || showReviewContinue);
-  const [continueSettled, setContinueSettled] = useState(false);
   const libraryReveal = getBrowseLibraryRevealState({
     continueReady: continueClusterReady,
     hasContinue: showAnyContinue,
-    continueSettled,
   });
 
   useFocusEffect(
@@ -177,22 +175,6 @@ export default function BrowseScreen() {
       };
     }, [decks, decksLoading]),
   );
-
-  useEffect(() => {
-    if (!continueClusterReady) {
-      setContinueSettled(false);
-      return;
-    }
-
-    if (!showAnyContinue) {
-      setContinueSettled(false);
-      return;
-    }
-
-    setContinueSettled(false);
-    const id = setTimeout(() => setContinueSettled(true), 170);
-    return () => clearTimeout(id);
-  }, [continueClusterReady, showAnyContinue]);
 
   /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
@@ -348,41 +330,37 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {librarySubtitle}
               </ThemedText>
-              {/* Continue cluster header — gives Learn/Review resume cards
-                  the same section rhythm as Library, while keeping the old
-                  Flashcard resume hidden when a due-review CTA is available. */}
-              {showAnyContinue && (
-                <Animated.View entering={FadeInUp.duration(170).easing(Easing.bezier(0.4, 0, 0.2, 1))}>
-                  <View style={styles.continueGroupHead}>
-                    <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
-                    <View style={styles.continueTitleStack}>
-                      <ThemedText type="defaultSemiBold" style={[styles.continueTitle, { color: Accent.base }]}>
-                        เรียนต่อ
-                      </ThemedText>
-                      <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
-                        // CONTINUE · session / review
-                      </ThemedText>
+              {libraryReveal.showLibrary ? (
+                <Animated.View entering={FadeInUp.duration(160).easing(Easing.bezier(0.4, 0, 0.2, 1))} style={styles.browseContentRevealWrap}>
+                  {/* Continue cluster header — gives Learn/Review resume cards
+                      the same section rhythm as Library, while keeping the old
+                      Flashcard resume hidden when a due-review CTA is available. */}
+                  {showAnyContinue && (
+                    <View style={styles.continueSectionWrap}>
+                      <View style={styles.continueGroupHead}>
+                        <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
+                        <View style={styles.continueTitleStack}>
+                          <ThemedText type="defaultSemiBold" style={[styles.continueTitle, { color: Accent.base }]}>
+                            เรียนต่อ
+                          </ThemedText>
+                          <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
+                            // CONTINUE · session / review
+                          </ThemedText>
+                        </View>
+                      </View>
+                      {/* LEARN above QUIZ — passive review usually precedes active
+                          testing in the user's flow (user preference 2026-05-27). */}
+                      {showContinueLearn && lastSessionLearn && (
+                        <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
+                      )}
+                      {showFlashcardContinue && lastSession && (
+                        <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
+                      )}
+                      {showReviewContinue && reviewCandidate && (
+                        <ReviewContinueCard candidate={reviewCandidate} colors={colors} />
+                      )}
                     </View>
-                  </View>
-                  {/* LEARN above QUIZ — passive review usually precedes active
-                      testing in the user's flow (user preference 2026-05-27). */}
-                  {showContinueLearn && lastSessionLearn && (
-                    <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
                   )}
-                  {showFlashcardContinue && lastSession && (
-                    <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
-                  )}
-                  {showReviewContinue && reviewCandidate && (
-                    <ReviewContinueCard candidate={reviewCandidate} colors={colors} />
-                  )}
-                </Animated.View>
-              )}
-              {libraryReveal.pendingLibrary ? (
-                <BrowseLibraryPending colors={colors} />
-              ) : libraryReveal.showLibrary ? (
-                <Animated.View
-                  entering={FadeInUp.duration(libraryReveal.motion === 'after-continue' ? 210 : 120).easing(Easing.bezier(0.4, 0, 0.2, 1))}
-                  style={styles.libraryRevealWrap}>
                   <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.libraryBlockHead}>
                     <View style={styles.libraryGroupHead}>
@@ -594,25 +572,6 @@ function Toolbar({
             <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
           </View>
         </ScaleButton>
-      </View>
-    </View>
-  );
-}
-
-function BrowseLibraryPending({ colors }: { colors: ReturnType<typeof useThemePalette> }) {
-  return (
-    <View style={styles.libraryPendingWrap} accessibilityLabel="กำลังจัดคลังคำศัพท์">
-      <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
-      <View style={[styles.libraryPendingBlock, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-        <View style={[styles.libraryPendingRule, { backgroundColor: Accent.base }]} />
-        <View style={styles.libraryPendingText}>
-          <ThemedText type="smallBold" style={{ color: Accent.base }}>
-            กำลังจัดคลังคำศัพท์
-          </ThemedText>
-          <ThemedText type="small" style={{ color: colors.textHint }}>
-            // LIBRARY · level / group / deck
-          </ThemedText>
-        </View>
       </View>
     </View>
   );
@@ -1400,29 +1359,11 @@ const styles = StyleSheet.create({
   libraryBlockHead: {
     marginHorizontal: -Spacing.four,
   },
-  libraryRevealWrap: {
+  browseContentRevealWrap: {
     gap: Spacing.three,
   },
-  libraryPendingWrap: {
+  continueSectionWrap: {
     gap: Spacing.three,
-  },
-  libraryPendingBlock: {
-    minHeight: 74,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    overflow: 'hidden',
-  },
-  libraryPendingRule: {
-    width: 3,
-    alignSelf: 'stretch',
-  },
-  libraryPendingText: {
-    gap: 2,
   },
   libraryGroupHead: {
     flexDirection: 'row',

@@ -37,8 +37,8 @@ export type BrowseLibraryRevealState = {
 
 export function getBrowseLibraryRevealState({
   continueReady,
-  hasContinue,
-  continueSettled = false,
+  hasContinue: _hasContinue,
+  continueSettled: _continueSettled = false,
 }: {
   continueReady: boolean;
   hasContinue: boolean;
@@ -53,19 +53,10 @@ export function getBrowseLibraryRevealState({
     };
   }
 
-  if (!hasContinue) {
-    return {
-      showLibrary: true,
-      prioritizeContinue: false,
-      pendingLibrary: false,
-      motion: 'direct',
-    };
-  }
-
   return {
-    showLibrary: continueSettled,
-    prioritizeContinue: true,
-    pendingLibrary: !continueSettled,
-    motion: 'after-continue',
+    showLibrary: true,
+    prioritizeContinue: false,
+    pendingLibrary: false,
+    motion: 'direct',
   };
 }

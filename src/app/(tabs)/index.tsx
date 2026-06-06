@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
+  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -49,7 +50,7 @@ import {
   type BrowseRow,
 } from '@/lib/browse-group-search';
 import { getDeckReviewCandidate, type DeckReviewCandidate } from '@/lib/deck-progress';
-import { shouldShowFlashcardContinue } from '@/lib/continue-route';
+import { getBrowseLibraryRevealState, shouldShowFlashcardContinue } from '@/lib/continue-route';
 import {
   deleteUserLibraryGroup,
   deleteUserLibrarySection,
@@ -133,6 +134,12 @@ export default function BrowseScreen() {
   });
   const continueClusterReady = hasHydrated && !decksLoading && reviewCandidateReady;
   const showAnyContinue = continueClusterReady && (showContinueLearn || showFlashcardContinue || showReviewContinue);
+  const [continueSettled, setContinueSettled] = useState(false);
+  const libraryReveal = getBrowseLibraryRevealState({
+    continueReady: continueClusterReady,
+    hasContinue: showAnyContinue,
+    continueSettled,
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -170,6 +177,22 @@ export default function BrowseScreen() {
       };
     }, [decks, decksLoading]),
   );
+
+  useEffect(() => {
+    if (!continueClusterReady) {
+      setContinueSettled(false);
+      return;
+    }
+
+    if (!showAnyContinue) {
+      setContinueSettled(false);
+      return;
+    }
+
+    setContinueSettled(false);
+    const id = setTimeout(() => setContinueSettled(true), 170);
+    return () => clearTimeout(id);
+  }, [continueClusterReady, showAnyContinue]);
 
   /* Recompute group keys when decks change (free + paid merged). */
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
@@ -302,7 +325,7 @@ export default function BrowseScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<BrowseRow>
           ref={listRef}
-          data={rows}
+          data={libraryReveal.showLibrary ? rows : []}
           keyExtractor={(item) => item.key}
           getItemType={(item) => item.kind}
           onScroll={(e) => {
@@ -329,51 +352,61 @@ export default function BrowseScreen() {
                   the same section rhythm as Library, while keeping the old
                   Flashcard resume hidden when a due-review CTA is available. */}
               {showAnyContinue && (
-                <View style={styles.continueGroupHead}>
-                  <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
-                  <View style={styles.continueTitleStack}>
-                    <ThemedText type="defaultSemiBold" style={[styles.continueTitle, { color: Accent.base }]}>
-                      เรียนต่อ
-                    </ThemedText>
-                    <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
-                      // CONTINUE · session / review
-                    </ThemedText>
+                <Animated.View entering={FadeInUp.duration(170).easing(Easing.bezier(0.4, 0, 0.2, 1))}>
+                  <View style={styles.continueGroupHead}>
+                    <View style={[styles.continuePip, { backgroundColor: Accent.base }]} />
+                    <View style={styles.continueTitleStack}>
+                      <ThemedText type="defaultSemiBold" style={[styles.continueTitle, { color: Accent.base }]}>
+                        เรียนต่อ
+                      </ThemedText>
+                      <ThemedText style={[styles.continueKicker, { color: colors.textHint }]}>
+                        // CONTINUE · session / review
+                      </ThemedText>
+                    </View>
                   </View>
-                </View>
+                  {/* LEARN above QUIZ — passive review usually precedes active
+                      testing in the user's flow (user preference 2026-05-27). */}
+                  {showContinueLearn && lastSessionLearn && (
+                    <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
+                  )}
+                  {showFlashcardContinue && lastSession && (
+                    <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
+                  )}
+                  {showReviewContinue && reviewCandidate && (
+                    <ReviewContinueCard candidate={reviewCandidate} colors={colors} />
+                  )}
+                </Animated.View>
               )}
-              {/* LEARN above QUIZ — passive review usually precedes active
-                  testing in the user's flow (user preference 2026-05-27). */}
-              {continueClusterReady && showContinueLearn && lastSessionLearn && (
-                <ContinueCard lastSession={lastSessionLearn} colors={colors} mode="learn" />
-              )}
-              {continueClusterReady && showFlashcardContinue && lastSession && (
-                <ContinueCard lastSession={lastSession} colors={colors} mode="quiz" />
-              )}
-              {continueClusterReady && showReviewContinue && reviewCandidate && (
-                <ReviewContinueCard candidate={reviewCandidate} colors={colors} />
-              )}
-              <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.libraryBlockHead}>
-                <View style={styles.libraryGroupHead}>
-                  <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
-                  <View style={styles.libraryTitleStack}>
-                    <ThemedText type="defaultSemiBold" style={[styles.libraryTitle, { color: Accent.base }]}>
-                      คลังคำศัพท์
-                    </ThemedText>
-                    <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
-                      // LIBRARY · level / group / deck
-                    </ThemedText>
+              {libraryReveal.pendingLibrary ? (
+                <BrowseLibraryPending colors={colors} />
+              ) : libraryReveal.showLibrary ? (
+                <Animated.View
+                  entering={FadeInUp.duration(libraryReveal.motion === 'after-continue' ? 210 : 120).easing(Easing.bezier(0.4, 0, 0.2, 1))}
+                  style={styles.libraryRevealWrap}>
+                  <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.libraryBlockHead}>
+                    <View style={styles.libraryGroupHead}>
+                      <View style={[styles.libraryPip, { backgroundColor: Accent.base }]} />
+                      <View style={styles.libraryTitleStack}>
+                        <ThemedText type="defaultSemiBold" style={[styles.libraryTitle, { color: Accent.base }]}>
+                          คลังคำศัพท์
+                        </ThemedText>
+                        <ThemedText style={[styles.libraryKicker, { color: colors.textHint }]}>
+                          // LIBRARY · level / group / deck
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <Toolbar
+                      onOpenLibrarySearch={() => setLibrarySearchOpen(true)}
+                      onExpandAll={expandAll}
+                      onCollapseAll={collapseAll}
+                      subsOnly={subsOnly}
+                      onToggleSubsOnly={toggleToolbarScope}
+                      onOpenLibraryActions={() => setLibraryActionsOpen(true)}
+                    />
                   </View>
-                </View>
-                <Toolbar
-                  onOpenLibrarySearch={() => setLibrarySearchOpen(true)}
-                  onExpandAll={expandAll}
-                  onCollapseAll={collapseAll}
-                  subsOnly={subsOnly}
-                  onToggleSubsOnly={toggleToolbarScope}
-                  onOpenLibraryActions={() => setLibraryActionsOpen(true)}
-                />
-              </View>
+                </Animated.View>
+              ) : null}
             </View>
           }
           renderItem={renderItem}
@@ -561,6 +594,25 @@ function Toolbar({
             <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
           </View>
         </ScaleButton>
+      </View>
+    </View>
+  );
+}
+
+function BrowseLibraryPending({ colors }: { colors: ReturnType<typeof useThemePalette> }) {
+  return (
+    <View style={styles.libraryPendingWrap} accessibilityLabel="กำลังจัดคลังคำศัพท์">
+      <View style={[styles.librarySectionDivider, { backgroundColor: colors.border }]} />
+      <View style={[styles.libraryPendingBlock, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+        <View style={[styles.libraryPendingRule, { backgroundColor: Accent.base }]} />
+        <View style={styles.libraryPendingText}>
+          <ThemedText type="smallBold" style={{ color: Accent.base }}>
+            กำลังจัดคลังคำศัพท์
+          </ThemedText>
+          <ThemedText type="small" style={{ color: colors.textHint }}>
+            // LIBRARY · level / group / deck
+          </ThemedText>
+        </View>
       </View>
     </View>
   );
@@ -1347,6 +1399,30 @@ const styles = StyleSheet.create({
   },
   libraryBlockHead: {
     marginHorizontal: -Spacing.four,
+  },
+  libraryRevealWrap: {
+    gap: Spacing.three,
+  },
+  libraryPendingWrap: {
+    gap: Spacing.three,
+  },
+  libraryPendingBlock: {
+    minHeight: 74,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    overflow: 'hidden',
+  },
+  libraryPendingRule: {
+    width: 3,
+    alignSelf: 'stretch',
+  },
+  libraryPendingText: {
+    gap: 2,
   },
   libraryGroupHead: {
     flexDirection: 'row',

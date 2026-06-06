@@ -35,7 +35,7 @@ export function buildDeckProgressSummary(deckId: string, input: DeckProgressInpu
   return {
     deckId,
     touchedCount: deckCards.length,
-    dueCount: deckCards.filter((row) => row.due <= now).length,
+    dueCount: dueEntryNosFromCardStates(deckId, deckCards, now).length,
     sessionCount: deckSessions.length,
     latestSessionAt: latestSession?.startedAt ?? null,
     latestSessionScore: latestSession ? getSessionScore(latestSession) : null,
@@ -53,8 +53,29 @@ export async function getDeckProgressSummary(deckId: string, now = Date.now()): 
   return buildDeckProgressSummary(deckId, { cardStates, sessionLogs, streakMeta, now });
 }
 
+export function dueEntryNosFromCardStates(deckId: string, cardStates: CardStateRow[], now = Date.now()): number[] {
+  return cardStates
+    .filter((row) => row.deckId === deckId && row.due <= now)
+    .map((row) => entryNoFromSrsEntryId(deckId, row.entryId))
+    .filter((no): no is number => typeof no === 'number')
+    .sort((a, b) => a - b);
+}
+
+export async function getDueEntryNosForDeck(deckId: string, now = Date.now()): Promise<number[]> {
+  const cardStates = await getCardStatesForDeck(deckId);
+  return dueEntryNosFromCardStates(deckId, cardStates, now);
+}
+
 function getSessionScore(session: SessionLogRow): number | null {
   const answered = session.againCount + session.hardCount + session.goodCount + session.easyCount;
   if (answered <= 0) return null;
   return (session.hardCount + session.goodCount + session.easyCount) / answered;
+}
+
+function entryNoFromSrsEntryId(deckId: string, entryId: string): number | null {
+  const prefix = `${deckId}::`;
+  if (!entryId.startsWith(prefix)) return null;
+  const rawNo = entryId.slice(prefix.length);
+  const no = Number(rawNo);
+  return Number.isInteger(no) && no > 0 ? no : null;
 }

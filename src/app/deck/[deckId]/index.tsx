@@ -99,6 +99,11 @@ export default function DeckTermListScreen() {
     push(`/deck/${deckId}/modes` as never);
   }
 
+  function goDueReview() {
+    if (!deckId) return;
+    push(`/deck/${deckId}/quiz?review=due` as never);
+  }
+
   function handleTermCreated(entry: Entry) {
     setEntries((rows) => [...rows, entry]);
     setAddTermOpen(false);
@@ -194,7 +199,7 @@ export default function DeckTermListScreen() {
             </View>
           </View>
 
-          <DeckProgressBlock progress={progress} ready={progressReady} colors={colors} />
+          <DeckProgressBlock progress={progress} ready={progressReady} colors={colors} onReview={goDueReview} />
 
           <View style={styles.sectionHead}>
             <View style={styles.sectionTitleRow}>
@@ -311,10 +316,12 @@ function DeckProgressBlock({
   progress,
   ready,
   colors,
+  onReview,
 }: {
   progress: DeckProgressSummary | null;
   ready: boolean;
   colors: typeof Colors.light;
+  onReview: () => void;
 }) {
   const hasProgress = Boolean(progress && (progress.touchedCount > 0 || progress.sessionCount > 0));
   const latestLabel = progress?.latestSessionAt ? formatProgressDate(progress.latestSessionAt) : null;
@@ -327,11 +334,25 @@ function DeckProgressBlock({
           <ThemedText style={[styles.mono, { color: colors.textHint }]}>// PROGRESS · ความคืบหน้า</ThemedText>
         </View>
         {progress?.dueCount ? (
-          <View style={[styles.dueBadge, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
-            <FiClock size={13} color={Accent.base} strokeWidth={2} />
-            <ThemedText style={[styles.dueBadgeText, { color: Accent.base }]}>
-              {`${progress.dueCount} รอทบทวน`}
-            </ThemedText>
+          <View style={styles.progressActions}>
+            <View style={[styles.dueBadge, { borderColor: Accent.soft, backgroundColor: Accent.bg }]}>
+              <FiClock size={13} color={Accent.base} strokeWidth={2} />
+              <ThemedText style={[styles.dueBadgeText, { color: Accent.base }]}>
+                {`${progress.dueCount} รอทบทวน`}
+              </ThemedText>
+            </View>
+            <Pressable
+              onPress={onReview}
+              accessibilityRole="button"
+              accessibilityLabel="ทบทวน deck นี้"
+              style={({ pressed, hovered }: any) => [
+                styles.reviewBtn,
+                { borderColor: Accent.soft, backgroundColor: Accent.base },
+                (pressed || hovered) && { backgroundColor: Accent.strong, borderColor: Accent.strong },
+                pressed && { opacity: 0.82 },
+              ]}>
+              <ThemedText style={styles.reviewBtnText}>ทบทวน deck นี้</ThemedText>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -624,6 +645,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  progressActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     gap: Spacing.two,
   },
   dueBadge: {
@@ -636,6 +664,19 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   dueBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  reviewBtn: {
+    minHeight: 30,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewBtnText: {
+    color: '#fff',
     fontSize: 12,
     fontWeight: '700',
   },

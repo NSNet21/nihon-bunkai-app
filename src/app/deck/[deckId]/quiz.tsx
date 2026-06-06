@@ -44,6 +44,7 @@ import { usePersistedState } from '@/hooks/use-persisted-state';
 import { entriesForDeckAsync } from '@/hooks/use-decks';
 import { useDeckRouteDeck } from '@/hooks/use-deck-route-deck';
 import type { Entry } from '@/data/types';
+import { getDueEntryNosForDeck } from '@/lib/deck-progress';
 import type { LastSession } from '@/lib/last-session';
 import { isContinueOrigin, studyFallbackHref } from '@/lib/navigation-back';
 import {
@@ -63,21 +64,23 @@ import {
 } from '@/lib/card-display-config';
 
 export default function StudyScreen() {
-  const { deckId, entryId, count: countParam, from } = useLocalSearchParams<{
+  const { deckId, entryId, count: countParam, from, review } = useLocalSearchParams<{
     deckId?: string;
     entryId?: string;
     count?: string;
     from?: string | string[];
+    review?: string;
   }>();
   const router = useRouter();
   const backFallbackHref = studyFallbackHref(deckId, { fromContinue: isContinueOrigin(from) });
+  const isDueReview = review === 'due' && !entryId;
   /* count search param (10/20/30/50) limits this session to first N
      entries. Set by Hub Quiz CTA or Config "เริ่มทดสอบ". Resume mode
      (entryId present) overrides count — user explicitly came to finish
      a specific card, don't truncate them out of it. Per GPT verdict
      2026-05-27 Quiz Config flow. */
   const sessionCount = (() => {
-    if (entryId) return undefined;
+    if (entryId || isDueReview) return undefined;
     const n = countParam ? parseInt(countParam, 10) : NaN;
     return Number.isFinite(n) && [10, 20, 30, 50].includes(n) ? n : undefined;
   })();
@@ -141,8 +144,28 @@ export default function StudyScreen() {
       return;
     }
     setEntriesLoading(true);
-    void entriesForDeckAsync(deckId).then((rows) => {
+    void (async () => {
+      const rows = await entriesForDeckAsync(deckId);
       if (cancelled) return;
+
+      if (isDueReview) {
+        const dueNos = await getDueEntryNosForDeck(deckId);
+        if (cancelled) return;
+        const dueNoSet = new Set(dueNos);
+        const dueRows = rows.filter((row) => dueNoSet.has(row.no));
+        if (dueRows.length === 0) {
+          setEntries([]);
+          setEntriesLoading(false);
+          showToast('ยังไม่มีการ์ดที่ต้องทบทวนใน deck นี้', { kind: 'info' });
+          router.replace(`/deck/${deckId}` as never);
+          return;
+        }
+        baseSessionEntriesRef.current = dueRows;
+        setEntries(dueRows);
+        setEntriesLoading(false);
+        return;
+      }
+
       /* Legacy ?count= links keep their first-N behavior. Direct resume
          links keep the full deck so the requested entry is never lost to
          config count/order. Fresh flashcard sessions use the saved mode
@@ -176,11 +199,21 @@ export default function StudyScreen() {
           showToast('ตัวการ์ดเดิมหาไม่เจอ เริ่มจากต้น', { kind: 'info' });
         }
       }
+    })().catch((error) => {
+      if (__DEV__) console.warn('[quiz-review] load failed:', error);
+      if (!cancelled) {
+        setEntries([]);
+        setEntriesLoading(false);
+        if (isDueReview && deckId) {
+          showToast('ยังไม่มีการ์ดที่ต้องทบทวนใน deck นี้', { kind: 'info' });
+          router.replace(`/deck/${deckId}` as never);
+        }
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [deckId, entryId, safeFlashcardConfig, sessionCount, showToast]);
+  }, [deckId, entryId, isDueReview, router, safeFlashcardConfig, sessionCount, showToast]);
 
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);

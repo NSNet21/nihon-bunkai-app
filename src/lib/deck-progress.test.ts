@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CardStateRow, SessionLogRow, StreakMetaRow } from './srs-store';
-import { buildDeckProgressSummary } from './deck-progress';
+import { buildDeckProgressSummary, dueEntryNosFromCardStates } from './deck-progress';
 
 const NOW = 1_800_000;
 
@@ -97,5 +97,21 @@ describe('deck progress summary', () => {
     expect(summary.latestSessionAt).toBe(NOW - 5_000);
     expect(summary.latestSessionScore).toBe(0.8);
     expect(summary.streakCount).toBe(3);
+  });
+
+  it('extracts due entry numbers for the requested deck only', () => {
+    expect(dueEntryNosFromCardStates('deck-a', [
+      card('deck-a::1', 'deck-a', NOW - 1),
+      card('deck-a::2', 'deck-a', NOW + 1),
+      card('deck-b::3', 'deck-b', NOW - 1),
+    ], NOW)).toEqual([1]);
+  });
+
+  it('ignores malformed due row ids', () => {
+    expect(dueEntryNosFromCardStates('deck-a', [
+      card('deck-a::not-a-number', 'deck-a', NOW - 1),
+      card('wrong-shape', 'deck-a', NOW - 1),
+      card('deck-a::4', 'deck-a', NOW - 1),
+    ], NOW)).toEqual([4]);
   });
 });

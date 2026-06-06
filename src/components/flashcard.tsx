@@ -424,16 +424,10 @@ export function Flashcard({
                 intercepting clicks + wheel — backface-visibility:hidden on
                 preserve-3d elements doesn't always block hit-testing on web. */}
             <Animated.View
-              /* Keep pointerEvents as PROP (not style) — Reanimated's
-                 Animated.View on RN Web does NOT forward style.pointerEvents
-                 to the rendered div, so toggling via prop is the only
-                 reliable way to stop the inactive face from intercepting
-                 clicks on the TTS icon + ScrollView wheel. Accept the
-                 deprecation warning here. */
-              pointerEvents={isFlipped ? 'none' : 'auto'}
               style={[
                 styles.face,
                 styles.faceCenter,
+                { pointerEvents: isFlipped ? 'none' : 'auto' },
                 { backgroundColor: colors.backgroundElement, padding: facePad },
                 /* Front face: kill text selection on web so drag never gets
                    hijacked by browser's text-select. Back face KEEPS default
@@ -499,8 +493,7 @@ export function Flashcard({
 
           {/* Back face — D (meaning) + E (explanation), each toggleable */}
           <Animated.View
-            pointerEvents={isFlipped ? 'auto' : 'none'}
-            style={[styles.face, { backgroundColor: colors.backgroundElement }, backStyle]}>
+            style={[styles.face, { pointerEvents: isFlipped ? 'auto' : 'none' }, { backgroundColor: colors.backgroundElement }, backStyle]}>
             <ScrollView
               style={[
                 styles.backScroll,
@@ -570,7 +563,7 @@ export function Flashcard({
             disappearing edge-on at 90°. Shares swipeStyle so FootDots
             translates with the card during swipe (otherwise progress sits
             still while the card flies away — looks broken). */}
-        <Animated.View pointerEvents="box-none" style={[styles.cardOverlay, swipeStyle]}>
+        <Animated.View style={[styles.cardOverlay, { pointerEvents: 'box-none' }, swipeStyle]}>
           {hasProgress && <FootDots index={index!} total={total!} colors={colors} isFlipped={isFlipped} />}
         </Animated.View>
         </Animated.View>

@@ -41,6 +41,9 @@ export function generateStaticParams() {
   return freeDeckParams();
 }
 
+const PRIMARY_ACTION_TEST_ID = 'multiple-choice-primary-action';
+const SCROLL_TEST_ID = 'multiple-choice-scroll';
+
 export default function MultipleChoiceScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
   const router = useRouter();
@@ -62,6 +65,7 @@ export default function MultipleChoiceScreen() {
   const sessionStartedAtRef = useRef<number | null>(null);
   const sessionLoggedRef = useRef(false);
   const answerLockedRef = useRef(false);
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const [config] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('multiple-choice'),
@@ -106,6 +110,10 @@ export default function MultipleChoiceScreen() {
     return buildMultipleChoiceQuestion(current, entries, safeConfig.goal);
   }, [current, entries, safeConfig.goal]);
 
+  useEffect(() => {
+    if (attempt) scrollPrimaryActionIntoView();
+  }, [attempt]);
+
   async function handleChoice(choice: string) {
     if (!question || !current || !deck || attempt || answerLockedRef.current) return;
     answerLockedRef.current = true;
@@ -128,10 +136,22 @@ export default function MultipleChoiceScreen() {
     }
   }
 
+  function scrollPrimaryActionIntoView() {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        document
+          .querySelector(`[data-testid="${PRIMARY_ACTION_TEST_ID}"]`)
+          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }, 0);
+  }
+
   function handleNext() {
     answerLockedRef.current = false;
     setAttempt(null);
     setIndex((value) => value + 1);
+    scrollSessionToTop();
   }
 
   function handleRestart() {
@@ -143,6 +163,17 @@ export default function MultipleChoiceScreen() {
     setAttempt(null);
     setCorrectCount(0);
     setResults([]);
+    scrollSessionToTop();
+  }
+
+  function scrollSessionToTop() {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const lane = document.querySelector(`[data-testid="${SCROLL_TEST_ID}"]`);
+        if (lane instanceof HTMLElement) lane.scrollTop = 0;
+      }
+    });
   }
 
   useEffect(() => {
@@ -270,6 +301,8 @@ export default function MultipleChoiceScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
+          ref={scrollRef}
+          testID={SCROLL_TEST_ID}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator>
@@ -364,6 +397,7 @@ export default function MultipleChoiceScreen() {
             <View style={styles.feedbackBlock}>
               <Pressable
                 onPress={handleNext}
+                testID={PRIMARY_ACTION_TEST_ID}
                 accessibilityRole="button"
                 accessibilityLabel="ข้อถัดไป"
                 style={({ pressed, hovered }: any) => [

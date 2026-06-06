@@ -36,6 +36,9 @@ export function generateStaticParams() {
   return freeDeckParams();
 }
 
+const PRIMARY_ACTION_TEST_ID = 'dictation-primary-action';
+const SCROLL_TEST_ID = 'dictation-scroll';
+
 export default function DictationScreen() {
   const { deckId } = useLocalSearchParams<{ deckId?: string }>();
   const router = useRouter();
@@ -59,6 +62,7 @@ export default function DictationScreen() {
   const sessionStartedAtRef = useRef<number | null>(null);
   const sessionLoggedRef = useRef(false);
   const answerLockedRef = useRef(false);
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const [config] = usePersistedState<StudyModeConfig>(
     studyModeConfigKey('dictation'),
@@ -102,6 +106,10 @@ export default function DictationScreen() {
   const expectedAnswer = current ? valueForField(current, fields.answerField).trim() : '';
   const isComplete = entries.length > 0 && index >= entries.length;
 
+  useEffect(() => {
+    if (submitted) scrollPrimaryActionIntoView();
+  }, [submitted]);
+
   async function handleSubmit() {
     if (!current || !deck || submitted || answerLockedRef.current || !answer.trim()) return;
     answerLockedRef.current = true;
@@ -123,12 +131,24 @@ export default function DictationScreen() {
     if (correct) setCorrectCount((count) => count + 1);
   }
 
+  function scrollPrimaryActionIntoView() {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        document
+          .querySelector(`[data-testid="${PRIMARY_ACTION_TEST_ID}"]`)
+          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }, 0);
+  }
+
   function handleNext() {
     answerLockedRef.current = false;
     setAnswer('');
     setSubmitted(false);
     setIsCorrect(false);
     setIndex((value) => value + 1);
+    scrollSessionToTop();
   }
 
   function handleRestart() {
@@ -142,6 +162,17 @@ export default function DictationScreen() {
     setIsCorrect(false);
     setCorrectCount(0);
     setResults([]);
+    scrollSessionToTop();
+  }
+
+  function scrollSessionToTop() {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const lane = document.querySelector(`[data-testid="${SCROLL_TEST_ID}"]`);
+        if (lane instanceof HTMLElement) lane.scrollTop = 0;
+      }
+    });
   }
 
   useEffect(() => {
@@ -269,6 +300,8 @@ export default function DictationScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <ScrollView
+          ref={scrollRef}
+          testID={SCROLL_TEST_ID}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator
@@ -362,6 +395,7 @@ export default function DictationScreen() {
 
           <Pressable
             onPress={submitted ? handleNext : handleSubmit}
+            testID={PRIMARY_ACTION_TEST_ID}
             disabled={!submitted && !answer.trim()}
             accessibilityRole="button"
             accessibilityLabel={submitted ? 'ข้อถัดไป' : 'ส่งคำตอบ'}

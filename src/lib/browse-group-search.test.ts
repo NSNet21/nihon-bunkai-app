@@ -358,4 +358,52 @@ describe('buildBrowseRows', () => {
       'old-inbox',
     ]);
   });
+
+  it('sorts top-level groups by date so newer user groups can appear above official groups', () => {
+    const rows = buildBrowseRows([
+      decks[0],
+      {
+        id: 'god-of-war-pack',
+        type: 'vocab',
+        level: null,
+        title: 'God of War Notes',
+        entryCount: 1,
+        isFree: false,
+        pack: 'god-of-war-pack',
+        tags: ['manual', 'group:god of war', 'section:testing test'],
+        userGroup: 'god of war',
+        userSection: 'testing test',
+        source: 'manual',
+        createdAt: 5000,
+        updatedAt: 5000,
+      },
+    ], new Set(), new Set(), false, { mode: 'date', direction: 'desc' });
+
+    expect(rows.map((row) => row.key).slice(0, 3)).toEqual([
+      'lvl-god of war',
+      'cat-god of war/testing test',
+      'god-of-war-pack',
+    ]);
+  });
+
+  it('sorts top-level groups by name direction outside default mode', () => {
+    const rows = buildBrowseRows([
+      decks[0],
+      {
+        id: 'z-group-pack',
+        type: 'vocab',
+        level: null,
+        title: 'Z Group Notes',
+        entryCount: 1,
+        isFree: false,
+        pack: 'z-group-pack',
+        tags: ['manual', 'group:Z Group', 'section:Inbox'],
+        userGroup: 'Z Group',
+        userSection: 'Inbox',
+        source: 'manual',
+      },
+    ], new Set(), new Set(), false, { mode: 'name', direction: 'desc' });
+
+    expect(rows[0]?.key).toBe('lvl-Z Group');
+  });
 });

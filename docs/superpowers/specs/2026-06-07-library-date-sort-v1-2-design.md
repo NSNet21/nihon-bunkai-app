@@ -10,7 +10,8 @@ Make Browse Library sorting match learner expectations: sorting should organize 
 
 - Replace the current `Terms` sort mode with `Date`.
 - Keep `Default` as the existing official/user hierarchy order.
-- Keep official JLPT groups in their learning order: `N5`, `N4`, `N3`, `N2`, `N1`, `GLOSSARY`.
+- Keep official JLPT groups in their learning order only for `Default`.
+- Outside `Default`, sort top-level groups by the selected mode/direction so user/import groups can move above official groups when that is the expected shelf order.
 - For user-created/imported groups, `Name` sorts groups and sections by title.
 - `Date` uses real local deck timestamps:
   - new/imported decks get `createdAt` and `updatedAt`;
@@ -34,9 +35,9 @@ Existing records without `createdAt` should be backfilled lazily when saved agai
 
 ## Behavior
 
-- `Default`: current Browse order.
-- `Name Asc/Desc`: official groups stay in official order; user groups sort by title. Sections sort by title inside groups. Deck rows preserve incoming/default order.
-- `Date Asc/Desc`: official groups stay in official order. User groups and all sections use newest child deck timestamp for ordering. Deck rows sort by timestamp inside the section.
+- `Default`: current Browse order with official groups first and official JLPT learning order preserved.
+- `Name Asc/Desc`: top-level groups sort by title. Sections sort by title inside groups. Deck rows preserve incoming/default order.
+- `Date Asc/Desc`: top-level groups, sections, and deck rows use newest child deck timestamp for ordering. Official embedded groups without timestamps behave as oldest (`0`), so `Date Desc` can put newer user/import groups above `N5`/`GLOSSARY`.
 - Selecting `Default` resets direction to `asc` as v1.1 already does.
 
 ## Testing

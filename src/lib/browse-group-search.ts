@@ -267,18 +267,26 @@ function getBrowsePlacement(deck: Deck) {
 }
 
 function compareGroups(a: BrowseGroup, b: BrowseGroup, levelOrder: string[], sortOptions: BrowseRowSortOptions) {
-  if (a.source !== b.source) return a.source === 'official' ? -1 : 1;
-  const ai = levelOrder.indexOf(a.key);
-  const bi = levelOrder.indexOf(b.key);
-  if (ai >= 0 || bi >= 0) return (ai >= 0 ? ai : 999) - (bi >= 0 ? bi : 999);
   if (sortOptions.mode === 'date') {
     const dateDiff = compareNumber(groupTimestamp(a), groupTimestamp(b), sortOptions.direction);
     if (dateDiff !== 0) return dateDiff;
+    const titleDiff = compareText(a.title, b.title, sortOptions.direction);
+    if (titleDiff !== 0) return titleDiff;
+    return compareDefaultGroups(a, b, levelOrder);
   }
   if (sortOptions.mode === 'name') {
     const titleDiff = compareText(a.title, b.title, sortOptions.direction);
     if (titleDiff !== 0) return titleDiff;
+    return compareDefaultGroups(a, b, levelOrder);
   }
+  return compareDefaultGroups(a, b, levelOrder);
+}
+
+function compareDefaultGroups(a: BrowseGroup, b: BrowseGroup, levelOrder: string[]) {
+  if (a.source !== b.source) return a.source === 'official' ? -1 : 1;
+  const ai = levelOrder.indexOf(a.key);
+  const bi = levelOrder.indexOf(b.key);
+  if (ai >= 0 || bi >= 0) return (ai >= 0 ? ai : 999) - (bi >= 0 ? bi : 999);
   return a.title.localeCompare(b.title, 'en');
 }
 

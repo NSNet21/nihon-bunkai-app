@@ -337,8 +337,10 @@ export default function BrowseScreen() {
       <ThemedText style={styles.ghostKanji}>学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<BrowseRow>
+          key={`browse-library-${librarySortMode}-${librarySortDirection}`}
           ref={listRef}
           data={libraryReveal.showLibrary ? rows : []}
+          extraData={librarySortOptions}
           keyExtractor={(item) => item.key}
           getItemType={(item) => item.kind}
           onScroll={(e) => {

@@ -109,9 +109,6 @@ export default function BrowseScreen() {
   const [sortMenuAnchor, setSortMenuAnchor] = useState<SortMenuAnchor | null>(null);
   const [reviewCandidate, setReviewCandidate] = useState<DeckReviewCandidate | null>(null);
   const [reviewCandidateReady, setReviewCandidateReady] = useState(false);
-  const scrollOffsetRef = useRef(0);
-  const pendingSortRestoreOffsetRef = useRef(0);
-  const lastSortKeyRef = useRef<string | null>(null);
   const colors = useThemePalette();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const hasHydrated = useHasHydrated();
@@ -200,48 +197,7 @@ export default function BrowseScreen() {
     () => ({ mode: librarySortMode, direction: librarySortDirection }),
     [librarySortDirection, librarySortMode],
   );
-  const librarySortKey = `${librarySortMode}-${librarySortDirection}`;
-  const getPrimaryLibraryScrollElement = useCallback(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
-    return Array.from(document.querySelectorAll<HTMLElement>('*'))
-      .filter((element) => element.scrollHeight - element.clientHeight > 100)
-      .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0] ?? null;
-  }, []);
-  const prepareLibrarySortUpdate = useCallback(() => {
-    const scrollable = getPrimaryLibraryScrollElement();
-    const offset = scrollable?.scrollTop ?? scrollOffsetRef.current;
-    pendingSortRestoreOffsetRef.current = offset > 0 ? offset : 0;
-    listRef.current?.clearLayoutCacheOnUpdate?.();
-  }, [getPrimaryLibraryScrollElement]);
-
-  useEffect(() => {
-    if (lastSortKeyRef.current === null) {
-      lastSortKeyRef.current = librarySortKey;
-      return;
-    }
-    if (lastSortKeyRef.current === librarySortKey) return;
-    lastSortKeyRef.current = librarySortKey;
-
-    const offset = pendingSortRestoreOffsetRef.current;
-    if (offset <= 0) return;
-
-    let cancelled = false;
-    const startedAt = Date.now();
-    const restore = () => {
-      if (cancelled) return;
-      const scrollable = getPrimaryLibraryScrollElement();
-      if (scrollable) scrollable.scrollTop = offset;
-      listRef.current?.scrollToOffset({ offset, animated: false });
-      setShowScrollTop(offset > SCROLL_TOP_THRESHOLD);
-      if (Date.now() - startedAt < 650) {
-        requestAnimationFrame(restore);
-      }
-    };
-    requestAnimationFrame(restore);
-    return () => {
-      cancelled = true;
-    };
-  }, [getPrimaryLibraryScrollElement, librarySortKey]);
+  const librarySortRevision = `${librarySortMode}-${librarySortDirection}`;
 
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
     const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(decks);
@@ -342,6 +298,7 @@ export default function BrowseScreen() {
           title={item.title}
           isOpen={item.isOpen}
           childCount={item.childCount}
+          sortRevision={librarySortRevision}
           onToggle={toggleLevel}
           actionContext={item.actionContext}
           onOpenAction={setBrowseAction}
@@ -354,15 +311,16 @@ export default function BrowseScreen() {
           title={item.title}
           isOpen={item.isOpen}
           childCount={item.childCount}
+          sortRevision={librarySortRevision}
           onToggle={toggleCategory}
           actionContext={item.actionContext}
           onOpenAction={setBrowseAction}
         />
       );
-    else inner = <DeckRow deck={item.deck} isLast={item.isLast} actionContext={item.actionContext} onOpenAction={setDeckActionDeck} />;
+    else inner = <DeckRow deck={item.deck} isLast={item.isLast} sortRevision={librarySortRevision} actionContext={item.actionContext} onOpenAction={setDeckActionDeck} />;
 
     return <View style={styles.rowWrap}>{inner}</View>;
-  }, [toggleLevel, toggleCategory]);
+  }, [librarySortRevision, toggleLevel, toggleCategory]);
 
   return (
     <ThemedView style={styles.container}>
@@ -372,15 +330,14 @@ export default function BrowseScreen() {
       <ThemedText style={styles.ghostKanji}>学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<BrowseRow>
-          key={`browse-library-${librarySortKey}`}
           ref={listRef}
           data={libraryReveal.showLibrary ? rows : []}
           extraData={librarySortOptions}
-          keyExtractor={(item) => item.key}
+          keyExtractor={(item) => `${librarySortRevision}:${item.key}`}
           getItemType={(item) => item.kind}
+          maintainVisibleContentPosition={{ disabled: true }}
           onScroll={(e) => {
             const y = e.nativeEvent.contentOffset.y;
-            scrollOffsetRef.current = y;
             setShowScrollTop((prev) => {
               const next = y > SCROLL_TOP_THRESHOLD;
               return prev === next ? prev : next;
@@ -452,10 +409,7 @@ export default function BrowseScreen() {
                       onOpenLibraryActions={() => setLibraryActionsOpen(true)}
                       sortMode={librarySortMode}
                       sortDirection={librarySortDirection}
-                      onChangeSortDirection={(direction) => {
-                        prepareLibrarySortUpdate();
-                        setStoredLibrarySortDirection(direction);
-                      }}
+                      onChangeSortDirection={setStoredLibrarySortDirection}
                       onOpenSortMenu={setSortMenuAnchor}
                     />
                   </View>
@@ -486,7 +440,6 @@ export default function BrowseScreen() {
         anchor={sortMenuAnchor}
         sortMode={librarySortMode}
         onSelect={(mode) => {
-          prepareLibrarySortUpdate();
           setStoredLibrarySortMode(mode);
           setStoredLibrarySortDirection(getLibrarySortDirectionForMode(mode, librarySortDirection));
           setSortMenuAnchor(null);
@@ -999,6 +952,7 @@ const LevelHeader = memo(function LevelHeader({
   title: string;
   isOpen: boolean;
   childCount: number;
+  sortRevision: string;
   onToggle: (level: string) => void;
   actionContext?: BrowseActionContext;
   onOpenAction: (action: BrowseActionContext) => void;
@@ -1043,6 +997,7 @@ const CategoryHeader = memo(function CategoryHeader({
   title: string;
   isOpen: boolean;
   childCount: number;
+  sortRevision: string;
   onToggle: (key: string) => void;
   actionContext?: BrowseActionContext;
   onOpenAction: (action: BrowseActionContext) => void;
@@ -1081,6 +1036,7 @@ const DeckRow = memo(function DeckRow({
 }: {
   deck: Deck;
   isLast: boolean;
+  sortRevision: string;
   actionContext?: BrowseActionContext;
   onOpenAction: (deck: Deck) => void;
 }) {

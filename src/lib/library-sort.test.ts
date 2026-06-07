@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Deck } from '@/data/types';
-import { getLibrarySortDirection, getLibrarySortMode, sortLibraryDecks, type LibrarySortDirection, type LibrarySortMode } from './library-sort';
+import {
+  getLibrarySortDirection,
+  getLibrarySortDirectionForMode,
+  getLibrarySortMode,
+  sortLibraryDecks,
+  type LibrarySortDirection,
+  type LibrarySortMode,
+} from './library-sort';
 
 const deck = (overrides: Partial<Deck>): Deck => ({
   id: overrides.id ?? 'deck-a',
@@ -75,5 +82,11 @@ describe('library sort helpers', () => {
     expect(getLibrarySortDirection('desc')).toBe('desc');
     expect(getLibrarySortDirection('wat' as LibrarySortDirection)).toBe('asc');
     expect(getLibrarySortDirection(null)).toBe('asc');
+  });
+
+  it('forces default mode back to ascending direction', () => {
+    expect(getLibrarySortDirectionForMode('default', 'desc')).toBe('asc');
+    expect(getLibrarySortDirectionForMode('name', 'desc')).toBe('desc');
+    expect(getLibrarySortDirectionForMode('terms', 'asc')).toBe('asc');
   });
 });

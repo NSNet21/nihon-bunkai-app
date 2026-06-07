@@ -18,6 +18,13 @@ export function getLibrarySortDirection(value: unknown): LibrarySortDirection {
     : 'asc';
 }
 
+export function getLibrarySortDirectionForMode(
+  mode: LibrarySortMode,
+  direction: LibrarySortDirection,
+): LibrarySortDirection {
+  return mode === 'default' ? 'asc' : direction;
+}
+
 export function sortLibraryDecks(decks: Deck[], mode: LibrarySortMode, direction: LibrarySortDirection = 'asc'): Deck[] {
   const next = [...decks];
   if (mode === 'default') return next;

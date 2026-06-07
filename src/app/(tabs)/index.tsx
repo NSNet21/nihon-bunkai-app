@@ -15,7 +15,6 @@ import {
   FiMinusSquare,
   FiMoreVertical,
   FiPlusSquare,
-  FiRefreshCcw,
   FiSearch,
   FiSliders,
   FiTrash2,
@@ -57,6 +56,7 @@ import { getDeckReviewCandidate, type DeckReviewCandidate } from '@/lib/deck-pro
 import { getBrowseLibraryRevealState, shouldShowFlashcardContinue } from '@/lib/continue-route';
 import {
   getLibrarySortDirection,
+  getLibrarySortDirectionForMode,
   getLibrarySortMode,
   sortLibraryDecks,
   type LibrarySortDirection,
@@ -416,13 +416,8 @@ export default function BrowseScreen() {
                       onOpenLibraryActions={() => setLibraryActionsOpen(true)}
                       sortMode={librarySortMode}
                       sortDirection={librarySortDirection}
-                      onChangeSortMode={setStoredLibrarySortMode}
                       onChangeSortDirection={setStoredLibrarySortDirection}
                       onOpenSortMenu={setSortMenuAnchor}
-                      onResetSort={() => {
-                        setStoredLibrarySortMode('default');
-                        setStoredLibrarySortDirection('asc');
-                      }}
                     />
                   </View>
                 </Animated.View>
@@ -453,6 +448,7 @@ export default function BrowseScreen() {
         sortMode={librarySortMode}
         onSelect={(mode) => {
           setStoredLibrarySortMode(mode);
+          setStoredLibrarySortDirection(getLibrarySortDirectionForMode(mode, librarySortDirection));
           setSortMenuAnchor(null);
         }}
         onClose={() => setSortMenuAnchor(null)}
@@ -535,7 +531,6 @@ function Toolbar({
   sortDirection,
   onChangeSortDirection,
   onOpenSortMenu,
-  onResetSort,
 }: {
   onOpenLibrarySearch: () => void;
   onExpandAll: () => void;
@@ -547,7 +542,6 @@ function Toolbar({
   sortDirection: LibrarySortDirection;
   onChangeSortDirection: (direction: LibrarySortDirection) => void;
   onOpenSortMenu: (anchor: SortMenuAnchor | null) => void;
-  onResetSort: () => void;
 }) {
   const colors = useThemePalette();
   const { width } = useWindowDimensions();
@@ -562,7 +556,6 @@ function Toolbar({
   const scopeLabel = subsOnly ? 'Group' : 'All';
   const sortLabel = sortMode === 'default' ? 'Default' : sortMode === 'name' ? 'Name' : 'Terms';
   const directionLabel = sortDirection === 'asc' ? 'Asc' : 'Desc';
-  const resetDisabled = sortMode === 'default';
   const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
   const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
   const DirectionIcon = sortDirection === 'asc' ? FiArrowUp : FiArrowDown;
@@ -666,11 +659,6 @@ function Toolbar({
               style={[styles.toolBtn, styles.sortToolBtn, { borderColor: colors.border }]}>
               <View style={styles.toolBtnContent}>
                 <FiSliders size={14} color={colors.text} />
-                {!isCompact && (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Sort {sortLabel}
-                  </ThemedText>
-                )}
               </View>
             </ScaleButton>
           </View>
@@ -685,27 +673,9 @@ function Toolbar({
                 borderColor: colors.border,
                 opacity: sortMode === 'default' ? 0.42 : 1,
               },
-            ]}>
+          ]}>
             <View style={styles.toolBtnContent}>
               <DirectionIcon size={14} color={colors.text} />
-              {!isCompact && <ThemedText type="small" themeColor="textSecondary">{directionLabel}</ThemedText>}
-            </View>
-          </ScaleButton>
-          <ScaleButton
-            onPress={onResetSort}
-            disabled={resetDisabled}
-            accessibilityLabel="Reset Library sort"
-            style={[
-              styles.toolBtn,
-              styles.sortToolBtn,
-              {
-                borderColor: colors.border,
-                opacity: resetDisabled ? 0.42 : 1,
-              },
-            ]}>
-            <View style={styles.toolBtnContent}>
-              <FiRefreshCcw size={14} color={colors.text} />
-              {!isCompact && <ThemedText type="small" themeColor="textSecondary">Reset</ThemedText>}
             </View>
           </ScaleButton>
         </View>

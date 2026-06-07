@@ -1,7 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUser, FiX } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheck, FiCheckSquare, FiChevronRight, FiDownload, FiExternalLink, FiHelpCircle, FiLogIn, FiLogOut, FiMail, FiPackage, FiRefreshCw, FiShield, FiSquare, FiUpload, FiUser, FiX } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -15,6 +15,13 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
+import { DECKS_IMPORTED_EVENT } from '@/lib/deck-import';
+import {
+  downloadLocalDataBackup,
+  readLocalDataBackupFile,
+  restoreLocalDataBackupToStorage,
+} from '@/lib/local-data-backup-store';
+import { summarizeLocalDataBackup, type LocalDataBackupDocument, type LocalDataBackupSummary } from '@/lib/local-data-backup';
 import { supabase } from '@/lib/supabase';
 import { SUPPORT_EMAIL, buildSupportMailto, type SupportIssue } from '@/lib/support-safety';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
@@ -890,6 +897,58 @@ const privacyStyles = StyleSheet.create({
 /* ─── LOCAL DATA + SUPPORT SAFETY ───────────────────────────────────── */
 
 function LocalDataSafetyCard() {
+  const colors = useThemePalette();
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState<'backup' | 'restore' | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{
+    document: LocalDataBackupDocument;
+    summary: LocalDataBackupSummary;
+  } | null>(null);
+
+  async function onExportBackup() {
+    if (busy) return;
+    setBusy('backup');
+    try {
+      const summary = await downloadLocalDataBackup();
+      showToast(`Export backup แล้ว · ${formatBackupSummary(summary)}`, { kind: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Export backup failed';
+      showToast(message, { kind: 'error' });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onPickRestore() {
+    if (busy) return;
+    const [file] = await pickBackupFiles();
+    if (!file) return;
+    const parsed = await readLocalDataBackupFile(file);
+    if (!parsed.ok) {
+      showToast(parsed.reason, { kind: 'error' });
+      return;
+    }
+    setPendingRestore({ document: parsed.document, summary: summarizeLocalDataBackup(parsed.document) });
+  }
+
+  async function onConfirmRestore() {
+    if (!pendingRestore || busy) return;
+    setBusy('restore');
+    try {
+      const summary = await restoreLocalDataBackupToStorage(pendingRestore.document);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(DECKS_IMPORTED_EVENT, { detail: { source: 'local-backup-restore' } }));
+      }
+      setPendingRestore(null);
+      showToast(`Restore backup แล้ว · ${formatBackupSummary(summary)}`, { kind: 'success' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Restore backup failed';
+      showToast(message, { kind: 'error' });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <ThemedView type="backgroundElement" style={safetyStyles.card}>
       <View style={safetyStyles.headerRow}>
@@ -905,8 +964,128 @@ function LocalDataSafetyCard() {
       <SafetyLine emphasis>
         Deck ที่ import เองยังอยู่เฉพาะเครื่องนี้ ควร Export backup ก่อนล้าง browser data
       </SafetyLine>
+      <View style={safetyStyles.backupActions}>
+        <SafetyActionButton
+          icon="download"
+          label={busy === 'backup' ? 'Exporting…' : 'Export backup'}
+          hint="save local user data เป็น JSON"
+          borderColor={colors.border}
+          disabled={!!busy}
+          onPress={onExportBackup}
+        />
+        <SafetyActionButton
+          icon="upload"
+          label={busy === 'restore' ? 'Restoring…' : 'Restore backup'}
+          hint="merge ไฟล์ backup กลับเข้าเครื่องนี้"
+          borderColor={colors.border}
+          disabled={!!busy}
+          onPress={onPickRestore}
+        />
+      </View>
+      {pendingRestore ? (
+        <View style={[safetyStyles.restorePreview, { borderColor: colors.border, backgroundColor: colors.background }]}>
+          <ThemedText type="defaultSemiBold">พร้อม restore?</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" style={safetyStyles.subtitle}>
+            {formatBackupSummary(pendingRestore.summary)} · ระบบจะ merge/update ไม่ล้างข้อมูลทั้งหมด
+          </ThemedText>
+          <View style={safetyStyles.restoreActions}>
+            <Pressable
+              onPress={() => setPendingRestore(null)}
+              disabled={!!busy}
+              style={({ pressed }) => [
+                safetyStyles.restoreButton,
+                { borderColor: colors.border },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" themeColor="textSecondary">Cancel</ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={onConfirmRestore}
+              disabled={!!busy}
+              style={({ pressed }) => [
+                safetyStyles.restoreButton,
+                { borderColor: Accent.base, backgroundColor: Accent.bg },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <ThemedText type="small" style={{ color: Accent.base }}>
+                Confirm restore
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </ThemedView>
   );
+}
+
+function SafetyActionButton({
+  icon,
+  label,
+  hint,
+  borderColor,
+  disabled,
+  onPress,
+}: {
+  icon: 'download' | 'upload';
+  label: string;
+  hint: string;
+  borderColor: string;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const Icon = icon === 'download' ? FiDownload : FiUpload;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        safetyStyles.backupButton,
+        { borderColor },
+        pressed && !disabled && { opacity: 0.76 },
+        disabled && { opacity: 0.58 },
+      ]}>
+      <Icon size={15} color={Accent.base} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <ThemedText type="defaultSemiBold" style={{ color: Accent.base }}>
+          {label}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {hint}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+}
+
+function formatBackupSummary(summary: LocalDataBackupSummary): string {
+  return [
+    `${summary.decks} decks`,
+    `${summary.entries} terms`,
+    `${summary.personalEdits} edits`,
+    `${summary.cardStates} progress`,
+    `${summary.sessions} sessions`,
+    summary.hasStreak ? 'streak' : null,
+  ].filter(Boolean).join(' · ');
+}
+
+async function pickBackupFiles(): Promise<File[]> {
+  if (typeof document === 'undefined') return [];
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.multiple = false;
+    input.style.display = 'none';
+    input.onchange = () => {
+      const files = Array.from(input.files ?? []);
+      input.remove();
+      resolve(files);
+    };
+    document.body.appendChild(input);
+    input.click();
+  });
 }
 
 function SafetyLine({ children, emphasis = false }: { children: string; emphasis?: boolean }) {
@@ -1027,6 +1206,43 @@ const safetyStyles = StyleSheet.create({
   lineText: {
     flex: 1,
     lineHeight: 18,
+  },
+  backupActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
+    marginTop: Spacing.one,
+  },
+  backupButton: {
+    flexGrow: 1,
+    flexBasis: 220,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+  },
+  restorePreview: {
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  restoreActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
+  },
+  restoreButton: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
   },
   supportGrid: {
     gap: Spacing.two,

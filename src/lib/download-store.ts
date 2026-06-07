@@ -188,6 +188,18 @@ export async function putEntryOverride(record: EntryOverrideRecord): Promise<voi
   await d.entryOverrides.put(record);
 }
 
+export async function listEntryOverrides(): Promise<EntryOverrideRecord[]> {
+  const d = getDB();
+  if (!d) return [];
+  return d.entryOverrides.toArray();
+}
+
+export async function bulkPutEntryOverrides(records: EntryOverrideRecord[]): Promise<void> {
+  const d = getDB();
+  if (!d || records.length === 0) return;
+  await d.entryOverrides.bulkPut(records);
+}
+
 export async function listEntryOverridesForDeck(deckId: string): Promise<EntryOverrideRecord[]> {
   const d = getDB();
   if (!d) return [];

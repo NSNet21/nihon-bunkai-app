@@ -165,6 +165,12 @@ export async function getCardStatesForDeck(deckId: string): Promise<CardStateRow
   return d.cardStates.where('deckId').equals(deckId).toArray();
 }
 
+export async function getAllCardStates(): Promise<CardStateRow[]> {
+  const d = getDB();
+  if (!d) return [];
+  return d.cardStates.toArray();
+}
+
 /** Get all due FSRS states at or before `now`. Used by Browse review entry. */
 export async function getDueCardStates(now = Date.now()): Promise<CardStateRow[]> {
   const d = getDB();

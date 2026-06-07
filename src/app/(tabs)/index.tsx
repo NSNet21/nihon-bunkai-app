@@ -109,6 +109,9 @@ export default function BrowseScreen() {
   const [sortMenuAnchor, setSortMenuAnchor] = useState<SortMenuAnchor | null>(null);
   const [reviewCandidate, setReviewCandidate] = useState<DeckReviewCandidate | null>(null);
   const [reviewCandidateReady, setReviewCandidateReady] = useState(false);
+  const scrollOffsetRef = useRef(0);
+  const pendingSortRestoreOffsetRef = useRef(0);
+  const lastSortKeyRef = useRef<string | null>(null);
   const colors = useThemePalette();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const hasHydrated = useHasHydrated();
@@ -120,11 +123,6 @@ export default function BrowseScreen() {
   const librarySortMode = getLibrarySortMode(storedLibrarySortMode);
   const [storedLibrarySortDirection, setStoredLibrarySortDirection] = usePersistedState<LibrarySortDirection>('library-sort-direction', 'asc');
   const librarySortDirection = getLibrarySortDirection(storedLibrarySortDirection);
-  const sortMotion = useSharedValue(1);
-  const libraryRowsAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: 0.96 + sortMotion.value * 0.04,
-    transform: [{ translateX: (1 - sortMotion.value) * 12 }],
-  }));
 
   /* Only surface Continue CTA when the resume target is still valid:
      - deck must exist in current allDecks (user might have lost entitlement)
@@ -202,11 +200,48 @@ export default function BrowseScreen() {
     () => ({ mode: librarySortMode, direction: librarySortDirection }),
     [librarySortDirection, librarySortMode],
   );
+  const librarySortKey = `${librarySortMode}-${librarySortDirection}`;
+  const getPrimaryLibraryScrollElement = useCallback(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+    return Array.from(document.querySelectorAll<HTMLElement>('*'))
+      .filter((element) => element.scrollHeight - element.clientHeight > 100)
+      .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0] ?? null;
+  }, []);
+  const prepareLibrarySortUpdate = useCallback(() => {
+    const scrollable = getPrimaryLibraryScrollElement();
+    const offset = scrollable?.scrollTop ?? scrollOffsetRef.current;
+    pendingSortRestoreOffsetRef.current = offset > 0 ? offset : 0;
+    listRef.current?.clearLayoutCacheOnUpdate?.();
+  }, [getPrimaryLibraryScrollElement]);
 
   useEffect(() => {
-    sortMotion.value = 0;
-    sortMotion.value = withTiming(1, { duration: 150, easing: Easing.bezier(0.4, 0, 0.2, 1) });
-  }, [librarySortDirection, librarySortMode, sortMotion]);
+    if (lastSortKeyRef.current === null) {
+      lastSortKeyRef.current = librarySortKey;
+      return;
+    }
+    if (lastSortKeyRef.current === librarySortKey) return;
+    lastSortKeyRef.current = librarySortKey;
+
+    const offset = pendingSortRestoreOffsetRef.current;
+    if (offset <= 0) return;
+
+    let cancelled = false;
+    const startedAt = Date.now();
+    const restore = () => {
+      if (cancelled) return;
+      const scrollable = getPrimaryLibraryScrollElement();
+      if (scrollable) scrollable.scrollTop = offset;
+      listRef.current?.scrollToOffset({ offset, animated: false });
+      setShowScrollTop(offset > SCROLL_TOP_THRESHOLD);
+      if (Date.now() - startedAt < 650) {
+        requestAnimationFrame(restore);
+      }
+    };
+    requestAnimationFrame(restore);
+    return () => {
+      cancelled = true;
+    };
+  }, [getPrimaryLibraryScrollElement, librarySortKey]);
 
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
     const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(decks);
@@ -326,8 +361,8 @@ export default function BrowseScreen() {
       );
     else inner = <DeckRow deck={item.deck} isLast={item.isLast} actionContext={item.actionContext} onOpenAction={setDeckActionDeck} />;
 
-    return <Animated.View style={[styles.rowWrap, libraryRowsAnimatedStyle]}>{inner}</Animated.View>;
-  }, [toggleLevel, toggleCategory, libraryRowsAnimatedStyle]);
+    return <View style={styles.rowWrap}>{inner}</View>;
+  }, [toggleLevel, toggleCategory]);
 
   return (
     <ThemedView style={styles.container}>
@@ -337,7 +372,7 @@ export default function BrowseScreen() {
       <ThemedText style={styles.ghostKanji}>学</ThemedText>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <FlashList<BrowseRow>
-          key={`browse-library-${librarySortMode}-${librarySortDirection}`}
+          key={`browse-library-${librarySortKey}`}
           ref={listRef}
           data={libraryReveal.showLibrary ? rows : []}
           extraData={librarySortOptions}
@@ -345,6 +380,7 @@ export default function BrowseScreen() {
           getItemType={(item) => item.kind}
           onScroll={(e) => {
             const y = e.nativeEvent.contentOffset.y;
+            scrollOffsetRef.current = y;
             setShowScrollTop((prev) => {
               const next = y > SCROLL_TOP_THRESHOLD;
               return prev === next ? prev : next;
@@ -416,7 +452,10 @@ export default function BrowseScreen() {
                       onOpenLibraryActions={() => setLibraryActionsOpen(true)}
                       sortMode={librarySortMode}
                       sortDirection={librarySortDirection}
-                      onChangeSortDirection={setStoredLibrarySortDirection}
+                      onChangeSortDirection={(direction) => {
+                        prepareLibrarySortUpdate();
+                        setStoredLibrarySortDirection(direction);
+                      }}
                       onOpenSortMenu={setSortMenuAnchor}
                     />
                   </View>
@@ -447,6 +486,7 @@ export default function BrowseScreen() {
         anchor={sortMenuAnchor}
         sortMode={librarySortMode}
         onSelect={(mode) => {
+          prepareLibrarySortUpdate();
           setStoredLibrarySortMode(mode);
           setStoredLibrarySortDirection(getLibrarySortDirectionForMode(mode, librarySortDirection));
           setSortMenuAnchor(null);
@@ -719,6 +759,8 @@ function SortMenuOverlay({
           {(['default', 'name', 'date'] as LibrarySortMode[]).map((mode) => (
             <Pressable
               key={mode}
+              accessibilityRole="button"
+              accessibilityLabel={`Sort Library by ${mode === 'default' ? 'Default' : mode === 'name' ? 'Name' : 'Date'}`}
               onPress={() => onSelect(mode)}
               style={({ pressed }) => [styles.sortMenuItem, pressed && styles.headerPressed]}>
               <ThemedText type="smallBold" style={{ color: mode === sortMode ? colors.text : colors.textSecondary }}>

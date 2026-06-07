@@ -1,4 +1,5 @@
 import type { Deck } from '@/data/types';
+import { getLibraryDeckTimestamp, type LibrarySortDirection, type LibrarySortMode } from './library-sort';
 import { getDeckOrganization, isUserEditableDeck } from './user-content';
 
 export type BrowseActionContext = {
@@ -54,6 +55,11 @@ type BrowseCategory = {
   decks: Deck[];
 };
 
+export type BrowseRowSortOptions = {
+  mode: LibrarySortMode;
+  direction: LibrarySortDirection;
+};
+
 export function normalizeGroupSearchQuery(query: string) {
   return query.trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -96,6 +102,7 @@ export function buildBrowseRows(
   closedLevels: Set<string>,
   closedCategories: Set<string>,
   forceOpen = false,
+  sortOptions: BrowseRowSortOptions = { mode: 'default', direction: 'asc' },
 ): BrowseRow[] {
   const groups = new Map<string, BrowseGroup>();
   for (const deck of allDecks) {
@@ -120,7 +127,7 @@ export function buildBrowseRows(
 
   const rows: BrowseRow[] = [];
   const levelOrder = ['N5', 'N4', 'N3', 'N2', 'N1', 'GLOSSARY'];
-  const orderedGroups = [...groups.values()].sort((a, b) => compareGroups(a, b, levelOrder));
+  const orderedGroups = [...groups.values()].sort((a, b) => compareGroups(a, b, levelOrder, sortOptions));
   for (const group of orderedGroups) {
     const level = group.key;
     const categories = group.categories;
@@ -153,9 +160,9 @@ export function buildBrowseRows(
     });
     if (!levelOpen) continue;
 
-    const orderedCategories = [...categories.values()].sort((a, b) => compareCategories(a, b));
+    const orderedCategories = [...categories.values()].sort((a, b) => compareCategories(a, b, sortOptions));
     for (const category of orderedCategories) {
-      const categoryDecks = category.decks;
+      const categoryDecks = sortCategoryDecks(category.decks, sortOptions);
 
       const categoryKey = `${level}/${category.key}`;
       const showCategoryHeader = group.source === 'user' || categories.size > 1 || group.key === 'GLOSSARY';
@@ -259,17 +266,59 @@ function getBrowsePlacement(deck: Deck) {
   };
 }
 
-function compareGroups(a: BrowseGroup, b: BrowseGroup, levelOrder: string[]) {
+function compareGroups(a: BrowseGroup, b: BrowseGroup, levelOrder: string[], sortOptions: BrowseRowSortOptions) {
   if (a.source !== b.source) return a.source === 'official' ? -1 : 1;
   const ai = levelOrder.indexOf(a.key);
   const bi = levelOrder.indexOf(b.key);
   if (ai >= 0 || bi >= 0) return (ai >= 0 ? ai : 999) - (bi >= 0 ? bi : 999);
+  if (sortOptions.mode === 'date') {
+    const dateDiff = compareNumber(groupTimestamp(a), groupTimestamp(b), sortOptions.direction);
+    if (dateDiff !== 0) return dateDiff;
+  }
+  if (sortOptions.mode === 'name') {
+    const titleDiff = compareText(a.title, b.title, sortOptions.direction);
+    if (titleDiff !== 0) return titleDiff;
+  }
   return a.title.localeCompare(b.title, 'en');
 }
 
-function compareCategories(a: BrowseCategory, b: BrowseCategory) {
+function compareCategories(a: BrowseCategory, b: BrowseCategory, sortOptions: BrowseRowSortOptions) {
+  if (sortOptions.mode === 'date') {
+    const dateDiff = compareNumber(categoryTimestamp(a), categoryTimestamp(b), sortOptions.direction);
+    if (dateDiff !== 0) return dateDiff;
+  }
+  if (sortOptions.mode === 'name') {
+    const titleDiff = compareText(a.title, b.title, sortOptions.direction);
+    if (titleDiff !== 0) return titleDiff;
+  }
   const ai = CATEGORY_ORDER.indexOf(a.orderKey as Deck['type']);
   const bi = CATEGORY_ORDER.indexOf(b.orderKey as Deck['type']);
   if (ai >= 0 || bi >= 0) return (ai >= 0 ? ai : 999) - (bi >= 0 ? bi : 999);
   return a.title.localeCompare(b.title, 'en');
+}
+
+function sortCategoryDecks(decks: Deck[], sortOptions: BrowseRowSortOptions): Deck[] {
+  if (sortOptions.mode !== 'date') return decks;
+  return [...decks].sort((a, b) => {
+    const dateDiff = compareNumber(getLibraryDeckTimestamp(a), getLibraryDeckTimestamp(b), sortOptions.direction);
+    if (dateDiff !== 0) return dateDiff;
+    return a.title.localeCompare(b.title, ['th', 'ja', 'en'], { numeric: true, sensitivity: 'base' });
+  });
+}
+
+function groupTimestamp(group: BrowseGroup): number {
+  return Math.max(0, ...[...group.categories.values()].map(categoryTimestamp));
+}
+
+function categoryTimestamp(category: BrowseCategory): number {
+  return Math.max(0, ...category.decks.map(getLibraryDeckTimestamp));
+}
+
+function compareNumber(a: number, b: number, direction: LibrarySortDirection): number {
+  return direction === 'asc' ? a - b : b - a;
+}
+
+function compareText(a: string, b: string, direction: LibrarySortDirection): number {
+  const diff = a.localeCompare(b, ['th', 'ja', 'en'], { numeric: true, sensitivity: 'base' });
+  return direction === 'asc' ? diff : -diff;
 }

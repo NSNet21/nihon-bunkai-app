@@ -1,12 +1,13 @@
 import type { Deck } from '@/data/types';
 
-export const LIBRARY_SORT_MODES = ['default', 'name', 'terms'] as const;
+export const LIBRARY_SORT_MODES = ['default', 'name', 'date'] as const;
 export const LIBRARY_SORT_DIRECTIONS = ['asc', 'desc'] as const;
 
 export type LibrarySortMode = (typeof LIBRARY_SORT_MODES)[number];
 export type LibrarySortDirection = (typeof LIBRARY_SORT_DIRECTIONS)[number];
 
 export function getLibrarySortMode(value: unknown): LibrarySortMode {
+  if (value === 'terms') return 'date';
   return LIBRARY_SORT_MODES.includes(value as LibrarySortMode)
     ? (value as LibrarySortMode)
     : 'default';
@@ -30,17 +31,22 @@ export function sortLibraryDecks(decks: Deck[], mode: LibrarySortMode, direction
   if (mode === 'default') return next;
 
   return next.sort((a, b) => {
-    if (mode === 'terms') {
-      const entryDiff = direction === 'asc'
-        ? a.entryCount - b.entryCount
-        : b.entryCount - a.entryCount;
-      if (entryDiff !== 0) return entryDiff;
+    if (mode === 'date') {
+      const dateDiff = direction === 'asc'
+        ? getLibraryDeckTimestamp(a) - getLibraryDeckTimestamp(b)
+        : getLibraryDeckTimestamp(b) - getLibraryDeckTimestamp(a);
+      if (dateDiff !== 0) return dateDiff;
       return compareDeckIdentity(a, b);
     }
 
     const identityDiff = compareDeckIdentity(a, b);
     return direction === 'asc' ? identityDiff : -identityDiff;
   });
+}
+
+export function getLibraryDeckTimestamp(deck: Pick<Deck, 'createdAt' | 'updatedAt'>): number {
+  const importedAt = (deck as Deck & { importedAt?: number }).importedAt;
+  return deck.updatedAt ?? deck.createdAt ?? importedAt ?? 0;
 }
 
 function compareDeckIdentity(a: Deck, b: Deck) {

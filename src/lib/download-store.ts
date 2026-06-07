@@ -133,7 +133,9 @@ export async function totalCachedSize(): Promise<number> {
 export async function saveLibraryDecks(decks: LibraryDeckRecord[]): Promise<void> {
   const d = getDB();
   if (!d || decks.length === 0) return;
-  await d.paidDecks.bulkPut(decks);
+  const existingRows = await d.paidDecks.where('id').anyOf(decks.map((deck) => deck.id)).toArray();
+  const existingById = new Map(existingRows.map((deck) => [deck.id, deck]));
+  await d.paidDecks.bulkPut(decks.map((deck) => withLibraryDeckTimestamps(existingById.get(deck.id), deck)));
 }
 
 export async function saveLibraryEntries(records: LibraryEntriesRecord[]): Promise<void> {
@@ -157,7 +159,8 @@ export async function getLibraryDeck(deckId: string): Promise<LibraryDeckRecord 
 export async function putLibraryDeck(deck: LibraryDeckRecord): Promise<void> {
   const d = getDB();
   if (!d) return;
-  await d.paidDecks.put(deck);
+  const existing = await d.paidDecks.get(deck.id);
+  await d.paidDecks.put(withLibraryDeckTimestamps(existing, deck));
 }
 
 export async function getLibraryEntries(pack: string): Promise<CsvRow[] | undefined> {
@@ -229,6 +232,27 @@ export const savePaidDecks = saveLibraryDecks;
 export const savePaidEntries = saveLibraryEntries;
 export const listPaidDecks = listLibraryDecks;
 export const getPaidEntries = getLibraryEntries;
+
+export function withLibraryDeckTimestamps(
+  existing: LibraryDeckRecord | undefined,
+  incoming: LibraryDeckRecord,
+  now = Date.now(),
+): LibraryDeckRecord {
+  const firstSeen = existing?.createdAt
+    ?? incoming.createdAt
+    ?? existing?.importedAt
+    ?? incoming.importedAt
+    ?? now;
+  const latestSeen = incoming.updatedAt
+    ?? incoming.importedAt
+    ?? now;
+
+  return {
+    ...incoming,
+    createdAt: firstSeen,
+    updatedAt: latestSeen,
+  };
+}
 
 export async function deletePaidContentForSku(skuId: string): Promise<void> {
   const d = getDB();

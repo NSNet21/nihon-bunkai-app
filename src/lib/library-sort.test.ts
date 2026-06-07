@@ -5,6 +5,7 @@ import {
   getLibrarySortDirection,
   getLibrarySortDirectionForMode,
   getLibrarySortMode,
+  getLibraryDeckTimestamp,
   sortLibraryDecks,
   type LibrarySortDirection,
   type LibrarySortMode,
@@ -54,29 +55,35 @@ describe('library sort helpers', () => {
     expect(sortLibraryDecks(decks, 'name', 'desc').map((item) => item.id)).toEqual(['b', 'c', 'a']);
   });
 
-  it('sorts by entry count descending with title fallback', () => {
+  it('sorts by deck timestamp descending with title fallback', () => {
     const decks = [
-      deck({ id: 'small', title: 'Small', entryCount: 10 }),
-      deck({ id: 'large-b', title: 'Beta', entryCount: 30 }),
-      deck({ id: 'large-a', title: 'Alpha', entryCount: 30 }),
+      deck({ id: 'old', title: 'Old', createdAt: 1000, updatedAt: 1000 }),
+      deck({ id: 'new-b', title: 'Beta', createdAt: 3000, updatedAt: 3000 }),
+      deck({ id: 'new-a', title: 'Alpha', createdAt: 3000, updatedAt: 3000 }),
     ];
 
-    expect(sortLibraryDecks(decks, 'terms', 'desc').map((item) => item.id)).toEqual(['large-a', 'large-b', 'small']);
+    expect(sortLibraryDecks(decks, 'date', 'desc').map((item) => item.id)).toEqual(['new-a', 'new-b', 'old']);
   });
 
-  it('sorts by entry count ascending with title fallback', () => {
+  it('sorts by deck timestamp ascending with title fallback', () => {
     const decks = [
-      deck({ id: 'large-b', title: 'Beta', entryCount: 30 }),
-      deck({ id: 'small', title: 'Small', entryCount: 10 }),
-      deck({ id: 'large-a', title: 'Alpha', entryCount: 30 }),
+      deck({ id: 'new-b', title: 'Beta', createdAt: 3000, updatedAt: 3000 }),
+      deck({ id: 'old', title: 'Old', createdAt: 1000, updatedAt: 1000 }),
+      deck({ id: 'new-a', title: 'Alpha', createdAt: 3000, updatedAt: 3000 }),
     ];
 
-    expect(sortLibraryDecks(decks, 'terms', 'asc').map((item) => item.id)).toEqual(['small', 'large-a', 'large-b']);
+    expect(sortLibraryDecks(decks, 'date', 'asc').map((item) => item.id)).toEqual(['old', 'new-a', 'new-b']);
+  });
+
+  it('reads updatedAt before createdAt for date sort fallback', () => {
+    expect(getLibraryDeckTimestamp(deck({ createdAt: 1000, updatedAt: 2500 }))).toBe(2500);
+    expect(getLibraryDeckTimestamp(deck({ createdAt: 1000 }))).toBe(1000);
   });
 
   it('normalizes invalid persisted values to default', () => {
     expect(getLibrarySortMode('name')).toBe('name');
-    expect(getLibrarySortMode('terms')).toBe('terms');
+    expect(getLibrarySortMode('date')).toBe('date');
+    expect(getLibrarySortMode('terms')).toBe('date');
     expect(getLibrarySortMode('wat' as LibrarySortMode)).toBe('default');
     expect(getLibrarySortMode(null)).toBe('default');
     expect(getLibrarySortDirection('desc')).toBe('desc');
@@ -87,6 +94,6 @@ describe('library sort helpers', () => {
   it('forces default mode back to ascending direction', () => {
     expect(getLibrarySortDirectionForMode('default', 'desc')).toBe('asc');
     expect(getLibrarySortDirectionForMode('name', 'desc')).toBe('desc');
-    expect(getLibrarySortDirectionForMode('terms', 'asc')).toBe('asc');
+    expect(getLibrarySortDirectionForMode('date', 'asc')).toBe('asc');
   });
 });

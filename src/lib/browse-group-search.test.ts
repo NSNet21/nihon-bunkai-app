@@ -245,4 +245,117 @@ describe('buildBrowseRows', () => {
       childCount: 3,
     });
   });
+
+  it('sorts user groups and sections by name while keeping deck order stable', () => {
+    const rows = buildBrowseRows([
+      {
+        id: 'z-second',
+        type: 'vocab',
+        level: null,
+        title: 'Z second',
+        entryCount: 1,
+        isFree: false,
+        pack: 'z-second',
+        tags: ['manual', 'group:Z Group', 'section:B Section'],
+        userGroup: 'Z Group',
+        userSection: 'B Section',
+        source: 'manual',
+      },
+      {
+        id: 'z-first',
+        type: 'vocab',
+        level: null,
+        title: 'Z first',
+        entryCount: 1,
+        isFree: false,
+        pack: 'z-first',
+        tags: ['manual', 'group:Z Group', 'section:B Section'],
+        userGroup: 'Z Group',
+        userSection: 'B Section',
+        source: 'manual',
+      },
+      {
+        id: 'a-section',
+        type: 'vocab',
+        level: null,
+        title: 'A section deck',
+        entryCount: 1,
+        isFree: false,
+        pack: 'a-section',
+        tags: ['manual', 'group:A Group', 'section:A Section'],
+        userGroup: 'A Group',
+        userSection: 'A Section',
+        source: 'manual',
+      },
+    ], new Set(), new Set(), false, { mode: 'name', direction: 'asc' });
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'lvl-A Group',
+      'cat-A Group/A Section',
+      'a-section',
+      'lvl-Z Group',
+      'cat-Z Group/B Section',
+      'z-second',
+      'z-first',
+    ]);
+  });
+
+  it('sorts sections and deck rows by date using the newest child timestamp', () => {
+    const rows = buildBrowseRows([
+      {
+        id: 'old-inbox',
+        type: 'vocab',
+        level: null,
+        title: 'Old inbox',
+        entryCount: 1,
+        isFree: false,
+        pack: 'old-inbox',
+        tags: ['manual', 'group:Manual imports', 'section:Inbox'],
+        userGroup: 'Manual imports',
+        userSection: 'Inbox',
+        source: 'manual',
+        createdAt: 1000,
+        updatedAt: 1000,
+      },
+      {
+        id: 'new-week',
+        type: 'vocab',
+        level: null,
+        title: 'New week',
+        entryCount: 1,
+        isFree: false,
+        pack: 'new-week',
+        tags: ['manual', 'group:Manual imports', 'section:Week 1'],
+        userGroup: 'Manual imports',
+        userSection: 'Week 1',
+        source: 'manual',
+        createdAt: 3000,
+        updatedAt: 3000,
+      },
+      {
+        id: 'old-week',
+        type: 'vocab',
+        level: null,
+        title: 'Old week',
+        entryCount: 1,
+        isFree: false,
+        pack: 'old-week',
+        tags: ['manual', 'group:Manual imports', 'section:Week 1'],
+        userGroup: 'Manual imports',
+        userSection: 'Week 1',
+        source: 'manual',
+        createdAt: 2000,
+        updatedAt: 2000,
+      },
+    ], new Set(), new Set(), false, { mode: 'date', direction: 'desc' });
+
+    expect(rows.map((row) => row.key)).toEqual([
+      'lvl-Manual imports',
+      'cat-Manual imports/Week 1',
+      'new-week',
+      'old-week',
+      'cat-Manual imports/Inbox',
+      'old-inbox',
+    ]);
+  });
 });

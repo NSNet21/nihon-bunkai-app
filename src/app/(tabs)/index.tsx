@@ -58,7 +58,6 @@ import {
   getLibrarySortDirection,
   getLibrarySortDirectionForMode,
   getLibrarySortMode,
-  sortLibraryDecks,
   type LibrarySortDirection,
   type LibrarySortMode,
 } from '@/lib/library-sort';
@@ -199,10 +198,9 @@ export default function BrowseScreen() {
     }, [decks, decksLoading]),
   );
 
-  /* Recompute group keys when decks change (free + paid merged). */
-  const sortedDecks = useMemo(
-    () => sortLibraryDecks(decks, librarySortMode, librarySortDirection),
-    [decks, librarySortMode, librarySortDirection],
+  const librarySortOptions = useMemo(
+    () => ({ mode: librarySortMode, direction: librarySortDirection }),
+    [librarySortDirection, librarySortMode],
   );
 
   useEffect(() => {
@@ -211,9 +209,9 @@ export default function BrowseScreen() {
   }, [librarySortDirection, librarySortMode, sortMotion]);
 
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
-    const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(sortedDecks);
+    const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(decks);
     return { allLevelKeys: levelKeys, allCategoryKeys: categoryKeys };
-  }, [sortedDecks]);
+  }, [decks]);
 
   /* Stable callbacks so memoized list rows (DeckRow / LevelHeader /
      CategoryHeader) can skip re-renders when only unrelated state
@@ -257,16 +255,16 @@ export default function BrowseScreen() {
 
   const hasGroupSearch = groupSearchHasQuery(groupSearchQuery);
   const filteredDecks = useMemo(
-    () => filterBrowseDecks(sortedDecks, groupSearchQuery),
-    [sortedDecks, groupSearchQuery],
+    () => filterBrowseDecks(decks, groupSearchQuery),
+    [decks, groupSearchQuery],
   );
   const librarySearchRows = useMemo(
-    () => buildBrowseRows(filteredDecks, new Set(), new Set(), true),
-    [filteredDecks],
+    () => buildBrowseRows(filteredDecks, new Set(), new Set(), true, librarySortOptions),
+    [filteredDecks, librarySortOptions],
   );
   const rows = useMemo(
-    () => buildBrowseRows(sortedDecks, closedLevels, closedCategories),
-    [sortedDecks, closedLevels, closedCategories],
+    () => buildBrowseRows(decks, closedLevels, closedCategories, false, librarySortOptions),
+    [decks, closedLevels, closedCategories, librarySortOptions],
   );
   const groupSearchEmpty = hasGroupSearch && filteredDecks.length === 0;
 
@@ -554,7 +552,7 @@ function Toolbar({
   const expandLabel = isCompact ? 'Open' : 'Expand';
   const collapseLabel = isCompact ? 'Fold' : 'Collapse';
   const scopeLabel = subsOnly ? 'Group' : 'All';
-  const sortLabel = sortMode === 'default' ? 'Default' : sortMode === 'name' ? 'Name' : 'Terms';
+  const sortLabel = sortMode === 'default' ? 'Default' : sortMode === 'name' ? 'Name' : 'Date';
   const directionLabel = sortDirection === 'asc' ? 'Asc' : 'Desc';
   const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
   const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
@@ -716,13 +714,13 @@ function SortMenuOverlay({
               borderColor: colors.borderStrong,
             },
           ]}>
-          {(['default', 'name', 'terms'] as LibrarySortMode[]).map((mode) => (
+          {(['default', 'name', 'date'] as LibrarySortMode[]).map((mode) => (
             <Pressable
               key={mode}
               onPress={() => onSelect(mode)}
               style={({ pressed }) => [styles.sortMenuItem, pressed && styles.headerPressed]}>
               <ThemedText type="smallBold" style={{ color: mode === sortMode ? colors.text : colors.textSecondary }}>
-                {mode === 'default' ? 'Default' : mode === 'name' ? 'Name' : 'Terms'}
+                {mode === 'default' ? 'Default' : mode === 'name' ? 'Name' : 'Date'}
               </ThemedText>
             </Pressable>
           ))}

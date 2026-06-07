@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Deck } from '@/data/types';
-import { getLibrarySortMode, sortLibraryDecks, type LibrarySortMode } from './library-sort';
+import { getLibrarySortDirection, getLibrarySortMode, sortLibraryDecks, type LibrarySortDirection, type LibrarySortMode } from './library-sort';
 
 const deck = (overrides: Partial<Deck>): Deck => ({
   id: overrides.id ?? 'deck-a',
@@ -23,28 +23,48 @@ describe('library sort helpers', () => {
       deck({ id: 'a', title: 'Alpha', entryCount: 30 }),
     ];
 
-    expect(sortLibraryDecks(decks, 'default').map((item) => item.id)).toEqual(['b', 'a']);
-    expect(sortLibraryDecks(decks, 'default')).not.toBe(decks);
+    expect(sortLibraryDecks(decks, 'default', 'desc').map((item) => item.id)).toEqual(['b', 'a']);
+    expect(sortLibraryDecks(decks, 'default', 'desc')).not.toBe(decks);
   });
 
-  it('sorts by title using a stable id fallback', () => {
+  it('sorts by title ascending using a stable id fallback', () => {
     const decks = [
       deck({ id: 'b', title: 'Beta' }),
       deck({ id: 'a', title: 'Alpha' }),
       deck({ id: 'c', title: 'Alpha' }),
     ];
 
-    expect(sortLibraryDecks(decks, 'name').map((item) => item.id)).toEqual(['a', 'c', 'b']);
+    expect(sortLibraryDecks(decks, 'name', 'asc').map((item) => item.id)).toEqual(['a', 'c', 'b']);
   });
 
-  it('sorts by entry count high to low with title fallback', () => {
+  it('sorts by title descending using a stable id fallback', () => {
+    const decks = [
+      deck({ id: 'b', title: 'Beta' }),
+      deck({ id: 'a', title: 'Alpha' }),
+      deck({ id: 'c', title: 'Alpha' }),
+    ];
+
+    expect(sortLibraryDecks(decks, 'name', 'desc').map((item) => item.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('sorts by entry count descending with title fallback', () => {
     const decks = [
       deck({ id: 'small', title: 'Small', entryCount: 10 }),
       deck({ id: 'large-b', title: 'Beta', entryCount: 30 }),
       deck({ id: 'large-a', title: 'Alpha', entryCount: 30 }),
     ];
 
-    expect(sortLibraryDecks(decks, 'terms').map((item) => item.id)).toEqual(['large-a', 'large-b', 'small']);
+    expect(sortLibraryDecks(decks, 'terms', 'desc').map((item) => item.id)).toEqual(['large-a', 'large-b', 'small']);
+  });
+
+  it('sorts by entry count ascending with title fallback', () => {
+    const decks = [
+      deck({ id: 'large-b', title: 'Beta', entryCount: 30 }),
+      deck({ id: 'small', title: 'Small', entryCount: 10 }),
+      deck({ id: 'large-a', title: 'Alpha', entryCount: 30 }),
+    ];
+
+    expect(sortLibraryDecks(decks, 'terms', 'asc').map((item) => item.id)).toEqual(['small', 'large-a', 'large-b']);
   });
 
   it('normalizes invalid persisted values to default', () => {
@@ -52,5 +72,8 @@ describe('library sort helpers', () => {
     expect(getLibrarySortMode('terms')).toBe('terms');
     expect(getLibrarySortMode('wat' as LibrarySortMode)).toBe('default');
     expect(getLibrarySortMode(null)).toBe('default');
+    expect(getLibrarySortDirection('desc')).toBe('desc');
+    expect(getLibrarySortDirection('wat' as LibrarySortDirection)).toBe('asc');
+    expect(getLibrarySortDirection(null)).toBe('asc');
   });
 });

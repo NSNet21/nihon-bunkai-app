@@ -15,7 +15,7 @@ This pass should make the sort controls feel intentional, closer to the user's r
 ## Goals
 
 - Move sort controls into a right-side toolbar cluster on tablet/desktop.
-- Keep mobile compact with icon-only sort/direction/reset controls.
+- Keep sort controls compact with icon-only sort and direction controls.
 - Add ascending/descending direction for non-default sort modes.
 - Keep active sort controls visually quiet, without crimson active backgrounds.
 - Make the sort menu float over the Library content instead of pushing rows down.
@@ -43,17 +43,17 @@ Behavior:
 - `name + desc`: reverse title order.
 - `terms + desc`: high entry count first.
 - `terms + asc`: low entry count first.
-- Reset returns to `default + asc`.
+- Choosing `default` from the sort menu returns direction to `asc`.
 
 ## Responsive Layout
 
 Desktop/tablet:
 
 - Existing Library actions stay on the left: scope, expand, collapse, Library actions.
-- Sort controls sit on the right: sort menu trigger, direction toggle, reset.
+- Sort controls sit on the right: sort menu trigger and direction toggle.
 - The toolbar may wrap on medium widths, but the sort cluster should remain visually grouped.
 
-Mobile:
+All viewports:
 
 - Sort cluster uses icon-only buttons to reduce crowding.
 - Buttons must keep accessibility labels for screen readers and web inspection.
@@ -83,10 +83,10 @@ When sort mode or direction changes:
 - Full Vitest run.
 - Local Browse visual checks at mobile, tablet, and desktop viewports:
   - sort cluster responsive placement,
-  - icon-only mobile controls,
+  - icon-only sort controls,
   - floating menu clickability,
   - asc/desc behavior,
-  - reset behavior,
+  - `Default` resets direction to `asc`,
   - animation does not create layout shift or horizontal overflow,
   - deck navigation still opens Deck Preview,
   - console errors remain `0`.

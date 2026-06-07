@@ -1682,13 +1682,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sortControlWrap: {
-    position: 'relative',
     zIndex: 5,
+    gap: 4,
   },
   sortMenu: {
-    position: 'absolute',
-    top: 42,
-    left: 0,
     minWidth: 132,
     borderWidth: 1,
     borderRadius: Radii.sm,

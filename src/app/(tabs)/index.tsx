@@ -4,6 +4,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import {
   FiAlertTriangle,
+  FiArrowDown,
+  FiArrowUp,
   FiChevronDown,
   FiChevronsDown,
   FiChevronsUp,
@@ -53,7 +55,13 @@ import {
 } from '@/lib/browse-group-search';
 import { getDeckReviewCandidate, type DeckReviewCandidate } from '@/lib/deck-progress';
 import { getBrowseLibraryRevealState, shouldShowFlashcardContinue } from '@/lib/continue-route';
-import { getLibrarySortMode, sortLibraryDecks, type LibrarySortMode } from '@/lib/library-sort';
+import {
+  getLibrarySortDirection,
+  getLibrarySortMode,
+  sortLibraryDecks,
+  type LibrarySortDirection,
+  type LibrarySortMode,
+} from '@/lib/library-sort';
 import {
   deleteUserLibraryGroup,
   deleteUserLibrarySection,
@@ -65,6 +73,8 @@ import {
 import type { LastSession } from '@/lib/last-session';
 
 const SCROLL_TOP_THRESHOLD = 400;
+type SortMenuAnchor = { x: number; y: number; width: number; height: number };
+
 const librarySearchDockActiveShadow = Platform.select({
   web: { boxShadow: '0 2px 6px rgba(224, 32, 44, 0.14)' } as unknown as ViewStyle,
   default: {
@@ -97,6 +107,7 @@ export default function BrowseScreen() {
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
   const [browseAction, setBrowseAction] = useState<BrowseActionContext | null>(null);
   const [deckActionDeck, setDeckActionDeck] = useState<Deck | null>(null);
+  const [sortMenuAnchor, setSortMenuAnchor] = useState<SortMenuAnchor | null>(null);
   const [reviewCandidate, setReviewCandidate] = useState<DeckReviewCandidate | null>(null);
   const [reviewCandidateReady, setReviewCandidateReady] = useState(false);
   const colors = useThemePalette();
@@ -108,6 +119,13 @@ export default function BrowseScreen() {
   const [lastSessionLearn] = usePersistedState<LastSession | null>('last-session-learn', null);
   const [storedLibrarySortMode, setStoredLibrarySortMode] = usePersistedState<LibrarySortMode>('library-sort-mode', 'default');
   const librarySortMode = getLibrarySortMode(storedLibrarySortMode);
+  const [storedLibrarySortDirection, setStoredLibrarySortDirection] = usePersistedState<LibrarySortDirection>('library-sort-direction', 'asc');
+  const librarySortDirection = getLibrarySortDirection(storedLibrarySortDirection);
+  const sortMotion = useSharedValue(1);
+  const libraryRowsAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: 0.96 + sortMotion.value * 0.04,
+    transform: [{ translateX: (1 - sortMotion.value) * 12 }],
+  }));
 
   /* Only surface Continue CTA when the resume target is still valid:
      - deck must exist in current allDecks (user might have lost entitlement)
@@ -183,9 +201,14 @@ export default function BrowseScreen() {
 
   /* Recompute group keys when decks change (free + paid merged). */
   const sortedDecks = useMemo(
-    () => sortLibraryDecks(decks, librarySortMode),
-    [decks, librarySortMode],
+    () => sortLibraryDecks(decks, librarySortMode, librarySortDirection),
+    [decks, librarySortMode, librarySortDirection],
   );
+
+  useEffect(() => {
+    sortMotion.value = 0;
+    sortMotion.value = withTiming(1, { duration: 150, easing: Easing.bezier(0.4, 0, 0.2, 1) });
+  }, [librarySortDirection, librarySortMode, sortMotion]);
 
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
     const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(sortedDecks);
@@ -305,8 +328,8 @@ export default function BrowseScreen() {
       );
     else inner = <DeckRow deck={item.deck} isLast={item.isLast} actionContext={item.actionContext} onOpenAction={setDeckActionDeck} />;
 
-    return <View style={styles.rowWrap}>{inner}</View>;
-  }, [toggleLevel, toggleCategory]);
+    return <Animated.View style={[styles.rowWrap, libraryRowsAnimatedStyle]}>{inner}</Animated.View>;
+  }, [toggleLevel, toggleCategory, libraryRowsAnimatedStyle]);
 
   return (
     <ThemedView style={styles.container}>
@@ -392,8 +415,14 @@ export default function BrowseScreen() {
                       onToggleSubsOnly={toggleToolbarScope}
                       onOpenLibraryActions={() => setLibraryActionsOpen(true)}
                       sortMode={librarySortMode}
+                      sortDirection={librarySortDirection}
                       onChangeSortMode={setStoredLibrarySortMode}
-                      onResetSortMode={() => setStoredLibrarySortMode('default')}
+                      onChangeSortDirection={setStoredLibrarySortDirection}
+                      onOpenSortMenu={setSortMenuAnchor}
+                      onResetSort={() => {
+                        setStoredLibrarySortMode('default');
+                        setStoredLibrarySortDirection('asc');
+                      }}
                     />
                   </View>
                 </Animated.View>
@@ -418,6 +447,15 @@ export default function BrowseScreen() {
         empty={groupSearchEmpty}
         onChangeQuery={setGroupSearchQuery}
         onClose={() => setLibrarySearchOpen(false)}
+      />
+      <SortMenuOverlay
+        anchor={sortMenuAnchor}
+        sortMode={librarySortMode}
+        onSelect={(mode) => {
+          setStoredLibrarySortMode(mode);
+          setSortMenuAnchor(null);
+        }}
+        onClose={() => setSortMenuAnchor(null)}
       />
       <BrowseOrganizationActionModal
         action={browseAction}
@@ -494,8 +532,10 @@ function Toolbar({
   onToggleSubsOnly,
   onOpenLibraryActions,
   sortMode,
-  onChangeSortMode,
-  onResetSortMode,
+  sortDirection,
+  onChangeSortDirection,
+  onOpenSortMenu,
+  onResetSort,
 }: {
   onOpenLibrarySearch: () => void;
   onExpandAll: () => void;
@@ -504,23 +544,28 @@ function Toolbar({
   onToggleSubsOnly: () => void;
   onOpenLibraryActions: () => void;
   sortMode: LibrarySortMode;
-  onChangeSortMode: (mode: LibrarySortMode) => void;
-  onResetSortMode: () => void;
+  sortDirection: LibrarySortDirection;
+  onChangeSortDirection: (direction: LibrarySortDirection) => void;
+  onOpenSortMenu: (anchor: SortMenuAnchor | null) => void;
+  onResetSort: () => void;
 }) {
   const colors = useThemePalette();
   const { width } = useWindowDimensions();
   const [searchTriggerActive, setSearchTriggerActive] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
   const searchOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sortButtonRef = useRef<any>(null);
   const isCompact = width < 520;
+  const isWideToolbar = width >= 760;
   const useTouchIcons = width < 900;
   const expandLabel = isCompact ? 'Open' : 'Expand';
   const collapseLabel = isCompact ? 'Fold' : 'Collapse';
   const scopeLabel = subsOnly ? 'Group' : 'All';
   const sortLabel = sortMode === 'default' ? 'Default' : sortMode === 'name' ? 'Name' : 'Terms';
+  const directionLabel = sortDirection === 'asc' ? 'Asc' : 'Desc';
   const resetDisabled = sortMode === 'default';
   const ExpandIcon = useTouchIcons ? FiPlusSquare : FiChevronsDown;
   const CollapseIcon = useTouchIcons ? FiMinusSquare : FiChevronsUp;
+  const DirectionIcon = sortDirection === 'asc' ? FiArrowUp : FiArrowDown;
 
   useEffect(() => () => {
     if (searchOpenTimerRef.current) clearTimeout(searchOpenTimerRef.current);
@@ -535,6 +580,17 @@ function Toolbar({
       searchOpenTimerRef.current = null;
     }, 210);
   }, [onOpenLibrarySearch]);
+
+  const openSortMenu = useCallback(() => {
+    const node = sortButtonRef.current;
+    if (node?.measureInWindow) {
+      node.measureInWindow((x: number, y: number, measuredWidth: number, height: number) => {
+        onOpenSortMenu({ x, y, width: measuredWidth, height });
+      });
+      return;
+    }
+    onOpenSortMenu({ x: width - 156, y: 320, width: 132, height: 36 });
+  }, [onOpenSortMenu, width]);
 
   return (
     <View style={styles.toolbarStack}>
@@ -557,106 +613,152 @@ function Toolbar({
         </ThemedText>
       </Pressable>
       <View style={styles.toolbar}>
-        <ScaleButton
-          onPress={onToggleSubsOnly}
-          accessibilityLabel={subsOnly ? 'Switch toolbar scope to all groups' : 'Switch toolbar scope to group only'}
-          style={[
-            styles.scopeBtn,
-            {
-              borderColor: subsOnly ? Accent.base : colors.border,
-              backgroundColor: subsOnly ? Accent.bg : 'transparent',
-            },
-          ]}>
-          <View style={styles.toolBtnContent}>
-            <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
-              {scopeLabel}
-            </ThemedText>
-          </View>
-        </ScaleButton>
-        <ScaleButton
-          onPress={onExpandAll}
-          accessibilityLabel={subsOnly ? 'Expand groups' : 'Expand all'}
-          style={[styles.toolBtn, { borderColor: colors.border }]}>
-          <View style={styles.toolBtnContent}>
-            <ExpandIcon size={14} color={colors.text} />
-            <ThemedText type="small" themeColor="textSecondary">{expandLabel}</ThemedText>
-          </View>
-        </ScaleButton>
-        <ScaleButton
-          onPress={onCollapseAll}
-          accessibilityLabel={subsOnly ? 'Collapse groups' : 'Collapse all'}
-          style={[styles.toolBtn, { borderColor: colors.border }]}>
-          <View style={styles.toolBtnContent}>
-            <CollapseIcon size={14} color={colors.text} />
-            <ThemedText type="small" themeColor="textSecondary">{collapseLabel}</ThemedText>
-          </View>
-        </ScaleButton>
-        <ScaleButton
-          onPress={onOpenLibraryActions}
-          accessibilityLabel="เปิด Import / Export"
-          style={[styles.toolBtn, { borderColor: colors.border }]}>
-          <View style={styles.toolBtnContent}>
-            <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
-          </View>
-        </ScaleButton>
-        <View style={styles.sortControlWrap}>
+        <View style={styles.toolbarActionCluster}>
           <ScaleButton
-            onPress={() => setSortOpen((prev) => !prev)}
-            accessibilityLabel="เปลี่ยนลำดับ Library"
+            onPress={onToggleSubsOnly}
+            accessibilityLabel={subsOnly ? 'Switch toolbar scope to all groups' : 'Switch toolbar scope to group only'}
             style={[
-              styles.toolBtn,
+              styles.scopeBtn,
               {
-                borderColor: sortOpen || sortMode !== 'default' ? Accent.base : colors.border,
-                backgroundColor: sortMode !== 'default' ? Accent.bg : 'transparent',
+                borderColor: subsOnly ? Accent.base : colors.border,
+                backgroundColor: subsOnly ? Accent.bg : 'transparent',
               },
             ]}>
             <View style={styles.toolBtnContent}>
-              <FiSliders size={14} color={sortMode !== 'default' ? Accent.base : colors.text} />
-              <ThemedText type="small" style={{ color: sortMode !== 'default' ? Accent.base : colors.textSecondary }}>
-                {isCompact ? sortLabel : `Sort ${sortLabel}`}
+              <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
+                {scopeLabel}
               </ThemedText>
             </View>
           </ScaleButton>
-          {sortOpen ? (
-            <View style={[styles.sortMenu, { backgroundColor: colors.surface, borderColor: colors.borderStrong }]}>
-              {(['default', 'name', 'terms'] as LibrarySortMode[]).map((mode) => (
-                <Pressable
-                  key={mode}
-                  onPress={() => {
-                    onChangeSortMode(mode);
-                    setSortOpen(false);
-                  }}
-                  style={({ pressed }) => [styles.sortMenuItem, pressed && styles.headerPressed]}>
-                  <ThemedText type="smallBold" style={{ color: mode === sortMode ? Accent.base : colors.textSecondary }}>
-                    {mode === 'default' ? 'Default' : mode === 'name' ? 'Name' : 'Terms'}
-                  </ThemedText>
-                </Pressable>
-              ))}
+          <ScaleButton
+            onPress={onExpandAll}
+            accessibilityLabel={subsOnly ? 'Expand groups' : 'Expand all'}
+            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            <View style={styles.toolBtnContent}>
+              <ExpandIcon size={14} color={colors.text} />
+              <ThemedText type="small" themeColor="textSecondary">{expandLabel}</ThemedText>
             </View>
-          ) : null}
+          </ScaleButton>
+          <ScaleButton
+            onPress={onCollapseAll}
+            accessibilityLabel={subsOnly ? 'Collapse groups' : 'Collapse all'}
+            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            <View style={styles.toolBtnContent}>
+              <CollapseIcon size={14} color={colors.text} />
+              <ThemedText type="small" themeColor="textSecondary">{collapseLabel}</ThemedText>
+            </View>
+          </ScaleButton>
+          <ScaleButton
+            onPress={onOpenLibraryActions}
+            accessibilityLabel="เปิด Import / Export"
+            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            <View style={styles.toolBtnContent}>
+              <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
+            </View>
+          </ScaleButton>
         </View>
-        <ScaleButton
-          onPress={() => {
-            onResetSortMode();
-            setSortOpen(false);
-          }}
-          disabled={resetDisabled}
-          accessibilityLabel="Reset Library sort"
-          style={[
-            styles.toolBtn,
-            {
-              borderColor: colors.border,
-              opacity: resetDisabled ? 0.42 : 1,
-            },
-          ]}>
-          <View style={styles.toolBtnContent}>
-            <FiRefreshCcw size={14} color={colors.text} />
-            <ThemedText type="small" themeColor="textSecondary">Reset</ThemedText>
+        <View style={[styles.toolbarSortCluster, isWideToolbar && styles.toolbarSortClusterWide]}>
+          <View ref={sortButtonRef} collapsable={false}>
+            <ScaleButton
+              onPress={openSortMenu}
+              accessibilityLabel={`Sort Library: ${sortLabel}`}
+              style={[styles.toolBtn, styles.sortToolBtn, { borderColor: colors.border }]}>
+              <View style={styles.toolBtnContent}>
+                <FiSliders size={14} color={colors.text} />
+                {!isCompact && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    Sort {sortLabel}
+                  </ThemedText>
+                )}
+              </View>
+            </ScaleButton>
           </View>
-        </ScaleButton>
+          <ScaleButton
+            onPress={() => onChangeSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+            disabled={sortMode === 'default'}
+            accessibilityLabel={`Sort direction: ${directionLabel}`}
+            style={[
+              styles.toolBtn,
+              styles.sortToolBtn,
+              {
+                borderColor: colors.border,
+                opacity: sortMode === 'default' ? 0.42 : 1,
+              },
+            ]}>
+            <View style={styles.toolBtnContent}>
+              <DirectionIcon size={14} color={colors.text} />
+              {!isCompact && <ThemedText type="small" themeColor="textSecondary">{directionLabel}</ThemedText>}
+            </View>
+          </ScaleButton>
+          <ScaleButton
+            onPress={onResetSort}
+            disabled={resetDisabled}
+            accessibilityLabel="Reset Library sort"
+            style={[
+              styles.toolBtn,
+              styles.sortToolBtn,
+              {
+                borderColor: colors.border,
+                opacity: resetDisabled ? 0.42 : 1,
+              },
+            ]}>
+            <View style={styles.toolBtnContent}>
+              <FiRefreshCcw size={14} color={colors.text} />
+              {!isCompact && <ThemedText type="small" themeColor="textSecondary">Reset</ThemedText>}
+            </View>
+          </ScaleButton>
+        </View>
       </View>
     </View>
+  );
+}
+
+function SortMenuOverlay({
+  anchor,
+  sortMode,
+  onSelect,
+  onClose,
+}: {
+  anchor: SortMenuAnchor | null;
+  sortMode: LibrarySortMode;
+  onSelect: (mode: LibrarySortMode) => void;
+  onClose: () => void;
+}) {
+  const colors = useThemePalette();
+  const { width } = useWindowDimensions();
+  const menuWidth = 148;
+  const menuLeft = anchor ? Math.max(Spacing.two, Math.min(anchor.x, width - menuWidth - Spacing.two)) : Spacing.two;
+  const menuTop = anchor ? anchor.y + anchor.height + 6 : 280;
+
+  return (
+    <Modal visible={!!anchor} transparent animationType="none" onRequestClose={onClose}>
+      <View style={styles.sortOverlayRoot}>
+        <Pressable style={styles.sortOverlayBackdrop} accessibilityLabel="ปิด Sort menu" onPress={onClose} />
+        <View
+          style={[
+            styles.sortFloatingMenu,
+            {
+              left: menuLeft,
+              top: menuTop,
+              width: menuWidth,
+              backgroundColor: colors.surface,
+              borderColor: colors.borderStrong,
+            },
+          ]}>
+          {(['default', 'name', 'terms'] as LibrarySortMode[]).map((mode) => (
+            <Pressable
+              key={mode}
+              onPress={() => onSelect(mode)}
+              style={({ pressed }) => [styles.sortMenuItem, pressed && styles.headerPressed]}>
+              <ThemedText type="smallBold" style={{ color: mode === sortMode ? colors.text : colors.textSecondary }}>
+                {mode === 'default' ? 'Default' : mode === 'name' ? 'Name' : 'Terms'}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1641,6 +1743,24 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     flexWrap: 'wrap',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  toolbarActionCluster: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  toolbarSortCluster: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  toolbarSortClusterWide: {
+    marginLeft: 'auto',
   },
   /* Continue group head — section title matching Library rhythm. */
   continueGroupHead: {
@@ -1681,16 +1801,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
-  sortControlWrap: {
-    zIndex: 5,
-    gap: 4,
+  sortToolBtn: {
+    minWidth: 38,
   },
-  sortMenu: {
-    minWidth: 132,
+  sortOverlayRoot: {
+    flex: 1,
+  },
+  sortOverlayBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'transparent',
+  },
+  sortFloatingMenu: {
+    position: 'absolute',
     borderWidth: 1,
     borderRadius: Radii.sm,
     overflow: 'hidden',
-    zIndex: 10,
+    ...librarySearchPanelShadow,
   },
   sortMenuItem: {
     minHeight: 38,

@@ -910,9 +910,9 @@ function LocalDataSafetyCard() {
     setBusy('backup');
     try {
       const summary = await downloadLocalDataBackup();
-      showToast(`Export backup แล้ว · ${formatBackupSummary(summary)}`, { kind: 'success' });
+      showToast(`ส่งออก backup แล้ว · ${formatBackupSummary(summary)}`, { kind: 'success' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Export backup failed';
+      const message = error instanceof Error ? error.message : 'ส่งออก backup ไม่สำเร็จ';
       showToast(message, { kind: 'error' });
     } finally {
       setBusy(null);
@@ -940,9 +940,9 @@ function LocalDataSafetyCard() {
         window.dispatchEvent(new CustomEvent(DECKS_IMPORTED_EVENT, { detail: { source: 'local-backup-restore' } }));
       }
       setPendingRestore(null);
-      showToast(`Restore backup แล้ว · ${formatBackupSummary(summary)}`, { kind: 'success' });
+      showToast(`นำ backup กลับแล้ว · ${formatBackupSummary(summary)}`, { kind: 'success' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Restore backup failed';
+      const message = error instanceof Error ? error.message : 'นำ backup กลับไม่สำเร็จ';
       showToast(message, { kind: 'error' });
     } finally {
       setBusy(null);
@@ -953,30 +953,35 @@ function LocalDataSafetyCard() {
     <ThemedView type="backgroundElement" style={safetyStyles.card}>
       <View style={safetyStyles.headerRow}>
         <FiShield size={18} color={Accent.base} />
-        <ThemedText type="defaultSemiBold">ก่อนล้าง cache / ย้ายเครื่อง</ThemedText>
+        <View style={{ flex: 1, gap: 2 }}>
+          <ThemedText type="defaultSemiBold">สำรองข้อมูลในเครื่อง</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            สำหรับ custom deck · Personal Edit · progress ที่อยู่ใน browser นี้
+          </ThemedText>
+        </View>
       </View>
       <SafetyLine>
-        Official content ที่ซื้อแล้ว restore สิทธิ์ได้จาก account แล้ว download/import ใหม่
+        Official content ที่ซื้อแล้วตรวจสิทธิ์จาก account แล้ว download/import ใหม่ได้
       </SafetyLine>
       <SafetyLine>
         PDF ใช้ Payhip receipt หรือ Payhip account เป็นทาง download หลัก
       </SafetyLine>
       <SafetyLine emphasis>
-        Deck ที่ import เองยังอยู่เฉพาะเครื่องนี้ ควร Export backup ก่อนล้าง browser data
+        ข้อมูลที่สร้างหรือ import เองควรส่งออก backup ก่อนล้าง browser data หรือย้ายเครื่อง
       </SafetyLine>
       <View style={safetyStyles.backupActions}>
         <SafetyActionButton
           icon="download"
-          label={busy === 'backup' ? 'Exporting…' : 'Export backup'}
-          hint="save local user data เป็น JSON"
+          label={busy === 'backup' ? 'กำลังส่งออก…' : 'ส่งออก backup'}
+          hint="บันทึก local user data เป็นไฟล์ JSON"
           borderColor={colors.border}
           disabled={!!busy}
           onPress={onExportBackup}
         />
         <SafetyActionButton
           icon="upload"
-          label={busy === 'restore' ? 'Restoring…' : 'Restore backup'}
-          hint="merge ไฟล์ backup กลับเข้าเครื่องนี้"
+          label={busy === 'restore' ? 'กำลังนำกลับ…' : 'นำ backup กลับ'}
+          hint="เลือกไฟล์ JSON แล้ว merge กลับเข้าเครื่องนี้"
           borderColor={colors.border}
           disabled={!!busy}
           onPress={onPickRestore}
@@ -984,9 +989,15 @@ function LocalDataSafetyCard() {
       </View>
       {pendingRestore ? (
         <View style={[safetyStyles.restorePreview, { borderColor: colors.border, backgroundColor: colors.background }]}>
-          <ThemedText type="defaultSemiBold">พร้อม restore?</ThemedText>
+          <View style={safetyStyles.restorePreviewHeader}>
+            <FiUpload size={15} color={Accent.base} />
+            <ThemedText type="defaultSemiBold">ตรวจพบไฟล์ backup</ThemedText>
+          </View>
           <ThemedText type="small" themeColor="textSecondary" style={safetyStyles.subtitle}>
-            {formatBackupSummary(pendingRestore.summary)} · ระบบจะ merge/update ไม่ล้างข้อมูลทั้งหมด
+            {formatBackupSummary(pendingRestore.summary)}
+          </ThemedText>
+          <ThemedText type="small" themeColor="textHint" style={safetyStyles.subtitle}>
+            ระบบจะ merge/update ข้อมูลเดิม ไม่ล้าง Library ทั้งหมด
           </ThemedText>
           <View style={safetyStyles.restoreActions}>
             <Pressable
@@ -997,7 +1008,7 @@ function LocalDataSafetyCard() {
                 { borderColor: colors.border },
                 pressed && { opacity: 0.75 },
               ]}>
-              <ThemedText type="small" themeColor="textSecondary">Cancel</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">ยกเลิก</ThemedText>
             </Pressable>
             <Pressable
               onPress={onConfirmRestore}
@@ -1008,7 +1019,7 @@ function LocalDataSafetyCard() {
                 pressed && { opacity: 0.75 },
               ]}>
               <ThemedText type="small" style={{ color: Accent.base }}>
-                Confirm restore
+                {busy === 'restore' ? 'กำลังนำกลับ…' : 'นำกลับเข้าเครื่องนี้'}
               </ThemedText>
             </Pressable>
           </View>
@@ -1061,12 +1072,12 @@ function SafetyActionButton({
 
 function formatBackupSummary(summary: LocalDataBackupSummary): string {
   return [
-    `${summary.decks} decks`,
-    `${summary.entries} terms`,
-    `${summary.personalEdits} edits`,
+    `${summary.decks} deck`,
+    `${summary.entries} term`,
+    `${summary.personalEdits} personal edit`,
     `${summary.cardStates} progress`,
-    `${summary.sessions} sessions`,
-    summary.hasStreak ? 'streak' : null,
+    `${summary.sessions} session`,
+    summary.hasStreak ? 'streak meta' : null,
   ].filter(Boolean).join(' · ');
 }
 
@@ -1231,6 +1242,11 @@ const safetyStyles = StyleSheet.create({
     borderRadius: Radii.sm,
     padding: Spacing.two,
     marginTop: Spacing.one,
+  },
+  restorePreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   restoreActions: {
     flexDirection: 'row',

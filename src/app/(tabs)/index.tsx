@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import {
   FiAlertTriangle,
   FiArrowDown,
@@ -62,6 +62,11 @@ import {
   type LibrarySortMode,
 } from '@/lib/library-sort';
 import {
+  LIBRARY_SORT_SETTLE_DURATION_MS,
+  LIBRARY_SORT_SETTLE_OFFSET_X,
+  getLibrarySortSettleMotion,
+} from '@/lib/library-sort-motion';
+import {
   deleteUserLibraryGroup,
   deleteUserLibrarySection,
   removeUserLibraryGroup,
@@ -109,6 +114,9 @@ export default function BrowseScreen() {
   const [sortMenuAnchor, setSortMenuAnchor] = useState<SortMenuAnchor | null>(null);
   const [reviewCandidate, setReviewCandidate] = useState<DeckReviewCandidate | null>(null);
   const [reviewCandidateReady, setReviewCandidateReady] = useState(false);
+  const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
+  const previousLibrarySortRevisionRef = useRef<string | null>(null);
+  const [librarySortMotionTick, setLibrarySortMotionTick] = useState(0);
   const colors = useThemePalette();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const hasHydrated = useHasHydrated();
@@ -198,6 +206,35 @@ export default function BrowseScreen() {
     [librarySortDirection, librarySortMode],
   );
   const librarySortRevision = `${librarySortMode}-${librarySortDirection}`;
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) setReduceMotionEnabled(enabled);
+      })
+      .catch(() => {
+        if (mounted) setReduceMotionEnabled(false);
+      });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const motion = getLibrarySortSettleMotion({
+      previousRevision: previousLibrarySortRevisionRef.current,
+      nextRevision: librarySortRevision,
+      libraryVisible: libraryReveal.showLibrary,
+      reducedMotion: reduceMotionEnabled,
+    });
+    previousLibrarySortRevisionRef.current = librarySortRevision;
+    if (motion.enabled) {
+      setLibrarySortMotionTick((tick) => tick + 1);
+    }
+  }, [libraryReveal.showLibrary, librarySortRevision, reduceMotionEnabled]);
 
   const { allLevelKeys, allCategoryKeys } = useMemo(() => {
     const { levelKeys, categoryKeys } = buildBrowseCollapseKeys(decks);
@@ -319,8 +356,12 @@ export default function BrowseScreen() {
       );
     else inner = <DeckRow deck={item.deck} isLast={item.isLast} sortRevision={librarySortRevision} actionContext={item.actionContext} onOpenAction={setDeckActionDeck} />;
 
-    return <View style={styles.rowWrap}>{inner}</View>;
-  }, [librarySortRevision, toggleLevel, toggleCategory]);
+    return (
+      <LibrarySortSettleRow motionTick={librarySortMotionTick} reduceMotion={reduceMotionEnabled} style={styles.rowWrap}>
+        {inner}
+      </LibrarySortSettleRow>
+    );
+  }, [librarySortMotionTick, librarySortRevision, reduceMotionEnabled, toggleLevel, toggleCategory]);
 
   return (
     <ThemedView style={styles.container}>
@@ -933,6 +974,44 @@ function AnimatedChevron({ isOpen, size, color }: { isOpen: boolean; size: numbe
       <FiChevronDown size={size} color={color} strokeWidth={2} />
     </Animated.View>
   );
+}
+
+function LibrarySortSettleRow({
+  children,
+  motionTick,
+  reduceMotion,
+  style,
+}: {
+  children: ReactNode;
+  motionTick: number;
+  reduceMotion: boolean;
+  style: ViewStyle;
+}) {
+  const firstRenderRef = useRef(true);
+  const translateX = useSharedValue(0);
+
+  useEffect(() => {
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      translateX.value = 0;
+      return;
+    }
+    if (reduceMotion || motionTick <= 0) {
+      translateX.value = 0;
+      return;
+    }
+    translateX.value = LIBRARY_SORT_SETTLE_OFFSET_X;
+    translateX.value = withTiming(0, {
+      duration: LIBRARY_SORT_SETTLE_DURATION_MS,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    });
+  }, [motionTick, reduceMotion, translateX]);
+
+  const settleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  return <Animated.View style={[style, settleStyle]}>{children}</Animated.View>;
 }
 
 /* React.memo so rows skip re-render when parent state changes for

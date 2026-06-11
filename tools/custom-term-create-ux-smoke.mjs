@@ -54,7 +54,7 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
 
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 90_000 });
-  await page.getByText('คลังคำศัพท์').waitFor({ timeout: 30_000 });
+  await page.getByText('คลังคำศัพท์', { exact: true }).waitFor({ timeout: 30_000 });
 
   const mobileToolbarAddCount = await page.getByLabel('เพิ่มคำใหม่').count();
   if (mobileToolbarAddCount !== 0) fail('Mobile Browse should not show duplicate add-term toolbar button', { mobileToolbarAddCount });

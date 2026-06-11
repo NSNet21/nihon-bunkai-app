@@ -56,6 +56,10 @@ try {
   await page.getByText('เพิ่มคำใหม่').waitFor({ timeout: 30_000 });
   await page.getByRole('link', { name: 'เพิ่มคำ' }).waitFor({ timeout: 15_000 });
   await page.getByRole('button', { name: 'บันทึกคำ' }).waitFor({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'บันทึกคำ' }).click();
+  await page.getByText('ต้องใส่คำศัพท์ก่อนบันทึก').waitFor({ timeout: 15_000 });
+  await page.getByText('ต้องใส่ความหมายภาษาไทยก่อนบันทึก').waitFor({ timeout: 15_000 });
+  await page.getByText('ต้องมีก่อนบันทึก').waitFor({ timeout: 15_000 });
 
   const saveBox = await box(page.getByRole('button', { name: 'บันทึกคำ' }), 'save footer');
   const navBox = await box(page.getByRole('link', { name: 'เพิ่มคำ' }), 'mobile bottom nav add link');
@@ -97,6 +101,8 @@ try {
   await page.getByPlaceholder('คำอ่าน / pronunciation').fill('どうせんかくにん');
   await page.getByPlaceholder('รายละเอียด / markdown').fill('### UX smoke');
   await page.getByText('New deck').click();
+  await page.getByRole('button', { name: 'บันทึกคำ' }).click();
+  await page.getByText('ต้องใส่ชื่อ deck ใหม่ก่อนบันทึก').waitFor({ timeout: 15_000 });
   await page.getByPlaceholder('ชื่อ deck ใหม่').fill(deckTitle);
   await page.getByRole('button', { name: 'บันทึกคำ' }).click();
   await page.getByLabel('บันทึกคำแล้ว · เปิดดู').waitFor({ timeout: 30_000 });

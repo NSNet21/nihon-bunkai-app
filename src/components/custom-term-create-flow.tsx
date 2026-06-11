@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { FiBookOpen, FiCheck, FiFileText, FiFolder, FiHash, FiMaximize2, FiPlus, FiX } from 'react-icons/fi';
 
@@ -49,7 +49,12 @@ export function CustomTermCreateFlow({
   const [eEditorOpen, setEEditorOpen] = useState(false);
   const [markdownGuideOpen, setMarkdownGuideOpen] = useState(false);
   const [optimisticDecks, setOptimisticDecks] = useState<Deck[]>([]);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [touched, setTouched] = useState({ t: false, d: false, deck: false });
   const previousDestinationRef = useRef('');
+  const tInputRef = useRef<TextInput | null>(null);
+  const dInputRef = useRef<TextInput | null>(null);
+  const deckInputRef = useRef<TextInput | null>(null);
 
   const availableDecks = useMemo(() => {
     if (optimisticDecks.length === 0) return decks;
@@ -77,6 +82,17 @@ export function CustomTermCreateFlow({
     ? Boolean(selectedDeckId)
     : newDeckTitle.trim().length > 0;
   const canSave = canSaveTerm && canSaveDeck && !busy;
+  const missingT = fields.t.length === 0;
+  const missingD = fields.d.length === 0;
+  const missingDeck = !canSaveDeck;
+  const showTError = missingT && (submitAttempted || touched.t);
+  const showDError = missingD && (submitAttempted || touched.d);
+  const showDeckError = missingDeck && (submitAttempted || touched.deck);
+  const requirementItems = [
+    { key: 't', label: 'T คำศัพท์', done: !missingT },
+    { key: 'd', label: 'D ความหมาย', done: !missingD },
+    { key: 'deck', label: 'Deck', done: !missingDeck },
+  ];
 
   useEffect(() => {
     const key = `${destination.group}\u0000${destination.section}`;
@@ -105,7 +121,15 @@ export function CustomTermCreateFlow({
 
   async function save() {
     if (!canSave) {
-      setStatus('กรอก T / D และเลือก deck ก่อนบันทึก');
+      setSubmitAttempted(true);
+      setStatus(nextMissingMessage({ missingT, missingD, missingDeck }));
+      if (missingT) {
+        tInputRef.current?.focus();
+      } else if (missingD) {
+        dInputRef.current?.focus();
+      } else if (missingDeck && deckMode === 'new') {
+        deckInputRef.current?.focus();
+      }
       return;
     }
     setBusy(true);
@@ -125,6 +149,8 @@ export function CustomTermCreateFlow({
 
       const entry = result.entry;
       const deckId = result.deckId;
+      setSubmitAttempted(false);
+      setTouched({ t: false, d: false, deck: false });
       if (deckMode === 'new') {
         const title = newDeckTitle.trim();
         setOptimisticDecks((current) => upsertDeck(current, {
@@ -181,8 +207,34 @@ export function CustomTermCreateFlow({
 
         <View style={styles.step}>
           <SectionHeader index="1" title="เขียนคำ" icon={<FiHash size={15} color={Accent.base} />} />
-          <Field label="T" value={t} onChange={setT} placeholder="คำศัพท์ / Japanese expression" required disabled={busy} />
-          <Field label="D" value={d} onChange={setD} placeholder="ความหมายภาษาไทย" required disabled={busy} />
+          <Field
+            label="T"
+            value={t}
+            onChange={(value) => {
+              setT(value);
+              setStatus('');
+            }}
+            onBlur={() => setTouched((current) => ({ ...current, t: true }))}
+            placeholder="คำศัพท์ / Japanese expression"
+            required
+            error={showTError ? 'ต้องใส่คำศัพท์ก่อนบันทึก' : undefined}
+            inputRef={tInputRef}
+            disabled={busy}
+          />
+          <Field
+            label="D"
+            value={d}
+            onChange={(value) => {
+              setD(value);
+              setStatus('');
+            }}
+            onBlur={() => setTouched((current) => ({ ...current, d: true }))}
+            placeholder="ความหมายภาษาไทย"
+            required
+            error={showDError ? 'ต้องใส่ความหมายภาษาไทยก่อนบันทึก' : undefined}
+            inputRef={dInputRef}
+            disabled={busy}
+          />
           <Field label="P" value={p} onChange={setP} placeholder="คำอ่าน / pronunciation" disabled={busy} />
           <Field
             label="E"
@@ -293,12 +345,26 @@ export function CustomTermCreateFlow({
               )}
             </View>
           ) : (
-            <Field label="Deck" value={newDeckTitle} onChange={setNewDeckTitle} placeholder="ชื่อ deck ใหม่" required disabled={busy} />
+            <Field
+              label="Deck"
+              value={newDeckTitle}
+              onChange={(value) => {
+                setNewDeckTitle(value);
+                setStatus('');
+              }}
+              onBlur={() => setTouched((current) => ({ ...current, deck: true }))}
+              placeholder="ชื่อ deck ใหม่"
+              required
+              error={showDeckError ? 'ต้องใส่ชื่อ deck ใหม่ก่อนบันทึก' : undefined}
+              inputRef={deckInputRef}
+              disabled={busy}
+            />
           )}
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+        <RequirementSummary items={requirementItems} showMissing={submitAttempted} />
         {latestCreated ? (
           <Pressable
             onPress={() => onOpenCreated(latestCreated)}
@@ -315,13 +381,13 @@ export function CustomTermCreateFlow({
         ) : null}
         <Pressable
           onPress={() => void save()}
-          disabled={!canSave}
+          disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="บันทึกคำ"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: Accent.base, opacity: canSave ? 1 : 0.45 },
-            pressed && canSave && { opacity: 0.78 },
+            { backgroundColor: Accent.base, opacity: canSave ? 1 : 0.62 },
+            pressed && !busy && { opacity: 0.78 },
           ]}>
           <FiPlus size={16} color="#ffffff" />
           <ThemedText type="defaultSemiBold" style={styles.primaryText}>
@@ -348,6 +414,66 @@ function upsertDeck(decks: Deck[], next: Deck) {
   const copy = [...decks];
   copy[index] = next;
   return copy;
+}
+
+function nextMissingMessage({
+  missingT,
+  missingD,
+  missingDeck,
+}: {
+  missingT: boolean;
+  missingD: boolean;
+  missingDeck: boolean;
+}) {
+  const missing = [
+    missingT ? 'T' : '',
+    missingD ? 'D' : '',
+    missingDeck ? 'deck' : '',
+  ].filter(Boolean);
+  return missing.length > 0
+    ? `กรอก ${missing.join(' / ')} ก่อนบันทึก`
+    : 'กรอกช่องที่จำเป็นก่อนบันทึก';
+}
+
+function RequirementSummary({
+  items,
+  showMissing,
+}: {
+  items: { key: string; label: string; done: boolean }[];
+  showMissing: boolean;
+}) {
+  const colors = useThemePalette();
+  const remaining = items.filter((item) => !item.done).length;
+  return (
+    <View style={[styles.requirementSummary, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+      <View style={styles.requirementHeader}>
+        <ThemedText type="smallBold">ต้องมีก่อนบันทึก</ThemedText>
+        <ThemedText type="small" themeColor={remaining === 0 ? undefined : 'textSecondary'} style={remaining === 0 ? { color: Accent.base } : undefined}>
+          {remaining === 0 ? 'ครบแล้ว' : `เหลือ ${remaining}`}
+        </ThemedText>
+      </View>
+      <View style={styles.requirementChips}>
+        {items.map((item) => {
+          const missing = !item.done;
+          const color = item.done ? Accent.base : showMissing ? Accent.strong : colors.textHint;
+          return (
+            <View
+              key={item.key}
+              style={[
+                styles.requirementChip,
+                {
+                  borderColor: item.done ? Accent.soft : showMissing && missing ? Accent.strong : colors.border,
+                  backgroundColor: item.done ? Accent.bg : showMissing && missing ? 'rgba(192, 24, 37, 0.08)' : colors.background,
+                },
+              ]}>
+              {item.done ? <FiCheck size={12} color={Accent.base} /> : <View style={[styles.requirementDot, { borderColor: color }]} />}
+              <ThemedText type="smallBold" style={{ color }}>{item.label}</ThemedText>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 function GuideLine({ code, note }: { code: string; note: string }) {
@@ -411,6 +537,7 @@ function EFullEditor({
                 onBlur={() => setFocused(false)}
                 style={[
                   styles.editorInput,
+                  Platform.OS === 'web' ? styles.editorInputWeb : null,
                   { color: colors.text },
                   Platform.OS === 'web' ? (getEditorTextInputWebStyle() as any) : null,
                 ]}
@@ -504,6 +631,7 @@ function Field({
   label,
   value,
   onChange,
+  onBlur,
   placeholder,
   required,
   multiline,
@@ -511,10 +639,13 @@ function Field({
   actionLabel,
   onAction,
   minInputHeight,
+  error,
+  inputRef,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   placeholder: string;
   required?: boolean;
   multiline?: boolean;
@@ -522,14 +653,17 @@ function Field({
   actionLabel?: string;
   onAction?: () => void;
   minInputHeight?: number;
+  error?: string;
+  inputRef?: RefObject<TextInput | null>;
 }) {
   const colors = useThemePalette();
   const [focused, setFocused] = useState(false);
+  const hasError = Boolean(error);
   return (
     <View style={styles.field}>
       <View style={styles.fieldHead}>
-        <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>
-          {label}{required ? ' · REQUIRED' : ''}
+        <ThemedText style={[styles.fieldLabel, { color: hasError ? Accent.strong : colors.textHint }]}>
+          {label}{required ? ' · จำเป็น' : ''}
         </ThemedText>
         {actionLabel && onAction ? (
           <Pressable
@@ -549,9 +683,11 @@ function Field({
           multiline && styles.inputShellMultiline,
           typeof minInputHeight === 'number' ? { minHeight: minInputHeight } : null,
           getEditorInputShellStyle({ colors, focused, disabled }),
+          hasError && styles.inputShellError,
           focused && styles.inputShellFocused,
         ]}>
         <TextInput
+          ref={inputRef}
           value={value}
           editable={!disabled}
           onChangeText={onChange}
@@ -559,18 +695,24 @@ function Field({
           placeholderTextColor={colors.textHint}
           multiline={multiline}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false);
+            onBlur?.();
+          }}
           autoCapitalize="none"
           autoCorrect={false}
+          accessibilityState={hasError ? { invalid: true } as any : undefined}
           style={[
             styles.input,
             multiline && styles.inputMultiline,
+            multiline && Platform.OS === 'web' ? styles.inputMultilineWeb : null,
             typeof minInputHeight === 'number' ? { minHeight: Math.max(40, minInputHeight - 16) } : null,
             { color: colors.text },
             Platform.OS === 'web' ? (getEditorTextInputWebStyle() as any) : null,
           ]}
         />
       </View>
+      {error ? <ThemedText type="smallBold" style={styles.fieldError}>{error}</ThemedText> : null}
     </View>
   );
 }
@@ -671,6 +813,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
+  fieldError: {
+    color: Accent.strong,
+  },
   inputShell: {
     minHeight: 44,
     borderWidth: 1,
@@ -686,6 +831,11 @@ const styles = StyleSheet.create({
   inputShellFocused: {
     ...(Platform.OS === 'web' ? ({ boxShadow: '0 0 0 3px rgba(224, 32, 44, 0.14)' } as any) : null),
   },
+  inputShellError: {
+    borderColor: Accent.strong,
+    backgroundColor: 'rgba(192, 24, 37, 0.05)',
+    ...(Platform.OS === 'web' ? ({ boxShadow: '0 0 0 3px rgba(192, 24, 37, 0.11)' } as any) : null),
+  },
   input: {
     minHeight: 40,
     paddingVertical: 0,
@@ -697,6 +847,11 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: Spacing.one,
   },
+  inputMultilineWeb: {
+    paddingRight: 34,
+    scrollbarGutter: 'stable',
+    overflowY: 'auto',
+  } as any,
   markdownHelp: {
     borderWidth: 1,
     borderRadius: Radii.sm,
@@ -752,6 +907,38 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     padding: Spacing.four,
     gap: Spacing.two,
+  },
+  requirementSummary: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  requirementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  requirementChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  requirementChip: {
+    minHeight: 28,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  requirementDot: {
+    width: 10,
+    height: 10,
+    borderWidth: 1,
+    borderRadius: 5,
   },
   savedAction: {
     minHeight: 38,
@@ -838,6 +1025,11 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
   },
+  editorInputWeb: {
+    paddingRight: 34,
+    scrollbarGutter: 'stable',
+    overflowY: 'auto',
+  } as any,
   editorFooter: {
     borderTopWidth: StyleSheet.hairlineWidth,
     padding: Spacing.four,

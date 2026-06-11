@@ -673,6 +673,7 @@ function Toolbar({
                 borderColor: subsOnly ? Accent.base : colors.border,
                 backgroundColor: subsOnly ? Accent.bg : 'transparent',
               },
+              isCompact && styles.scopeBtnCompact,
             ]}>
             <View style={styles.toolBtnContent}>
               <ThemedText type="small" style={{ color: subsOnly ? Accent.base : colors.textSecondary }}>
@@ -683,7 +684,7 @@ function Toolbar({
           <ScaleButton
             onPress={onExpandAll}
             accessibilityLabel={subsOnly ? 'Expand groups' : 'Expand all'}
-            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            style={[styles.toolBtn, isCompact && styles.toolBtnCompact, { borderColor: colors.border }]}>
             <View style={styles.toolBtnContent}>
               <ExpandIcon size={14} color={colors.text} />
               <ThemedText type="small" themeColor="textSecondary">{expandLabel}</ThemedText>
@@ -692,7 +693,7 @@ function Toolbar({
           <ScaleButton
             onPress={onCollapseAll}
             accessibilityLabel={subsOnly ? 'Collapse groups' : 'Collapse all'}
-            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            style={[styles.toolBtn, isCompact && styles.toolBtnCompact, { borderColor: colors.border }]}>
             <View style={styles.toolBtnContent}>
               <CollapseIcon size={14} color={colors.text} />
               <ThemedText type="small" themeColor="textSecondary">{collapseLabel}</ThemedText>
@@ -701,7 +702,7 @@ function Toolbar({
           <ScaleButton
             onPress={onOpenLibraryActions}
             accessibilityLabel="เปิด Import / Export"
-            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            style={[styles.toolBtn, isCompact && styles.toolBtnCompact, { borderColor: colors.border }]}>
             <View style={styles.toolBtnContent}>
               <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
@@ -711,7 +712,7 @@ function Toolbar({
             <ScaleButton
               onPress={onOpenCustomTermCreate}
               accessibilityLabel="เพิ่มคำใหม่"
-              style={[styles.toolBtn, { borderColor: colors.border }]}>
+              style={[styles.toolBtn, isCompact && styles.toolBtnCompact, { borderColor: colors.border }]}>
               <View style={styles.toolBtnContent}>
                 <FiEdit3 size={14} color={Accent.base} />
                 <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'คำ' : 'เพิ่มคำ'}</ThemedText>
@@ -724,7 +725,7 @@ function Toolbar({
             <ScaleButton
               onPress={openSortMenu}
               accessibilityLabel={`Sort Library: ${sortLabel}`}
-              style={[styles.toolBtn, styles.sortToolBtn, { borderColor: colors.border }]}>
+              style={[styles.toolBtn, styles.sortToolBtn, isCompact && styles.toolBtnCompact, { borderColor: colors.border }]}>
               <View style={styles.toolBtnContent}>
                 <FiSliders size={14} color={colors.text} />
               </View>
@@ -737,6 +738,7 @@ function Toolbar({
             style={[
               styles.toolBtn,
               styles.sortToolBtn,
+              isCompact && styles.toolBtnCompact,
               {
                 borderColor: colors.border,
                 opacity: sortMode === 'default' ? 0.42 : 1,
@@ -1868,13 +1870,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   toolBtn: {
-    minHeight: 36,
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: 8,
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
     borderWidth: 1,
+  },
+  toolBtnCompact: {
+    paddingHorizontal: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   toolBtnContent: {
     flexDirection: 'row',
@@ -1883,7 +1889,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sortToolBtn: {
-    minWidth: 38,
+    minWidth: 44,
   },
   sortOverlayRoot: {
     flex: 1,
@@ -1907,14 +1913,19 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(127, 127, 127, 0.22)',
   },
   scopeBtn: {
-    minHeight: 36,
+    minHeight: 44,
     minWidth: 82,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: 8,
     paddingHorizontal: Spacing.three,
     borderRadius: Radii.sm,
     borderWidth: 1,
+  },
+  scopeBtnCompact: {
+    minWidth: 70,
+    paddingHorizontal: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   listContent: {
     paddingHorizontal: Spacing.four,

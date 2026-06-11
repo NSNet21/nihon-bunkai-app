@@ -1,5 +1,5 @@
 import { startTransition, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FiCheck, FiX } from 'react-icons/fi';
 
 import { ThemedText } from './themed-text';
@@ -14,6 +14,11 @@ const SEGMENTS: Segment[] = [
   { value: 'light',  glyph: '☀', label: 'สว่าง' },
   { value: 'dark',   glyph: '☾', label: 'มืด' },
 ];
+
+const SETTINGS_ACTION_SURFACE = Platform.select({
+  web: 'var(--settings-action-surface)',
+  default: undefined,
+});
 
 /**
  * Theme selector — settings-row trigger + modal popup (3 options).
@@ -30,6 +35,7 @@ export function ThemeToggle() {
   const { override, setOverride } = useThemeActions();
   const { scheme: effective, colors } = useThemeColors();
   const [open, setOpen] = useState(false);
+  const actionSurface = SETTINGS_ACTION_SURFACE ?? colors.surface3;
 
   /* Apply theme as a non-urgent transition — modal close + click feedback
      paint first, then the ~1000-node cascade re-renders in the next chunk.
@@ -55,7 +61,7 @@ export function ThemeToggle() {
         accessibilityLabel={`เปลี่ยนธีม · ตอนนี้คือ ${current.label}`}
         style={({ pressed }) => [
           styles.trigger,
-          { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+          { borderColor: actionSurface, backgroundColor: actionSurface },
           pressed && { opacity: 0.85 },
         ]}>
         <Text style={[styles.triggerGlyph, { color: colors.text }]}>{current.glyph}</Text>
@@ -100,8 +106,8 @@ export function ThemeToggle() {
                     style={({ pressed }) => [
                       popupStyles.row,
                       {
-                        borderColor: colors.border,
-                        backgroundColor: active ? Accent.bg : 'transparent',
+                        borderColor: active ? Accent.bg : actionSurface,
+                        backgroundColor: active ? Accent.bg : actionSurface,
                       },
                       pressed && !active && { opacity: 0.85 },
                     ]}>

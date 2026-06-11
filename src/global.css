@@ -52,6 +52,7 @@
   --scrollbar-thumb:       rgba(224, 32, 44, 0.85);
   --scrollbar-thumb-hover: rgba(192, 24, 37, 1);
   --scrollbar-track:       var(--surface-2);
+  --settings-action-surface: var(--surface-2);
 }
 
 /* Editorial scrollbar — crimson accent stripe, sharp edges (no radius).
@@ -139,6 +140,7 @@ html[data-library-actions-modal="open"] [data-scroll="library-modal"]::-webkit-s
   --scrollbar-thumb:       rgba(224, 32, 44, 0.45);
   --scrollbar-thumb-hover: rgba(224, 32, 44, 0.7);
   --scrollbar-track:       var(--surface-2);
+  --settings-action-surface: var(--surface-3);
 }
 
 /* FlashList sticky-header wrappers — search list

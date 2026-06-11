@@ -27,6 +27,14 @@ import { SUPPORT_EMAIL, buildSupportMailto, type SupportIssue } from '@/lib/supp
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 
 const SCROLL_TOP_THRESHOLD = 400;
+const SETTINGS_ACTION_SURFACE = Platform.select({
+  web: 'var(--settings-action-surface)',
+  default: undefined,
+});
+
+function getSettingsActionSurface(colors: typeof Colors.light) {
+  return SETTINGS_ACTION_SURFACE ?? colors.surface3;
+}
 
 export default function SettingsScreen() {
   const params = useLocalSearchParams<{ scrollTop?: string }>();
@@ -73,7 +81,7 @@ export default function SettingsScreen() {
           <View style={styles.header}>
             <ThemedText type="title">Settings</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Account · Theme · About
+              บัญชี · ธีม · การ์ด · ความปลอดภัย
             </ThemedText>
           </View>
 
@@ -128,7 +136,7 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              HOW TO IMPORT
+              นำเข้า · IMPORT
             </ThemedText>
             <ImportExportHelp onOpenHowTo={() => setImportHowToVisible(true)} />
           </View>
@@ -167,7 +175,7 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              SUPPORT
+              ช่วยเหลือ · SUPPORT
             </ThemedText>
             <SupportSection userEmail={user?.email} />
           </View>
@@ -181,7 +189,7 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              ABOUT
+              เกี่ยวกับ · ABOUT
             </ThemedText>
             <ThemedView type="backgroundElement" style={styles.aboutCard}>
               <ThemedText type="defaultSemiBold">Nihon Bunkai · Companion App</ThemedText>
@@ -217,7 +225,7 @@ export default function SettingsScreen() {
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.modalTitleRow}>
                   <View style={styles.modalTitlePip} />
-                  <ThemedText type="defaultSemiBold">How to import</ThemedText>
+                  <ThemedText type="defaultSemiBold">วิธีนำเข้า</ThemedText>
                 </View>
                 <ThemedText type="small" themeColor="textSecondary">
                   เตรียมไฟล์ CSV/ZIP แล้วนำเข้า Library โดยตรง
@@ -248,6 +256,7 @@ export default function SettingsScreen() {
 
 function CardMetaToggle() {
   const colors = useThemePalette();
+  const actionSurface = getSettingsActionSurface(colors);
   const [showMeta, setShowMeta] = usePersistedState<boolean>('show-card-meta', true);
   const Icon = showMeta ? FiCheckSquare : FiSquare;
   const iconColor = showMeta ? Accent.base : colors.text;
@@ -259,12 +268,12 @@ function CardMetaToggle() {
       accessibilityLabel="แสดง Badge ที่มุมบนซ้ายของการ์ด"
       style={({ pressed }) => [
         styles.cardMetaRow,
-        { borderColor: colors.border, backgroundColor: showMeta ? Accent.bg : 'transparent' },
+        { borderColor: actionSurface, backgroundColor: actionSurface },
         pressed && { opacity: 0.85 },
       ]}>
       <Icon size={22} color={iconColor} strokeWidth={2} />
       <View style={{ flex: 1, gap: 2 }}>
-        <ThemedText type="defaultSemiBold">Badge บนการ์ด</ThemedText>
+        <ThemedText type="defaultSemiBold">ป้ายบนการ์ด</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           ป้ายมุมบนซ้าย แสดงลำดับการ์ดและชื่อ deck
         </ThemedText>
@@ -282,6 +291,7 @@ function CardMetaToggle() {
  *  CardMetaToggle for visual consistency. */
 function AutoSyncToggle() {
   const colors = useThemePalette();
+  const actionSurface = getSettingsActionSurface(colors);
   const [enabled, setEnabled] = usePersistedState<boolean>('auto-sync', true);
   const Icon = enabled ? FiCheckSquare : FiSquare;
   const iconColor = enabled ? Accent.base : colors.text;
@@ -293,7 +303,7 @@ function AutoSyncToggle() {
       accessibilityLabel="ซิงค์ความคืบหน้าและสถิติไปยังคลาวด์อัตโนมัติ"
       style={({ pressed }) => [
         styles.cardMetaRow,
-        { borderColor: colors.border, backgroundColor: enabled ? Accent.bg : 'transparent' },
+        { borderColor: actionSurface, backgroundColor: actionSurface },
         pressed && { opacity: 0.85 },
       ]}>
       <Icon size={22} color={iconColor} strokeWidth={2} />
@@ -314,6 +324,7 @@ function AutoSyncToggle() {
 
 function ImportExportHelp({ onOpenHowTo }: { onOpenHowTo: () => void }) {
   const colors = useThemePalette();
+  const actionSurface = getSettingsActionSurface(colors);
   return (
     <ThemedView type="backgroundElement" style={styles.aboutCard}>
       <Pressable
@@ -324,12 +335,12 @@ function ImportExportHelp({ onOpenHowTo }: { onOpenHowTo: () => void }) {
         accessibilityLabel="เปิดวิธีเตรียม CSV เพื่อนำเข้า"
         style={({ pressed }) => [
           styles.howToHelpRow,
-          { borderColor: colors.border, backgroundColor: colors.background },
+          { borderColor: colors.border, backgroundColor: actionSurface },
           pressed && { opacity: 0.82 },
         ]}>
         <FiHelpCircle size={18} color={Accent.base} />
         <View style={{ flex: 1, gap: 2 }}>
-          <ThemedText type="defaultSemiBold">How to import</ThemedText>
+          <ThemedText type="defaultSemiBold">วิธีนำเข้า</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             เตรียม CSV/ZIP จาก Sheets หรือ Excel แล้วนำเข้า Library
           </ThemedText>
@@ -354,6 +365,7 @@ function CardColumnsRow({
   storageKey: 'visibility' | 'visibility-learn';
 }) {
   const colors = useThemePalette();
+  const actionSurface = getSettingsActionSurface(colors);
   const [vis] = usePersistedState<ColumnVisibility>(
     storageKey,
     { t: true, pf: true, pb: true, d: true, e: true },
@@ -383,7 +395,7 @@ function CardColumnsRow({
         accessibilityLabel={`ตั้งค่าคอลัมน์ที่แสดงบนการ์ด · ${title}`}
         style={({ pressed }) => [
           styles.cardMetaRow,
-          { borderColor: colors.border },
+          { borderColor: actionSurface, backgroundColor: actionSurface },
           pressed && { opacity: 0.85 },
         ]}>
         <View style={{ flex: 1, gap: 2 }}>
@@ -510,6 +522,7 @@ function ColumnRow({
 }) {
   const Icon = checked ? FiCheckSquare : FiSquare;
   const iconColor = locked ? colors.textHint : checked ? Accent.base : colors.text;
+  const actionSurface = getSettingsActionSurface(colors);
   return (
     <Pressable
       onPress={onPress}
@@ -520,12 +533,10 @@ function ColumnRow({
       style={({ pressed }) => [
         columnsStyles.row,
         {
-          borderColor: colors.border,
+          borderColor: locked ? colors.surface2 : actionSurface,
           backgroundColor: locked
-            ? colors.backgroundSelected
-            : checked
-              ? Accent.bg
-              : 'transparent',
+            ? colors.surface2
+            : actionSurface,
         },
         pressed && !locked && { opacity: 0.85 },
         locked && { opacity: 0.85 },
@@ -588,6 +599,7 @@ const LANG_PILL_TRANSITION = Platform.select({
  *  feel is consistent across settings. */
 function LanguageToggle() {
   const colors = useThemePalette();
+  const actionSurface = getSettingsActionSurface(colors);
   const [lang, setLang] = usePersistedState<Lang>('lang', 'th');
 
   /* Clamp index — corrupt persisted lang would return -1 and translate
@@ -600,7 +612,7 @@ function LanguageToggle() {
       <View
         style={[
           langStyles.track,
-          { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+          { borderColor: actionSurface, backgroundColor: actionSurface },
         ]}>
         {/* Pill slides via CSS transition (web) — compositor-thread
             animation that browser cancels/restarts smoothly on rapid
@@ -810,6 +822,7 @@ const restoreStyles = StyleSheet.create({
  *  how purchase restoration works. Self-serve delete is P1 backlog. */
 function PrivacySection({ userEmail }: { userEmail?: string }) {
   const colors = useThemePalette();
+  const actionSurface = getSettingsActionSurface(colors);
 
   function onRequestDeletion() {
     const subject = encodeURIComponent('[Account Deletion Request]');
@@ -842,7 +855,7 @@ function PrivacySection({ userEmail }: { userEmail?: string }) {
         accessibilityLabel="ขอลบบัญชีและข้อมูล"
         style={({ pressed }) => [
           privacyStyles.linkRow,
-          { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+          { borderColor: actionSurface, backgroundColor: actionSurface },
           pressed && { opacity: 0.85 },
         ]}>
         <View style={{ flex: 1, gap: 2 }}>
@@ -1175,6 +1188,7 @@ function SupportLinkRow({
   onPress: () => void;
 }) {
   const Icon = icon === 'mail' ? FiMail : icon === 'package' ? FiPackage : FiShield;
+  const actionSurface = getSettingsActionSurface(colors);
   return (
     <Pressable
       onPress={onPress}
@@ -1182,7 +1196,7 @@ function SupportLinkRow({
       accessibilityLabel={`ติดต่อ support เรื่อง ${title}`}
       style={({ pressed }) => [
         safetyStyles.supportRow,
-        { borderColor: colors.border, backgroundColor: colors.background },
+        { borderColor: actionSurface, backgroundColor: actionSurface },
         pressed && { opacity: 0.85 },
       ]}>
       <Icon size={16} color={Accent.base} />

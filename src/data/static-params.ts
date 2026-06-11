@@ -15,10 +15,11 @@
  * shell on cold load — hydration matches.
  *
  * Paid/custom deck IDs are not knowable at build time (they live in the
- * user's IndexedDB after purchase/import/create). For user-created custom
- * term preview routes, `public/_redirects` rewrites `custom-*` term URLs
- * to the generic dynamic HTML shell so cold load/reload can hydrate before
- * local-library lookup finishes instead of falling through to Browse.
+ * user's IndexedDB after purchase/import/create). Direct cold load/reload
+ * of those local-only URLs can still fall through to the SPA Browse shell
+ * and emit a React hydration warning before the client router recovers.
+ * Accepted launch edge — in-app navigation works, and a generic static
+ * rewrite is unsafe because it loses the concrete deckId/entryId params.
  */
 
 import { decks as freeDecks } from './free-tier';

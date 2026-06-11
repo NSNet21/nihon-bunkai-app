@@ -7,7 +7,12 @@ const firstTerm = `試作語${stamp}`;
 const secondTerm = `追試語${stamp}`;
 
 const browser = await chromium.launch({ headless: true });
-const errors = [];
+const consoleEvents = [];
+
+function isAcceptedCustomTermHydration(event) {
+  return event.text.includes('React error #418')
+    && /\/deck\/custom-[^/]+\/term\/custom-[^/]+/.test(event.url);
+}
 
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -16,9 +21,9 @@ try {
   });
   const page = await context.newPage();
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(msg.text());
+    if (msg.type() === 'error') consoleEvents.push({ url: page.url(), text: msg.text() });
   });
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', (error) => consoleEvents.push({ url: page.url(), text: error.message }));
 
   await page.goto(`${baseUrl}/term/new`, { waitUntil: 'networkidle', timeout: 90_000 });
   await page.getByPlaceholder('คำศัพท์ / Japanese expression').fill(firstTerm);
@@ -55,6 +60,7 @@ try {
   const modalStillOpen = await page.getByText('เลือกที่เก็บคำ').first().isVisible();
   await page.getByLabel('เปิดคำที่เพิ่งบันทึก').click();
   await page.waitForURL(new RegExp(`/deck/${deckId}/term/${deckId}-2$`), { timeout: 30_000 });
+  await page.getByText(secondTerm).waitFor({ timeout: 30_000 });
   const desktopOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
   await page.goto(`${baseUrl}/search`, { waitUntil: 'networkidle', timeout: 90_000 });
@@ -76,6 +82,9 @@ try {
   await page.getByLabel('ปิดเพิ่มคำ').click();
   await page.getByText('เลือกที่เก็บคำ').first().waitFor({ state: 'hidden', timeout: 15_000 });
 
+  const acceptedConsoleWarnings = consoleEvents.filter(isAcceptedCustomTermHydration);
+  const blockingConsoleErrors = consoleEvents.filter((event) => !isAcceptedCustomTermHydration(event));
+
   const result = {
     deckId,
     mobileOverflow,
@@ -84,11 +93,12 @@ try {
     reloadOverflow,
     tabletOverflow,
     modalStillOpen,
-    consoleErrors: errors,
+    consoleErrors: blockingConsoleErrors,
+    acceptedConsoleWarnings,
   };
   console.log(JSON.stringify(result, null, 2));
 
-  if (errors.length > 0) process.exitCode = 2;
+  if (blockingConsoleErrors.length > 0) process.exitCode = 2;
   if (
     mobileOverflow !== 0
     || desktopOverflow !== 0

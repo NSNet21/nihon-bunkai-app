@@ -36,5 +36,8 @@ export function getEditorInputShellStyle({
 export function getEditorTextInputWebStyle() {
   return {
     outlineStyle: 'none',
+    userSelect: 'text',
+    WebkitUserSelect: 'text',
+    cursor: 'text',
   };
 }

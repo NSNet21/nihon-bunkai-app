@@ -1,0 +1,70 @@
+import { chromium } from 'playwright';
+
+const baseUrl = process.argv[2] ?? 'http://localhost:8097';
+const browser = await chromium.launch({ headless: true });
+const errors = [];
+
+try {
+  const context = await browser.newContext({ viewport: { width: 433, height: 628 } });
+  await context.addInitScript(() => {
+    localStorage.setItem('nb.onboarded', 'true');
+  });
+  const page = await context.newPage();
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text());
+  });
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto(`${baseUrl}/term/new`, { waitUntil: 'networkidle', timeout: 90_000 });
+  const eInput = page.getByPlaceholder('รายละเอียด / markdown');
+  await eInput.fill('### Smoke\n**Label:** ทดลอง\n> reading\n---\nnote');
+  await eInput.selectText();
+  const selection = await eInput.evaluate((node) => ({
+    start: node.selectionStart,
+    end: node.selectionEnd,
+    valueLength: node.value.length,
+    userSelect: getComputedStyle(node).userSelect,
+    cursor: getComputedStyle(node).cursor,
+  }));
+
+  await page.getByLabel('เปิดคู่มือ Markdown สำหรับ E').click();
+  await page.getByText('ตัวอย่างเต็ม').waitFor({ timeout: 15_000 });
+  await page.getByLabel('เขียน E แบบเต็ม').click();
+  await page.getByLabel('ปิด editor E').waitFor({ timeout: 15_000 });
+  const fullEditorInput = page.locator('textarea').last();
+  await fullEditorInput.fill('### Full editor\n**ทดสอบ:** เลือกข้อความได้');
+  await fullEditorInput.selectText();
+  const fullSelection = await fullEditorInput.evaluate((node) => ({
+    start: node.selectionStart,
+    end: node.selectionEnd,
+    valueLength: node.value.length,
+    userSelect: getComputedStyle(node).userSelect,
+    cursor: getComputedStyle(node).cursor,
+  }));
+  await page.getByLabel('ใช้ E นี้').click();
+  const finalValue = await eInput.inputValue();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+  const result = {
+    selection,
+    fullSelection,
+    finalValueIncludesFullEditor: finalValue.includes('Full editor'),
+    overflow,
+    consoleErrors: errors,
+  };
+  console.log(JSON.stringify(result, null, 2));
+
+  if (errors.length > 0) process.exitCode = 2;
+  if (
+    selection.start !== 0
+    || selection.end !== selection.valueLength
+    || fullSelection.start !== 0
+    || fullSelection.end !== fullSelection.valueLength
+    || !finalValue.includes('Full editor')
+    || overflow !== 0
+  ) {
+    process.exitCode = 3;
+  }
+} finally {
+  await browser.close();
+}

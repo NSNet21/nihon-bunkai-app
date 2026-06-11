@@ -30,4 +30,12 @@ describe('editor input focus styling', () => {
       outlineStyle: 'none',
     });
   });
+
+  it('keeps web TextInput text selectable', () => {
+    expect(getEditorTextInputWebStyle()).toMatchObject({
+      userSelect: 'text',
+      WebkitUserSelect: 'text',
+      cursor: 'text',
+    });
+  });
 });

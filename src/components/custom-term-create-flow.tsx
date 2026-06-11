@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiBookOpen, FiCheck, FiFileText, FiFolder, FiHash, FiPlus } from 'react-icons/fi';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { FiBookOpen, FiCheck, FiChevronDown, FiFileText, FiFolder, FiHash, FiMaximize2, FiPlus, FiX } from 'react-icons/fi';
 
 import { ImportDestinationPicker } from '@/components/import-destination-picker';
 import { ThemedText } from '@/components/themed-text';
@@ -46,6 +46,8 @@ export function CustomTermCreateFlow({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
   const [latestCreated, setLatestCreated] = useState<{ deckId: string; entryId: string } | null>(null);
+  const [eEditorOpen, setEEditorOpen] = useState(false);
+  const [markdownGuideOpen, setMarkdownGuideOpen] = useState(false);
 
   const destination = useMemo(
     () => normalizeImportDestination({ group, section }),
@@ -130,16 +132,53 @@ export function CustomTermCreateFlow({
           <Field label="T" value={t} onChange={setT} placeholder="คำศัพท์ / Japanese expression" required disabled={busy} />
           <Field label="D" value={d} onChange={setD} placeholder="ความหมายภาษาไทย" required disabled={busy} />
           <Field label="P" value={p} onChange={setP} placeholder="คำอ่าน / pronunciation" disabled={busy} />
-          <Field label="E" value={e} onChange={setE} placeholder="รายละเอียด / markdown" multiline disabled={busy} />
-          <View style={[styles.markdownHelp, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+          <Field
+            label="E"
+            value={e}
+            onChange={setE}
+            placeholder="รายละเอียด / markdown"
+            multiline
+            disabled={busy}
+            minInputHeight={190}
+            actionLabel="เขียน E แบบเต็ม"
+            onAction={() => setEEditorOpen(true)}
+          />
+          <Pressable
+            onPress={() => setMarkdownGuideOpen((value) => !value)}
+            accessibilityRole="button"
+            accessibilityLabel="เปิดคู่มือ Markdown สำหรับ E"
+            style={({ pressed }) => [
+              styles.markdownHelp,
+              { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+              pressed && { opacity: 0.72 },
+            ]}>
             <FiFileText size={14} color={Accent.base} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <ThemedText type="smallBold">Markdown สั้น ๆ สำหรับ E</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 ### หัวข้อ · **Label:** รายละเอียด · &gt; note / reading · --- แยกช่วง
               </ThemedText>
+              {markdownGuideOpen ? (
+                <View style={styles.markdownGuide}>
+                  <GuideLine code="### วิธีใช้" note="หัวข้อใหญ่ของ note หรือ grammar point" />
+                  <GuideLine code="**ความหมาย:** ..." note="ทำ label ให้เด่น แล้วตามด้วยรายละเอียด" />
+                  <GuideLine code="> よみ / memo" note="ใช้กับ reading, quote, หรือ note สั้น ๆ" />
+                  <GuideLine code="---" note="แบ่งช่วงเนื้อหาให้อ่านง่าย" />
+                  <View style={[styles.markdownExample, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                    <ThemedText type="smallBold" style={{ color: Accent.base }}>ตัวอย่างเต็ม</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      ### ใช้ในประโยค{'\n'}**ความหมาย:** ใช้เมื่ออยากบอกว่าเริ่มทำบางอย่าง{'\n'}&gt; はじめる · เริ่ม{'\n'}---{'\n'}จำคู่กับคำกริยารูปพจนานุกรม
+                    </ThemedText>
+                  </View>
+                </View>
+              ) : null}
             </View>
-          </View>
+            <FiChevronDown
+              size={14}
+              color={colors.textHint}
+              style={{ transform: markdownGuideOpen ? 'rotate(180deg)' : undefined }}
+            />
+          </Pressable>
         </View>
 
         <View style={styles.step}>
@@ -265,7 +304,96 @@ export function CustomTermCreateFlow({
         </Pressable>
         {status ? <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText> : null}
       </View>
+      <EFullEditor
+        visible={eEditorOpen}
+        value={e}
+        disabled={busy}
+        onChange={setE}
+        onClose={() => setEEditorOpen(false)}
+      />
     </View>
+  );
+}
+
+function GuideLine({ code, note }: { code: string; note: string }) {
+  return (
+    <View style={styles.guideLine}>
+      <ThemedText type="smallBold" style={{ color: Accent.base }}>{code}</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">{note}</ThemedText>
+    </View>
+  );
+}
+
+function EFullEditor({
+  visible,
+  value,
+  disabled,
+  onChange,
+  onClose,
+}: {
+  visible: boolean;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onClose: () => void;
+}) {
+  const colors = useThemePalette();
+  const [focused, setFocused] = useState(false);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.editorOverlay}>
+        <View style={[styles.editorPanel, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.editorHeader, { borderBottomColor: colors.border }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ThemedText type="defaultSemiBold">เขียน E แบบเต็ม</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">Markdown note สำหรับ term นี้</ThemedText>
+            </View>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ปิด editor E"
+              style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.6 }]}>
+              <FiX size={18} color={colors.text} />
+            </Pressable>
+          </View>
+          <View style={styles.editorBody}>
+            <View
+              style={[
+                styles.editorInputShell,
+                getEditorInputShellStyle({ colors, focused, disabled }),
+                focused && styles.inputShellFocused,
+              ]}>
+              <TextInput
+                value={value}
+                editable={!disabled}
+                onChangeText={onChange}
+                placeholder={'### หัวข้อ\n**Label:** รายละเอียด\n> note / reading\n---'}
+                placeholderTextColor={colors.textHint}
+                multiline
+                autoCapitalize="none"
+                autoCorrect={false}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                style={[
+                  styles.editorInput,
+                  { color: colors.text },
+                  Platform.OS === 'web' ? (getEditorTextInputWebStyle() as any) : null,
+                ]}
+              />
+            </View>
+          </View>
+          <View style={[styles.editorFooter, { borderTopColor: colors.border }]}>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ใช้ E นี้"
+              style={({ pressed }) => [styles.editorDoneButton, { backgroundColor: Accent.base }, pressed && { opacity: 0.78 }]}>
+              <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>ใช้ E นี้</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -290,6 +418,9 @@ function Field({
   required,
   multiline,
   disabled,
+  actionLabel,
+  onAction,
+  minInputHeight,
 }: {
   label: string;
   value: string;
@@ -298,18 +429,35 @@ function Field({
   required?: boolean;
   multiline?: boolean;
   disabled: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
+  minInputHeight?: number;
 }) {
   const colors = useThemePalette();
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
-      <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>
-        {label}{required ? ' · REQUIRED' : ''}
-      </ThemedText>
+      <View style={styles.fieldHead}>
+        <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>
+          {label}{required ? ' · REQUIRED' : ''}
+        </ThemedText>
+        {actionLabel && onAction ? (
+          <Pressable
+            onPress={onAction}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            style={({ pressed }) => [styles.fieldAction, pressed && { opacity: 0.6 }, disabled && { opacity: 0.45 }]}>
+            <FiMaximize2 size={13} color={Accent.base} />
+            <ThemedText type="smallBold" style={{ color: Accent.base }}>{actionLabel}</ThemedText>
+          </Pressable>
+        ) : null}
+      </View>
       <View
         style={[
           styles.inputShell,
           multiline && styles.inputShellMultiline,
+          typeof minInputHeight === 'number' ? { minHeight: minInputHeight } : null,
           getEditorInputShellStyle({ colors, focused, disabled }),
           focused && styles.inputShellFocused,
         ]}>
@@ -327,6 +475,7 @@ function Field({
           style={[
             styles.input,
             multiline && styles.inputMultiline,
+            typeof minInputHeight === 'number' ? { minHeight: Math.max(40, minInputHeight - 16) } : null,
             { color: colors.text },
             Platform.OS === 'web' ? (getEditorTextInputWebStyle() as any) : null,
           ]}
@@ -414,10 +563,23 @@ const styles = StyleSheet.create({
   field: {
     gap: Spacing.one,
   },
+  fieldHead: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
   fieldLabel: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  fieldAction: {
+    minHeight: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   inputShell: {
     minHeight: 44,
@@ -451,6 +613,19 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     flexDirection: 'row',
     gap: Spacing.two,
+  },
+  markdownGuide: {
+    marginTop: Spacing.three,
+    gap: Spacing.two,
+  },
+  guideLine: {
+    gap: 2,
+  },
+  markdownExample: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+    gap: Spacing.one,
   },
   destinationSummary: {
     borderWidth: 1,
@@ -519,5 +694,61 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     color: '#ffffff',
+  },
+  editorOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.46)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.four,
+  },
+  editorPanel: {
+    width: '100%',
+    maxWidth: 760,
+    maxHeight: '92%',
+    borderWidth: 1,
+    borderTopWidth: 3,
+    borderTopColor: Accent.base,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  editorHeader: {
+    minHeight: 62,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.four,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  iconButton: {
+    padding: Spacing.two,
+  },
+  editorBody: {
+    minHeight: 0,
+    padding: Spacing.four,
+  },
+  editorInputShell: {
+    minHeight: 360,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    padding: Spacing.three,
+  },
+  editorInput: {
+    minHeight: 332,
+    textAlignVertical: 'top',
+    paddingVertical: 0,
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: Platform.select({ web: '"Sarabun", sans-serif', default: undefined }),
+  },
+  editorFooter: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    padding: Spacing.four,
+  },
+  editorDoneButton: {
+    minHeight: 46,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

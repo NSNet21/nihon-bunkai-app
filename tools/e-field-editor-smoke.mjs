@@ -29,6 +29,7 @@ try {
 
   await page.getByLabel('เปิดคู่มือ Markdown สำหรับ E').click();
   await page.getByText('ตัวอย่างเต็ม').waitFor({ timeout: 15_000 });
+  await page.getByText('เข้าใจแล้ว').click({ force: true });
   await page.getByLabel('เขียน E แบบเต็ม').click();
   await page.getByLabel('ปิด editor E').waitFor({ timeout: 15_000 });
   const fullEditorInput = page.locator('textarea').last();

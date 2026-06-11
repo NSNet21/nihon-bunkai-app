@@ -25,6 +25,7 @@ try {
   await page.getByPlaceholder('ความหมายภาษาไทย').fill('คำทดสอบ');
   await page.getByPlaceholder('คำอ่าน / pronunciation').fill('しさくご');
   await page.getByPlaceholder('รายละเอียด / markdown').fill('### Note');
+  await page.getByText('New deck').click();
   await page.getByPlaceholder('ชื่อ deck ใหม่').fill(deckTitle);
   await page.getByRole('button', { name: 'บันทึกคำ' }).click();
   await page.getByLabel('บันทึกคำแล้ว · เปิดดู').waitFor({ timeout: 30_000 });
@@ -38,7 +39,7 @@ try {
   await page.setViewportSize({ width: 1365, height: 768 });
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 90_000 });
   await page.getByLabel('เพิ่มคำใหม่').click();
-  await page.getByText('เลือกที่เก็บคำ').waitFor({ timeout: 15_000 });
+  await page.getByText('เลือกที่เก็บคำ').first().waitFor({ timeout: 15_000 });
   await page.getByPlaceholder('คำศัพท์ / Japanese expression').fill(secondTerm);
   await page.getByPlaceholder('ความหมายภาษาไทย').fill('คำทดสอบต่อ');
   await page.getByPlaceholder('คำอ่าน / pronunciation').fill('ついしご');
@@ -47,7 +48,7 @@ try {
   await page.getByText(deckTitle).click();
   await page.getByRole('button', { name: 'บันทึกคำ' }).click();
   await page.getByLabel('บันทึกคำแล้ว · เปิดดู').waitFor({ timeout: 30_000 });
-  const modalStillOpen = await page.getByText('เลือกที่เก็บคำ').isVisible();
+  const modalStillOpen = await page.getByText('เลือกที่เก็บคำ').first().isVisible();
   await page.getByLabel('เปิดคำที่เพิ่งบันทึก').click();
   await page.waitForURL(new RegExp(`/deck/${deckId}/term/${deckId}-2$`), { timeout: 30_000 });
   const desktopOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

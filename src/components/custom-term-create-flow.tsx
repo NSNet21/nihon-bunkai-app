@@ -1,8 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiBookOpen, FiCheck, FiChevronDown, FiFileText, FiFolder, FiHash, FiMaximize2, FiPlus, FiX } from 'react-icons/fi';
+import { FiBookOpen, FiCheck, FiFileText, FiFolder, FiHash, FiMaximize2, FiPlus, FiX } from 'react-icons/fi';
 
-import { ImportDestinationPicker } from '@/components/import-destination-picker';
+import { CustomTermDestinationPicker } from '@/components/custom-term-destination-picker';
 import { ThemedText } from '@/components/themed-text';
 import { Accent, Radii, Spacing } from '@/constants/theme';
 import { useThemePalette } from '@/context/theme';
@@ -48,6 +48,7 @@ export function CustomTermCreateFlow({
   const [latestCreated, setLatestCreated] = useState<{ deckId: string; entryId: string } | null>(null);
   const [eEditorOpen, setEEditorOpen] = useState(false);
   const [markdownGuideOpen, setMarkdownGuideOpen] = useState(false);
+  const previousDestinationRef = useRef('');
 
   const destination = useMemo(
     () => normalizeImportDestination({ group, section }),
@@ -67,6 +68,31 @@ export function CustomTermCreateFlow({
     ? Boolean(selectedDeckId)
     : newDeckTitle.trim().length > 0;
   const canSave = canSaveTerm && canSaveDeck && !busy;
+
+  useEffect(() => {
+    const key = `${destination.group}\u0000${destination.section}`;
+    const destinationChanged = previousDestinationRef.current !== key;
+    previousDestinationRef.current = key;
+
+    if (destinationChanged) {
+      if (editableDecks.length > 0) {
+        setDeckMode('existing');
+        setSelectedDeckId(editableDecks[0].id);
+      } else {
+        setDeckMode('new');
+        setSelectedDeckId('');
+      }
+      return;
+    }
+
+    if (deckMode === 'existing' && editableDecks.length > 0 && !editableDecks.some((deck) => deck.id === selectedDeckId)) {
+      setSelectedDeckId(editableDecks[0].id);
+    }
+    if (deckMode === 'existing' && editableDecks.length === 0) {
+      setDeckMode('new');
+      setSelectedDeckId('');
+    }
+  }, [deckMode, destination.group, destination.section, editableDecks, selectedDeckId]);
 
   async function save() {
     if (!canSave) {
@@ -144,7 +170,7 @@ export function CustomTermCreateFlow({
             onAction={() => setEEditorOpen(true)}
           />
           <Pressable
-            onPress={() => setMarkdownGuideOpen((value) => !value)}
+            onPress={() => setMarkdownGuideOpen(true)}
             accessibilityRole="button"
             accessibilityLabel="เปิดคู่มือ Markdown สำหรับ E"
             style={({ pressed }) => [
@@ -158,47 +184,21 @@ export function CustomTermCreateFlow({
               <ThemedText type="small" themeColor="textSecondary">
                 ### หัวข้อ · **Label:** รายละเอียด · &gt; note / reading · --- แยกช่วง
               </ThemedText>
-              {markdownGuideOpen ? (
-                <View style={styles.markdownGuide}>
-                  <GuideLine code="### วิธีใช้" note="หัวข้อใหญ่ของ note หรือ grammar point" />
-                  <GuideLine code="**ความหมาย:** ..." note="ทำ label ให้เด่น แล้วตามด้วยรายละเอียด" />
-                  <GuideLine code="> よみ / memo" note="ใช้กับ reading, quote, หรือ note สั้น ๆ" />
-                  <GuideLine code="---" note="แบ่งช่วงเนื้อหาให้อ่านง่าย" />
-                  <View style={[styles.markdownExample, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                    <ThemedText type="smallBold" style={{ color: Accent.base }}>ตัวอย่างเต็ม</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      ### ใช้ในประโยค{'\n'}**ความหมาย:** ใช้เมื่ออยากบอกว่าเริ่มทำบางอย่าง{'\n'}&gt; はじめる · เริ่ม{'\n'}---{'\n'}จำคู่กับคำกริยารูปพจนานุกรม
-                    </ThemedText>
-                  </View>
-                </View>
-              ) : null}
             </View>
-            <FiChevronDown
-              size={14}
-              color={colors.textHint}
-              style={{ transform: markdownGuideOpen ? 'rotate(180deg)' : undefined }}
-            />
+            <FiMaximize2 size={14} color={colors.textHint} />
           </Pressable>
         </View>
 
         <View style={styles.step}>
-          <SectionHeader index="2" title="เก็บไว้ที่ไหน" icon={<FiFolder size={15} color={Accent.base} />} />
-          <View style={[styles.destinationSummary, { borderColor: colors.border, backgroundColor: colors.background }]}>
-            <ThemedText type="smallBold">{destination.group}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">{destination.section}</ThemedText>
-          </View>
-          <ImportDestinationPicker
-            title="เลือกที่เก็บคำ"
-            showBack={false}
+          <SectionHeader index="2" title="เลือกที่เก็บคำ" icon={<FiFolder size={15} color={Accent.base} />} />
+          <CustomTermDestinationPicker
             groups={destinationOptions}
             current={destination}
             busy={busy}
-            onApply={(value) => {
+            onChange={(value) => {
               const normalized = normalizeImportDestination(value);
               setGroup(normalized.group);
               setSection(normalized.section);
-              setSelectedDeckId('');
-              setDeckMode('new');
               setStatus('');
             }}
           />
@@ -311,6 +311,7 @@ export function CustomTermCreateFlow({
         onChange={setE}
         onClose={() => setEEditorOpen(false)}
       />
+      <MarkdownGuideModal visible={markdownGuideOpen} onClose={() => setMarkdownGuideOpen(false)} />
     </View>
   );
 }
@@ -389,6 +390,61 @@ function EFullEditor({
               accessibilityLabel="ใช้ E นี้"
               style={({ pressed }) => [styles.editorDoneButton, { backgroundColor: Accent.base }, pressed && { opacity: 0.78 }]}>
               <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>ใช้ E นี้</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function MarkdownGuideModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const colors = useThemePalette();
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.editorOverlay}>
+        <View style={[styles.guidePanel, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[styles.editorHeader, { borderBottomColor: colors.border }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <ThemedText type="defaultSemiBold">คู่มือ Markdown สำหรับ E</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">ใช้จัด note ให้อ่านง่ายใน Term Preview</ThemedText>
+            </View>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ปิดคู่มือ Markdown"
+              style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.6 }]}>
+              <FiX size={18} color={colors.text} />
+            </Pressable>
+          </View>
+          <ScrollView
+            style={styles.guideBody}
+            contentContainerStyle={styles.guideBodyContent}
+            {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'markdown-guide' } } as any) : null)}>
+            <GuideLine code="### วิธีใช้" note="หัวข้อใหญ่ของ note หรือ grammar point" />
+            <GuideLine code="**ความหมาย:** ..." note="ทำ label ให้เด่น แล้วตามด้วยรายละเอียด" />
+            <GuideLine code="> よみ / memo" note="ใช้กับ reading, quote, หรือ note สั้น ๆ" />
+            <GuideLine code="---" note="แบ่งช่วงเนื้อหาให้อ่านง่าย" />
+            <View style={[styles.markdownExample, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+              <ThemedText type="smallBold" style={{ color: Accent.base }}>ตัวอย่างเต็ม</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                ### ใช้ในประโยค{'\n'}**ความหมาย:** ใช้เมื่ออยากบอกว่าเริ่มทำบางอย่าง{'\n'}&gt; はじめる · เริ่ม{'\n'}---{'\n'}จำคู่กับคำกริยารูปพจนานุกรม
+              </ThemedText>
+            </View>
+          </ScrollView>
+          <View style={[styles.editorFooter, { borderTopColor: colors.border }]}>
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="ปิดคู่มือ Markdown"
+              style={({ pressed }) => [styles.editorDoneButton, { backgroundColor: Accent.base }, pressed && { opacity: 0.78 }]}>
+              <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>เข้าใจแล้ว</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -614,10 +670,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.two,
   },
-  markdownGuide: {
-    marginTop: Spacing.three,
-    gap: Spacing.two,
-  },
   guideLine: {
     gap: 2,
   },
@@ -626,12 +678,6 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     padding: Spacing.three,
     gap: Spacing.one,
-  },
-  destinationSummary: {
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    padding: Spacing.three,
-    gap: 2,
   },
   segmentRow: {
     flexDirection: 'row',
@@ -712,6 +758,16 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     overflow: 'hidden',
   },
+  guidePanel: {
+    width: '100%',
+    maxWidth: 620,
+    maxHeight: '86%',
+    borderWidth: 1,
+    borderTopWidth: 3,
+    borderTopColor: Accent.base,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
   editorHeader: {
     minHeight: 62,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -726,6 +782,13 @@ const styles = StyleSheet.create({
   editorBody: {
     minHeight: 0,
     padding: Spacing.four,
+  },
+  guideBody: {
+    minHeight: 0,
+  },
+  guideBodyContent: {
+    padding: Spacing.four,
+    gap: Spacing.three,
   },
   editorInputShell: {
     minHeight: 360,

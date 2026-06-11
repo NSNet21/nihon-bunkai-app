@@ -4,7 +4,7 @@
  * Payhip = source of truth for prices. Phase 1.4 webhook maps SKU → packs.
  */
 
-export type ProductType = 'starter' | 'vocab-upgrade' | 'pdf' | 'csv' | 'bundle' | 'pdf-bundle' | 'full-bundle' | 'first-edition';
+export type ProductType = 'starter' | 'vocab-upgrade' | 'pdf' | 'csv' | 'bundle' | 'pdf-bundle' | 'full-bundle';
 
 export type Product = {
   slug: string;       // Payhip slug (e.g. 'n4-bundle')
@@ -41,7 +41,6 @@ const PAYHIP_CODES: Record<string, string> = {
   'n1-bundle':     'ut1XH',
   'pdf-bundle':    '4njgv',
   'full-bundle':   'CFv7l',
-  'first-edition': 'AvbVT',
 };
 
 export function buyUrl(slug: string): string {
@@ -120,14 +119,6 @@ export const bundles: Product[] = [
     was: 2089,
     save: 299,
     desc: 'PDF + CSV ทุกระดับ N5–N1 · วงจรเรียนครบ',
-    grantsApp: true,
-  },
-  {
-    slug: 'first-edition',
-    name: 'First Edition',
-    type: 'first-edition',
-    price: 3290,
-    desc: 'Full Bundle + ชุดในอนาคตฟรี + early access + name in credits · LIMITED 75',
     grantsApp: true,
   },
 ];

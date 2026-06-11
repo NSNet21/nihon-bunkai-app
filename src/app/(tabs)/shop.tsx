@@ -261,28 +261,25 @@ export default function ShopScreen() {
               </ThemedText>
               {/* Bundle display ADAPTS to the page viewMode toggle:
                   - LIST mode → vertical stack (1 per row)
-                  - GRID mode → 2+1 layout (PDF + Full on top row, First
-                    Edition full-width on bottom row). Per user spec
-                    2026-05-28: "ก็ version ก่อนๆ มันก็เรียงงี้นะ".
-                  Top-row cards get `fillHeight` so the slot's stretched
-                  height propagates into the card — keeps PDF + Full at
+                  - GRID mode → PDF + Full side-by-side when space allows.
+                  Cards get `fillHeight` so the slot's stretched height
+                  propagates into the card — keeps PDF + Full at
                   matching heights even when PDF's spec-chips wrap to
                   multiple lines. */}
               {effectiveViewMode === 'grid' ? (
                 <View style={styles.bundleGrid}>
                   {bundles.map((p, idx) => {
-                    const isFullWidth = p.slug === 'first-edition';
                     return (
                       <Animated.View
                         key={p.slug}
                         entering={staggerEnter(idx)}
-                        style={isFullWidth ? styles.bundleSlotFull : styles.bundleSlotHalf}>
+                        style={styles.bundleSlotHalf}>
                         <ProductCard
                           product={p}
                           colors={colors}
                           featured={p.slug === 'full-bundle'}
                           viewMode="list"
-                          fillHeight={!isFullWidth}
+                          fillHeight
                         />
                       </Animated.View>
                     );
@@ -562,7 +559,7 @@ function ProductCard({
      spec-chip grid per user preference 2026-05-28. The full Round-5 P1
      bundle differentiation was reverted (cd8b345) but this one piece
      was the part the user actually liked, so it's re-added in isolation
-     (no Featured padding bump, no First Edition serial kicker). */
+     without the Featured padding bump. */
   const isPdfBundle = product.type === 'pdf-bundle';
 
   return (
@@ -1151,12 +1148,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.three,
   },
-  /* Bundles 2+1 grid — PDF + Full Bundle on top row (50/50), First
-     Edition spans the bottom row at full width. Per user spec
-     2026-05-28: this is the "เรียงแบบเดิม" layout the previous shop
-     versions used. flexBasis 48% + minWidth 240 keeps the top pair
-     side-by-side on wide viewports and gracefully wraps to a 1-per-
-     row stack below ~600px. */
+  /* Bundle grid — PDF + Full Bundle side-by-side on wide viewports and
+     gracefully wraps to a 1-per-row stack below ~600px. */
   bundleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1169,11 +1162,6 @@ const styles = StyleSheet.create({
     flexBasis: '48%' as any,
     flexGrow: 1,
     minWidth: 240,
-    alignSelf: 'stretch',
-  },
-  bundleSlotFull: {
-    flexBasis: '100%' as any,
-    width: '100%',
     alignSelf: 'stretch',
   },
   /* PDF Bundle level-spec chips — re-added 2026-05-28 (per user

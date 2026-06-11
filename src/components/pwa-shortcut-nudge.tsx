@@ -80,6 +80,20 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
 
   const isSettings = placement === 'settings';
   const actionLabel = mode === 'prompt' ? 'Pin Web App' : 'Add to Home Screen';
+  const instructionSubtitle = iosLike
+    ? 'Safari keeps web apps through the Share menu.'
+    : 'Use your browser menu to keep this web app close.';
+  const instructionSteps = iosLike
+    ? [
+        'Tap Share in the browser toolbar.',
+        'Choose Add to Home Screen.',
+        'Open Nihon Bunkai from the new icon.',
+      ]
+    : [
+        'Open the browser menu.',
+        'Choose Add to Home Screen.',
+        'Open Nihon Bunkai from the new icon.',
+      ];
 
   const handlePrimary = useCallback(async () => {
     if (mode === 'instructions') {
@@ -180,7 +194,7 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
               <View style={{ flex: 1, gap: 2 }}>
                 <ThemedText type="defaultSemiBold">Add Nihon Bunkai to Home Screen</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Safari keeps web apps through the Share menu.
+                  {instructionSubtitle}
                 </ThemedText>
               </View>
               <Pressable
@@ -193,9 +207,9 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
               </Pressable>
             </View>
             <View style={styles.steps}>
-              <InstructionStep icon="share" label="Tap Share in the browser toolbar." colors={colors} />
-              <InstructionStep icon="plus" label="Choose Add to Home Screen." colors={colors} />
-              <InstructionStep icon="phone" label="Open Nihon Bunkai from the new icon." colors={colors} />
+              <InstructionStep icon="share" label={instructionSteps[0]} colors={colors} />
+              <InstructionStep icon="plus" label={instructionSteps[1]} colors={colors} />
+              <InstructionStep icon="phone" label={instructionSteps[2]} colors={colors} />
             </View>
           </Pressable>
         </Pressable>

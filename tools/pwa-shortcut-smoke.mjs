@@ -49,6 +49,15 @@ async function run() {
     await mobile.addInitScript(setupScript);
 
     await mobile.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+    await mobile.evaluate(() => {
+      window.localStorage.removeItem('nb.pwa-shortcut-nudge-dismissed');
+    });
+    await mobile.getByText('Pin Web App').first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'Add to Home Screen' }).first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'Add to Home Screen' }).first().click();
+    await mobile.getByText('Use your browser menu to keep this web app close.').waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'Close Add to Home Screen guide' }).click();
+
     await dispatchAfterSettle(mobile);
     await mobile.getByText('Pin Web App').first().waitFor({ state: 'visible', timeout: 15000 });
     await mobile.getByRole('button', { name: 'Pin Web App' }).first().waitFor({ state: 'visible', timeout: 15000 });
@@ -87,6 +96,7 @@ async function run() {
     console.log(JSON.stringify({
       baseUrl,
       mobileBrowse: 'ok',
+      mobileFallbackInstructions: 'ok',
       mobileSettings: 'ok',
       iosInstructions: 'ok',
       desktopHidden: true,

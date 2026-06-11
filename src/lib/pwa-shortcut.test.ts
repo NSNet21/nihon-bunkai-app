@@ -15,6 +15,10 @@ describe('getPwaShortcutMode', () => {
     expect(getPwaShortcutMode({ standalone: false, canPromptInstall: false, isIOS: true, isMobileLike: true })).toBe('instructions');
   });
 
+  it('uses home-screen instructions on mobile when the browser does not expose an install prompt', () => {
+    expect(getPwaShortcutMode({ standalone: false, canPromptInstall: false, isIOS: false, isMobileLike: true })).toBe('instructions');
+  });
+
   it('keeps desktop hidden so the app chrome stays quiet', () => {
     expect(getPwaShortcutMode({ standalone: false, canPromptInstall: true, isIOS: false, isMobileLike: false })).toBe('hidden');
   });

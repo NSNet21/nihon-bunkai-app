@@ -16,7 +16,7 @@ export function getPwaShortcutMode({
   if (standalone || !isMobileLike) return 'hidden';
   if (isIOS) return 'instructions';
   if (canPromptInstall) return 'prompt';
-  return 'hidden';
+  return 'instructions';
 }
 
 export function isIOSLikePlatform(navigatorLike: Pick<Navigator, 'userAgent' | 'platform' | 'maxTouchPoints'>): boolean {

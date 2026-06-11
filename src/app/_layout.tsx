@@ -100,6 +100,7 @@ function ThemedRoot() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="group-picker" />
+        <Stack.Screen name="term" />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
       </Stack>
     </NavThemeProvider>

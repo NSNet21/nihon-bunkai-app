@@ -117,6 +117,8 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) 
       <Pressable
         onPress={item.onAction ? runAction : undefined}
         disabled={!item.onAction}
+        accessibilityRole={item.onAction ? 'button' : undefined}
+        accessibilityLabel={item.onAction ? formatToastText(item.message, item.actionLabel) : undefined}
         style={({ pressed }) => [styles.toastTextWrap, pressed && item.onAction && { opacity: 0.72 }]}>
         <ThemedText type="defaultSemiBold" style={styles.toastText}>
           {formatToastText(item.message, item.actionLabel)}

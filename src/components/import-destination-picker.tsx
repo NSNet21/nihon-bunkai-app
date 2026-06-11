@@ -16,13 +16,17 @@ export function ImportDestinationPicker({
   groups,
   current,
   busy,
+  title = 'เลือก import destination',
+  showBack = true,
   onBack,
   onApply,
 }: {
   groups: ImportDestinationGroupOption[];
   current: { group: string; section: string };
   busy: boolean;
-  onBack: () => void;
+  title?: string;
+  showBack?: boolean;
+  onBack?: () => void;
   onApply: (value: { group: string; section: string }) => void;
 }) {
   const colors = useThemePalette();
@@ -117,7 +121,7 @@ export function ImportDestinationPicker({
 
   return (
     <View style={styles.picker}>
-      <PickerHeader title="เลือก import destination" onBack={onBack} />
+      <PickerHeader title={title} showBack={showBack} onBack={onBack} />
       <View style={styles.destinationPickerGrid}>
         <View style={styles.destinationPickerColumn}>
           <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>GROUP</ThemedText>
@@ -277,13 +281,15 @@ export function ImportDestinationPicker({
   );
 }
 
-function PickerHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function PickerHeader({ title, showBack, onBack }: { title: string; showBack: boolean; onBack?: () => void }) {
   return (
     <View style={styles.pickerHeader}>
       <ThemedText type="defaultSemiBold">{title}</ThemedText>
-      <Pressable onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.pickerBackButton, pressed && { opacity: 0.6 }]}>
-        <ThemedText type="small" style={{ color: Accent.base }}>Back</ThemedText>
-      </Pressable>
+      {showBack && onBack ? (
+        <Pressable onPress={onBack} hitSlop={8} style={({ pressed }) => [styles.pickerBackButton, pressed && { opacity: 0.6 }]}>
+          <ThemedText type="small" style={{ color: Accent.base }}>Back</ThemedText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

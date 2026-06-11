@@ -30,6 +30,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { ContinueCard, ReviewContinueCard } from '@/components/continue-card';
+import { CustomTermCreateModal } from '@/components/custom-term-create-modal';
 import { DeckManagementModal } from '@/components/deck-management-modal';
 import { LibraryActionsModal } from '@/components/library-actions-modal';
 import { PressableScale } from '@/components/pressable-scale';
@@ -109,6 +110,7 @@ export default function BrowseScreen() {
   const listRef = useRef<FlashListRef<BrowseRow>>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [libraryActionsOpen, setLibraryActionsOpen] = useState(false);
+  const [customTermCreateOpen, setCustomTermCreateOpen] = useState(false);
   const [browseAction, setBrowseAction] = useState<BrowseActionContext | null>(null);
   const [deckActionDeck, setDeckActionDeck] = useState<Deck | null>(null);
   const [sortMenuAnchor, setSortMenuAnchor] = useState<SortMenuAnchor | null>(null);
@@ -118,6 +120,7 @@ export default function BrowseScreen() {
   const previousLibrarySortRevisionRef = useRef<string | null>(null);
   const [librarySortMotionTick, setLibrarySortMotionTick] = useState(0);
   const colors = useThemePalette();
+  const { width: viewportW } = useWindowDimensions();
   const scrollTopParam = Array.isArray(params.scrollTop) ? params.scrollTop[0] : params.scrollTop;
   const hasHydrated = useHasHydrated();
 
@@ -163,6 +166,7 @@ export default function BrowseScreen() {
     continueReady: continueClusterReady,
     hasContinue: showAnyContinue,
   });
+  const customTermCreateUsesRoute = viewportW < 768;
 
   useFocusEffect(
     useCallback(() => {
@@ -280,6 +284,14 @@ export default function BrowseScreen() {
       return next;
     });
   }, []);
+
+  const openCustomTermCreate = useCallback(() => {
+    if (customTermCreateUsesRoute) {
+      router.push('/term/new' as never);
+      return;
+    }
+    setCustomTermCreateOpen(true);
+  }, [customTermCreateUsesRoute, router]);
 
   const hasGroupSearch = groupSearchHasQuery(groupSearchQuery);
   const filteredDecks = useMemo(
@@ -448,6 +460,7 @@ export default function BrowseScreen() {
                       subsOnly={subsOnly}
                       onToggleSubsOnly={toggleToolbarScope}
                       onOpenLibraryActions={() => setLibraryActionsOpen(true)}
+                      onOpenCustomTermCreate={openCustomTermCreate}
                       sortMode={librarySortMode}
                       sortDirection={librarySortDirection}
                       onChangeSortDirection={setStoredLibrarySortDirection}
@@ -467,6 +480,12 @@ export default function BrowseScreen() {
         decks={decks}
         onClose={() => setLibraryActionsOpen(false)}
         onImported={refresh}
+      />
+      <CustomTermCreateModal
+        visible={customTermCreateOpen}
+        decks={decks}
+        onClose={() => setCustomTermCreateOpen(false)}
+        onCreated={refresh}
       />
       <LibrarySearchModal
         visible={librarySearchOpen}
@@ -545,6 +564,7 @@ function ScaleButton({
           if (disabled) return;
           scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) });
         }}
+        accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         accessibilityState={disabled ? { disabled: true } : undefined}
         style={({ pressed }) => [style, pressed && !disabled && { opacity: 0.85 }]}>
@@ -561,6 +581,7 @@ function Toolbar({
   subsOnly,
   onToggleSubsOnly,
   onOpenLibraryActions,
+  onOpenCustomTermCreate,
   sortMode,
   sortDirection,
   onChangeSortDirection,
@@ -572,6 +593,7 @@ function Toolbar({
   subsOnly: boolean;
   onToggleSubsOnly: () => void;
   onOpenLibraryActions: () => void;
+  onOpenCustomTermCreate: () => void;
   sortMode: LibrarySortMode;
   sortDirection: LibrarySortDirection;
   onChangeSortDirection: (direction: LibrarySortDirection) => void;
@@ -682,6 +704,15 @@ function Toolbar({
             <View style={styles.toolBtnContent}>
               <ThemedText type="small" style={{ color: Accent.base }}>+</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
+            </View>
+          </ScaleButton>
+          <ScaleButton
+            onPress={onOpenCustomTermCreate}
+            accessibilityLabel="เพิ่มคำใหม่"
+            style={[styles.toolBtn, { borderColor: colors.border }]}>
+            <View style={styles.toolBtnContent}>
+              <FiEdit3 size={14} color={Accent.base} />
+              <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'คำ' : 'เพิ่มคำ'}</ThemedText>
             </View>
           </ScaleButton>
         </View>

@@ -6,13 +6,13 @@
  *                          → /                  (SKIP, sets onboarded=true)
  *
  * Persist: writes nb.preferred-level on every tile tap.
- * Default: 'N5'. Locked-soft tiles (N2/N1) still selectable but
- * show a chip — Phase 2 may gate them behind purchase.
+ * Default: 'N5'. This is only a Browse starting preference, not an
+ * ownership or purchase decision.
  */
 
 import { useRouter } from 'expo-router';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { FiArrowRight, FiChevronLeft, FiInfo, FiLock } from 'react-icons/fi';
+import { FiArrowRight, FiChevronLeft, FiInfo } from 'react-icons/fi';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingSteps } from '@/components/onboarding/steps';
@@ -31,14 +31,13 @@ const LEVELS: {
   label: string;
   sub: string;
   th: string;
-  locked?: boolean;
 }[] = [
-  { value: 'N5', kanji: '五', label: 'N5', sub: 'JLPT · BEGINNER',  th: 'รู้ฮิรากานะ + คาตาคานะ' },
-  { value: 'N4', kanji: '四', label: 'N4', sub: 'JLPT · ELEMENTARY', th: 'ผ่าน N5 · 300+ คันจิ' },
-  { value: 'N3', kanji: '三', label: 'N3', sub: 'JLPT · INTERMEDIATE', th: '650+ คันจิ · บทสนทนา' },
-  { value: 'N2', kanji: '二', label: 'N2', sub: 'JLPT · UPPER-INT', th: 'ปลดล็อกทีหลังก็ได้', locked: true },
-  { value: 'N1', kanji: '一', label: 'N1', sub: 'JLPT · ADVANCED',  th: 'ปลดล็อกทีหลังก็ได้', locked: true },
-  { value: 'GLOSSARY', kanji: '辞', label: '辞', sub: 'GLOSSARY · 1,569', th: 'พจนานุกรม · ทุกระดับ' },
+  { value: 'N5', kanji: '五', label: 'N5', sub: 'เริ่มพื้นฐาน', th: 'เหมาะถ้าอยากเริ่มจาก N5 Starter' },
+  { value: 'N4', kanji: '四', label: 'N4', sub: 'ต่อจากพื้นฐาน', th: 'เหมาะถ้าเคยผ่าน N5 มาแล้ว' },
+  { value: 'N3', kanji: '三', label: 'N3', sub: 'อ่าน/ฟังมากขึ้น', th: 'เหมาะถ้าอยากไล่คำและไวยากรณ์กลางทาง' },
+  { value: 'N2', kanji: '二', label: 'N2', sub: 'เตรียมสอบจริงจัง', th: 'เลือกไว้เป็นจุดอ้างอิงได้ แม้ยังไม่ปลดล็อกทุก deck' },
+  { value: 'N1', kanji: '一', label: 'N1', sub: 'ขั้นสูง', th: 'เลือกไว้เป็นจุดอ้างอิงได้ แม้ยังไม่ปลดล็อกทุก deck' },
+  { value: 'GLOSSARY', kanji: '辞', label: '辞', sub: 'ศัพท์ไวยากรณ์', th: 'เหมาะถ้าอยากเปิดดูคำอธิบายประกอบทุกระดับ' },
 ];
 
 export default function LevelScreen() {
@@ -75,7 +74,7 @@ export default function LevelScreen() {
               <FiChevronLeft size={16} color={colors.text} strokeWidth={2} />
             </PressableScale>
             <ThemedText style={[styles.navTitle, { color: colors.text }]}>
-              START<ThemedText style={{ color: Accent.base }}>UP</ThemedText>
+              日本<ThemedText style={{ color: Accent.base }}>分解</ThemedText>
             </ThemedText>
           </View>
           <PressableScale
@@ -103,15 +102,15 @@ export default function LevelScreen() {
             <View style={styles.kickerRow}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
               <ThemedText style={[styles.kicker, { color: colors.textMuted }]}>
-                // PICK YOUR LEVEL · เลือกระดับ
+                // START POINT · จุดเริ่มในคลัง
               </ThemedText>
             </View>
             <ThemedText style={[styles.headline, { color: colors.text }]}>
-              เริ่มจาก{'\n'}
-              <ThemedText style={[styles.headline, { color: Accent.base }]}>ตรงไหน?</ThemedText>
+              เลือก{'\n'}
+              <ThemedText style={[styles.headline, { color: Accent.base }]}>จุดเริ่มต้น.</ThemedText>
             </ThemedText>
             <ThemedText style={[styles.heroSub, { color: colors.textMuted }]}>
-              ไม่แน่ใจ? เริ่ม N5 ได้เสมอ · เปลี่ยนทีหลังได้
+              ใช้เพื่อจัดทางเข้า Browse เท่านั้น เปลี่ยนทีหลังได้ ไม่ผูกกับการซื้อหรือสิทธิ์ปลดล็อก
             </ThemedText>
           </View>
 
@@ -122,15 +121,13 @@ export default function LevelScreen() {
           <View style={styles.grid}>
             {LEVELS.map((lv) => {
               const active = lv.value === level;
-              const disabled = !!lv.locked;
               return (
                 <PressableScale
                   key={lv.value}
-                  onPress={() => { if (!disabled) setLevel(lv.value); }}
-                  disabled={disabled}
+                  onPress={() => setLevel(lv.value)}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active, disabled }}
-                  accessibilityLabel={`เลือกระดับ ${lv.label}${disabled ? ' (ปลดล็อกหลังซื้อ)' : ''}`}
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`เลือกจุดเริ่มต้น ${lv.label}`}
                   style={[
                     styles.tile,
                     {
@@ -142,7 +139,6 @@ export default function LevelScreen() {
                          selection without the stacked fill weight. */
                       backgroundColor: colors.surface,
                     },
-                    disabled && { opacity: 0.55 },
                   ]}>
                   {active && (
                     <ThemedText style={[styles.stateLabel, { color: Accent.base }]}>
@@ -157,38 +153,19 @@ export default function LevelScreen() {
                   </ThemedText>
                   <ThemedText style={[styles.tileSub, { color: colors.textHint }]}>{lv.sub}</ThemedText>
                   <View style={styles.tileFooter}>
-                    {lv.locked ? (
-                      <View style={[styles.lockChip, { borderColor: colors.border }]}>
-                        <FiLock size={9} color={colors.textHint} strokeWidth={2} />
-                        <ThemedText style={[styles.lockLabel, { color: colors.textHint }]}>
-                          LOCKED · ปลดล็อกทีหลัง
-                        </ThemedText>
-                      </View>
-                    ) : (
-                      <ThemedText style={[styles.tileTh, { color: colors.textMuted }]}>{lv.th}</ThemedText>
-                    )}
+                    <ThemedText style={[styles.tileTh, { color: colors.textMuted }]}>{lv.th}</ThemedText>
                   </View>
                 </PressableScale>
               );
             })}
           </View>
 
-          {/* Locked levels notice — paired with the lock chips on N2/N1
-              tiles. Avoids a heavy modal for the same explanation. */}
-          <View style={[styles.tipBox, { borderLeftColor: colors.borderStrong, backgroundColor: colors.surface2 }]}>
-            <FiLock size={11} color={colors.textHint} strokeWidth={2} />
-            <ThemedText style={[styles.tipText, { color: colors.textMuted }]}>
-              <ThemedText style={[styles.tipLabel, { color: colors.text }]}>ปลดล็อก N2 · N1 หลังซื้อชุด</ThemedText>
-              {' · เริ่มจากระดับที่มีได้ก่อน · เปลี่ยนทีหลังได้'}
-            </ThemedText>
-          </View>
-
           {/* Tip */}
           <View style={[styles.tipBox, { borderLeftColor: Accent.base, backgroundColor: colors.surface2 }]}>
             <FiInfo size={12} color={Accent.base} strokeWidth={2} />
             <ThemedText style={[styles.tipText, { color: colors.textMuted }]}>
-              <ThemedText style={[styles.tipLabel, { color: colors.text }]}>TIP · เคล็ดลับ</ThemedText>
-              {' · เลือกระดับที่ต่ำกว่า 1 step เพื่อสะสม streak ในช่วงแรก'}
+              <ThemedText style={[styles.tipLabel, { color: colors.text }]}>คำแนะนำ</ThemedText>
+              {' · ถ้าไม่แน่ใจ ให้เริ่ม N5 ก่อน เพราะ Browse ยังเปิดไปดูระดับอื่นได้ตลอด'}
             </ThemedText>
           </View>
         </ScrollView>
@@ -206,7 +183,7 @@ export default function LevelScreen() {
             accessibilityRole="button"
             accessibilityLabel="ถัดไป"
             style={[styles.ctaPrimary, { backgroundColor: Accent.base }]}>
-            <ThemedText style={styles.ctaLabel}>ถัดไป · CONTINUE</ThemedText>
+            <ThemedText style={styles.ctaLabel}>ถัดไป</ThemedText>
             <FiArrowRight size={16} color="#fff" strokeWidth={2.2} />
           </PressableScale>
         </View>
@@ -352,22 +329,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     fontWeight: '600',
   },
-  lockChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-  },
-  lockLabel: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 0.6,
-  },
-
   tipBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

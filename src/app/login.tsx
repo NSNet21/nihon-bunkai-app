@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { createElement, useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { FiLock, FiMail } from 'react-icons/fi';
+import { FiAlertCircle, FiCheck, FiEye, FiEyeOff, FiLock, FiMail } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -14,10 +14,17 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
+import {
+  getPasswordRequirementState,
+  normalizeLoginEmail,
+  validateLaunchPassword,
+  type PasswordRequirementId,
+} from '@/lib/login-validation';
 import { Accent, Radii, Spacing } from '@/constants/theme';
 
 type Mode = 'magic' | 'password';
 type Phase = 'idle' | 'sending' | 'sent' | 'error';
+type PendingAction = 'magic' | 'signin' | 'signup' | null;
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -26,74 +33,85 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   useEffect(() => {
     if (status === 'signed-in') router.replace('/');
   }, [status, router]);
 
   function validateEmail() {
-    const trimmed = email.trim();
-    if (!trimmed || !/.+@.+\..+/.test(trimmed)) {
-      setErrMsg('กรุณากรอกอีเมลให้ถูกต้อง');
+    const result = normalizeLoginEmail(email);
+    if (!result.ok) {
+      setErrMsg(result.message);
       setPhase('error');
       return null;
     }
-    return trimmed;
+    return result.value;
   }
 
   async function onMagicLink() {
     const trimmed = validateEmail();
     if (!trimmed) return;
     setPhase('sending');
+    setPendingAction('magic');
     setErrMsg(null);
     const { error } = await signInWithMagicLink(trimmed);
     if (error) {
       setErrMsg(error);
       setPhase('error');
+      setPendingAction(null);
       return;
     }
     setPhase('sent');
+    setPendingAction(null);
   }
 
   async function onPasswordSignIn() {
     const trimmed = validateEmail();
     if (!trimmed) return;
-    if (password.length < 6) {
-      setErrMsg('รหัสผ่านต้อง 6 ตัวอักษรขึ้นไป');
+    if (!password.trim()) {
+      setErrMsg('กรุณากรอกรหัสผ่าน');
       setPhase('error');
       return;
     }
     setPhase('sending');
+    setPendingAction('signin');
     setErrMsg(null);
     const { error } = await signInWithPassword(trimmed, password);
     if (error) {
       setErrMsg(error);
       setPhase('error');
     }
+    setPendingAction(null);
   }
 
   async function onPasswordSignUp() {
     const trimmed = validateEmail();
     if (!trimmed) return;
-    if (password.length < 6) {
-      setErrMsg('รหัสผ่านต้อง 6 ตัวอักษรขึ้นไป');
+    const passwordResult = validateLaunchPassword(password);
+    if (!passwordResult.ok) {
+      setErrMsg(passwordResult.message);
       setPhase('error');
       return;
     }
     setPhase('sending');
+    setPendingAction('signup');
     setErrMsg(null);
     const { error, needsEmailConfirm } = await signUpWithPassword(trimmed, password);
     if (error) {
       setErrMsg(error);
       setPhase('error');
+      setPendingAction(null);
       return;
     }
     if (needsEmailConfirm) {
       setErrMsg('สมัครแล้ว · เช็คอีเมลเพื่อยืนยันก่อนเข้าสู่ระบบ');
       setPhase('sent');
     }
+    setPendingAction(null);
   }
 
   return (
@@ -112,7 +130,7 @@ export default function LoginScreen() {
             </ThemedText>
           </View>
 
-          <ModeTabs mode={mode} onChange={(m) => { setMode(m); setPhase('idle'); setErrMsg(null); }} />
+          <ModeTabs mode={mode} onChange={(m) => { setMode(m); setPhase('idle'); setPendingAction(null); setErrMsg(null); }} />
 
           {phase === 'sent' ? (
             <SuccessCard message={errMsg ?? `ส่งลิ้งค์ไปที่ ${email.trim()} แล้ว ✓`} onBack={() => router.replace('/')} />
@@ -122,7 +140,7 @@ export default function LoginScreen() {
                 {/* Email field stays stable across mode swaps so focus + value
                     survive the swipe. Only the mode-specific block (password
                     row, action cluster, fineprint) swipes horizontally. */}
-                <EmailField value={email} onChange={(t) => { setEmail(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} />
+                <EmailField value={email} onChange={(t) => { setEmail(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} invalid={phase === 'error' && !!errMsg && errMsg.includes('อีเมล')} />
 
                 {/* Carousel container — both panels render absolute-positioned
                     inside; each lives at its tab-side "home" position when
@@ -132,27 +150,31 @@ export default function LoginScreen() {
                     being revealed beneath. */}
                 <View style={styles.modePanelContainer}>
                   <ModePanel active={mode === 'password'} side="left">
-                    <PasswordField value={password} onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} />
-                    {errMsg && (
-                      <ThemedText type="small" style={{ color: Accent.base }}>
-                        {errMsg}
-                      </ThemedText>
+                    <PasswordField
+                      value={password}
+                      onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }}
+                      disabled={phase === 'sending'}
+                      invalid={phase === 'error' && !!errMsg && errMsg.includes('รหัสผ่าน')}
+                      visible={passwordVisible}
+                      onToggleVisible={() => setPasswordVisible((v) => !v)}
+                    />
+                    <PasswordRequirements password={password} />
+                    {mode === 'password' && errMsg && (
+                      <StatusMessage tone={phase === 'error' ? 'error' : 'info'} message={errMsg} />
                     )}
                     <View style={styles.passwordActions}>
-                      <PrimaryButton onPress={onPasswordSignIn} disabled={phase === 'sending'} label="เข้าสู่ระบบ" />
-                      <SecondaryButton onPress={onPasswordSignUp} disabled={phase === 'sending'} label="สมัครใหม่" />
+                      <PrimaryButton onPress={onPasswordSignIn} disabled={phase === 'sending'} label={pendingAction === 'signin' ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'} />
+                      <SecondaryButton onPress={onPasswordSignUp} disabled={phase === 'sending'} label={pendingAction === 'signup' ? 'กำลังสมัคร…' : 'สมัครใหม่'} />
                     </View>
                     <ThemedText type="small" themeColor="textHint" style={styles.fineprint}>
                       การสมัคร = ยอมรับเงื่อนไขใน landing page
                     </ThemedText>
                   </ModePanel>
                   <ModePanel active={mode === 'magic'} side="right">
-                    {errMsg && (
-                      <ThemedText type="small" style={{ color: Accent.base }}>
-                        {errMsg}
-                      </ThemedText>
+                    {mode === 'magic' && errMsg && (
+                      <StatusMessage tone={phase === 'error' ? 'error' : 'info'} message={errMsg} />
                     )}
-                    <PrimaryButton onPress={onMagicLink} disabled={phase === 'sending'} label={phase === 'sending' ? 'กำลังส่ง…' : 'ส่งลิ้งค์'} />
+                    <PrimaryButton onPress={onMagicLink} disabled={phase === 'sending'} label={pendingAction === 'magic' ? 'กำลังส่ง…' : 'ส่งลิ้งค์'} />
                     <ThemedText type="small" themeColor="textHint" style={styles.fineprint}>
                       การกดส่งลิ้งค์ = ยอมรับเงื่อนไขใน landing page
                     </ThemedText>
@@ -257,11 +279,28 @@ function ModeTab({ active, onPress, label }: { active: boolean; onPress: () => v
   );
 }
 
-function EmailField({ value, onChange, disabled }: { value: string; onChange: (s: string) => void; disabled?: boolean }) {
+function EmailField({
+  value,
+  onChange,
+  disabled,
+  invalid,
+}: {
+  value: string;
+  onChange: (s: string) => void;
+  disabled?: boolean;
+  invalid?: boolean;
+}) {
   const colors = useThemePalette();
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={[styles.inputWrap, { borderBottomColor: colors.border }]}>
-      <FiMail size={16} color={colors.textSecondary} />
+    <View style={[
+      styles.inputWrap,
+      {
+        borderBottomColor: invalid ? Accent.base : focused ? Accent.base : colors.border,
+        backgroundColor: focused ? Accent.bg : 'transparent',
+      },
+    ]}>
+      <FiMail size={16} color={invalid || focused ? Accent.base : colors.textSecondary} />
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -272,29 +311,125 @@ function EmailField({ value, onChange, disabled }: { value: string; onChange: (s
         autoCorrect={false}
         autoComplete="email"
         editable={!disabled}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        accessibilityLabel="อีเมล"
         style={[styles.input, { color: colors.text }]}
       />
     </View>
   );
 }
 
-function PasswordField({ value, onChange, disabled }: { value: string; onChange: (s: string) => void; disabled?: boolean }) {
+function PasswordField({
+  value,
+  onChange,
+  disabled,
+  invalid,
+  visible,
+  onToggleVisible,
+}: {
+  value: string;
+  onChange: (s: string) => void;
+  disabled?: boolean;
+  invalid?: boolean;
+  visible: boolean;
+  onToggleVisible: () => void;
+}) {
   const colors = useThemePalette();
+  const [focused, setFocused] = useState(false);
+  const RevealIcon = visible ? FiEyeOff : FiEye;
   return (
-    <View style={[styles.inputWrap, { borderBottomColor: colors.border }]}>
-      <FiLock size={16} color={colors.textSecondary} />
+    <View style={[
+      styles.inputWrap,
+      {
+        borderBottomColor: invalid ? Accent.base : focused ? Accent.base : colors.border,
+        backgroundColor: focused ? Accent.bg : 'transparent',
+      },
+    ]}>
+      <FiLock size={16} color={invalid || focused ? Accent.base : colors.textSecondary} />
       <TextInput
         value={value}
         onChangeText={onChange}
-        placeholder="รหัสผ่าน (6+ ตัวอักษร)"
+        placeholder="รหัสผ่าน"
         placeholderTextColor={colors.textHint}
-        secureTextEntry
+        secureTextEntry={!visible}
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete="current-password"
         editable={!disabled}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        accessibilityLabel="รหัสผ่าน"
         style={[styles.input, { color: colors.text }]}
       />
+      <Pressable
+        onPress={onToggleVisible}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={visible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.passwordReveal,
+          pressed && { opacity: 0.7 },
+          disabled && { opacity: 0.5 },
+        ]}>
+        <RevealIcon size={18} color={colors.textSecondary} />
+      </Pressable>
+    </View>
+  );
+}
+
+function PasswordRequirements({ password }: { password: string }) {
+  const colors = useThemePalette();
+  const state = getPasswordRequirementState(password);
+  const items: { id: PasswordRequirementId; label: string }[] = [
+    { id: 'length', label: '8+ ตัวอักษร' },
+    { id: 'letter', label: 'ตัวอักษร' },
+    { id: 'number', label: 'ตัวเลข' },
+    { id: 'special', label: 'สัญลักษณ์' },
+  ];
+
+  return (
+    <View style={styles.requirementsLine} accessibilityLabel="เงื่อนไขรหัสผ่านสำหรับสมัครใหม่">
+      <View style={styles.requirementsHeader}>
+        <FiLock size={13} color={Accent.base} />
+        <ThemedText type="small" themeColor="textSecondary">
+          สมัครใหม่ต้องมี
+        </ThemedText>
+      </View>
+      <View style={styles.requirementList}>
+        {items.map((item) => {
+          const passed = state[item.id];
+          return (
+            <View key={item.id} style={styles.requirementTextItem}>
+              {passed ? (
+                <FiCheck size={12} color={Accent.base} />
+              ) : (
+                <View style={[styles.requirementDot, { borderColor: colors.textHint }]} />
+              )}
+              <ThemedText
+                type="small"
+                themeColor={passed ? undefined : 'textSecondary'}
+                style={passed ? { color: Accent.base } : undefined}>
+                {item.label}
+              </ThemedText>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function StatusMessage({ tone, message }: { tone: 'error' | 'info'; message: string }) {
+  const colors = useThemePalette();
+  const color = tone === 'error' ? Accent.base : colors.textSecondary;
+  return (
+    <View style={[styles.statusMessage, { borderColor: tone === 'error' ? Accent.soft : colors.border, backgroundColor: tone === 'error' ? Accent.bg : colors.backgroundElement }]}>
+      {tone === 'error' ? <FiAlertCircle size={14} color={Accent.base} /> : null}
+      <ThemedText type="small" style={{ color, flex: 1 }}>
+        {message}
+      </ThemedText>
     </View>
   );
 }
@@ -362,15 +497,55 @@ const styles = StyleSheet.create({
   modeTabs: { flexDirection: 'row', gap: Spacing.three },
   modeTab: { flex: 1, paddingVertical: Spacing.three, alignItems: 'center' },
   form: { gap: Spacing.four },
-  /* minHeight reserves space for the taller (password) panel so the
-     back-to-Browse link beneath doesn't jump when swapping to magic
-     mode. 156 = PasswordField(~52) + gap(16) + buttons(~52) + gap(16)
-     + fineprint(~20). errMsg pushes content down briefly but is
-     transient. */
-  modePanelContainer: { position: 'relative', minHeight: 156 },
+  /* minHeight reserves space for password + helper + status + actions
+     so the back-to-Browse link beneath doesn't overlap on compact mobile. */
+  modePanelContainer: { position: 'relative', minHeight: 230, overflow: 'hidden' },
   modePanel: { position: 'absolute', top: 0, left: 0, right: 0, gap: Spacing.four },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderBottomWidth: 1, paddingHorizontal: 0, paddingVertical: Spacing.three },
   input: { flex: 1, fontSize: 16, outlineStyle: 'none' as any },
+  passwordReveal: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radii.sm,
+  },
+  requirementsLine: {
+    gap: Spacing.one,
+    paddingTop: Spacing.one,
+  },
+  requirementsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  requirementList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: Spacing.two,
+    rowGap: Spacing.one,
+  },
+  requirementTextItem: {
+    minHeight: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  requirementDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  statusMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+  },
   passwordActions: { flexDirection: 'row', gap: Spacing.two },
   primaryBtn: { paddingVertical: Spacing.three, paddingHorizontal: Spacing.four, borderRadius: Radii.sm, alignItems: 'center' },
   primaryBtnLabel: { color: '#fff' },

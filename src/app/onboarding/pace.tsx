@@ -1,22 +1,18 @@
 /**
- * Onboarding screen 03 · DAILY PACE
+ * Onboarding screen 03 · READY TO BROWSE
  *
  * Routes: /onboarding/pace → /            (BEGIN, sets nb.onboarded=true)
  *                         → /onboarding/level (BACK)
  *                         → /            (SKIP, sets onboarded=true)
  *
  * Persist:
- *  - nb.daily-goal: 10 | 20 | 30 | 50 (default 20)
- *  - nb.reminder-time: 'HH:MM' (default '20:00')
- *  - nb.reminder-enabled: boolean (default true)
- *
- * Reminder is UI-only at this stage (no actual notification scheduling).
- * Settings will surface the same keys for later edits.
+ *  - Reads nb.preferred-level to echo the user's Browse start point.
+ *  - Writes nb.onboarded=true only when the user enters or skips.
  */
 
 import { useRouter } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { FiChevronLeft, FiPlay } from 'react-icons/fi';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { FiBookOpen, FiChevronLeft, FiEye, FiLayers, FiPlay } from 'react-icons/fi';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingSteps } from '@/components/onboarding/steps';
@@ -27,27 +23,38 @@ import { Accent, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import { useThemePalette } from '@/context/theme';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 
-type Goal = 10 | 20 | 30 | 50;
+type Level = 'N5' | 'N4' | 'N3' | 'N2' | 'N1' | 'GLOSSARY';
 
-const GOALS: { value: Goal; mins: string; desc: string; recommended?: boolean }[] = [
-  { value: 10, mins: '≈ 5 นาที',  desc: 'เริ่มต้นเบาๆ' },
-  { value: 20, mins: '≈ 10 นาที', desc: 'จังหวะมาตรฐาน', recommended: true },
-  { value: 30, mins: '≈ 15 นาที', desc: 'จริงจัง' },
-  { value: 50, mins: '≈ 25 นาที', desc: 'เร่งสอบ' },
+const FLOW = [
+  {
+    icon: FiBookOpen,
+    title: 'Browse',
+    th: 'เริ่มจากคลังคำศัพท์ เลือก level / group / deck ที่อยากดู',
+  },
+  {
+    icon: FiEye,
+    title: 'Term Preview',
+    th: 'เปิดดูคำเดี่ยวก่อนเรียน เพื่อเช็ก T / D / P / E ให้เข้าใจ',
+  },
+  {
+    icon: FiLayers,
+    title: 'Learn',
+    th: 'พร้อมแล้วค่อยเลือก Quiz Card, Multiple Choice หรือ Dictation',
+  },
 ];
 
-const REMINDER_TIMES = ['08:00', '12:00', '18:00', '20:00', '22:00'] as const;
+function formatLevel(level: Level) {
+  return level === 'GLOSSARY' ? 'Glossary' : level;
+}
 
 export default function PaceScreen() {
   const router = useRouter();
   const colors = useThemePalette();
   const insets = useSafeAreaInsets();
-  const [goal, setGoal] = usePersistedState<Goal>('daily-goal', 20);
-  const [reminderTime, setReminderTime] = usePersistedState<string>('reminder-time', '20:00');
-  const [reminderEnabled, setReminderEnabled] = usePersistedState<boolean>('reminder-enabled', true);
+  const [level] = usePersistedState<Level>('preferred-level', 'N5');
   const [, setOnboarded] = usePersistedState<boolean>('onboarded', false);
 
-  function handleBegin() {
+  function enterBrowse() {
     setOnboarded(true);
     router.replace('/');
   }
@@ -55,11 +62,6 @@ export default function PaceScreen() {
   function handleBack() {
     if (router.canGoBack()) router.back();
     else router.replace('/onboarding/level');
-  }
-
-  function handleSkip() {
-    setOnboarded(true);
-    router.replace('/');
   }
 
   return (
@@ -75,15 +77,15 @@ export default function PaceScreen() {
               <FiChevronLeft size={16} color={colors.text} strokeWidth={2} />
             </PressableScale>
             <ThemedText style={[styles.navTitle, { color: colors.text }]}>
-              START<ThemedText style={{ color: Accent.base }}>UP</ThemedText>
+              日本<ThemedText style={{ color: Accent.base }}>分解</ThemedText>
             </ThemedText>
           </View>
           <PressableScale
-            onPress={handleSkip}
+            onPress={enterBrowse}
             accessibilityRole="button"
             accessibilityLabel="ข้าม onboarding"
             style={[styles.skipBtn, { borderColor: colors.border }]}>
-            <ThemedText style={[styles.skipLabel, { color: colors.textMuted }]}>SKIP</ThemedText>
+            <ThemedText style={[styles.skipLabel, { color: colors.textMuted }]}>ข้าม</ThemedText>
           </PressableScale>
         </View>
 
@@ -92,7 +94,7 @@ export default function PaceScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}>
           <ThemedText style={[styles.ghostKanji, { color: colors.textHint }]}>
-            日
+            開
           </ThemedText>
 
           <View style={styles.stepWrap}>
@@ -103,157 +105,43 @@ export default function PaceScreen() {
             <View style={styles.kickerRow}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
               <ThemedText style={[styles.kicker, { color: colors.textMuted }]}>
-                // DAILY PACE · จังหวะรายวัน
+                // READY · เข้า Browse
               </ThemedText>
             </View>
             <ThemedText style={[styles.headline, { color: colors.text }]}>
-              วันละ{'\n'}
-              <ThemedText style={[styles.headline, { color: Accent.base }]}>เท่าไหร่?</ThemedText>
+              พร้อมเปิดคลัง{'\n'}
+              <ThemedText style={[styles.headline, { color: Accent.base }]}>คำศัพท์.</ThemedText>
             </ThemedText>
             <ThemedText style={[styles.heroSub, { color: colors.textMuted }]}>
-              เลือกเป้าหมายที่ทำได้สม่ำเสมอ · ไม่ต้องเยอะ · streak สำคัญกว่าจำนวน
+              จะเริ่มจาก {formatLevel(level)} ก่อนก็ได้ หรือเปิด Browse แล้วไล่ดูทุก deck ที่พร้อมเรียน
             </ThemedText>
           </View>
 
-          {/* Goal grid */}
-          <View style={styles.grid}>
-            {/* Round-5 P2 — once the user picks a non-recommended goal,
-                the RECOMMENDED hint on the suggested tile fades so the
-                user's chosen SELECTED tile owns the eye uncontested
-                (GPT round-4: "เมื่อ selected → recommended ควร fade
-                ลงอีกนิด"). */}
-            {GOALS.map((g) => {
-              const active = g.value === goal;
-              const recommendedGoal = GOALS.find((x) => x.recommended)?.value;
-              const userOverrode = recommendedGoal !== undefined && goal !== recommendedGoal;
+          <View style={styles.flowList}>
+            {FLOW.map((item, index) => {
+              const Icon = item.icon;
               return (
-                <PressableScale
-                  key={g.value}
-                  onPress={() => setGoal(g.value)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`เลือกเป้า ${g.value} ใบต่อวัน`}
-                  style={[
-                    styles.tile,
-                    {
-                      borderColor: active ? Accent.base : colors.border,
-                      /* Round-5 P0 — match Level tile: drop crimson fill
-                         on active, keep border + kanji/label crimson.
-                         Single visual treatment across SELECTED states. */
-                      backgroundColor: colors.surface,
-                    },
-                  ]}>
-                  {/* SELECTED state takes precedence over RECOMMENDED hint —
-                      same corner slot, active selection is more important to
-                      surface than "this is suggested". */}
-                  {active ? (
-                    <ThemedText style={[styles.stateLabel, { color: Accent.base }]}>
-                      SELECTED
+                <View key={item.title} style={[styles.flowRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+                  <View style={styles.flowIndex}>
+                    <ThemedText style={[styles.flowIndexText, { color: Accent.base }]}>
+                      {String(index + 1).padStart(2, '0')}
                     </ThemedText>
-                  ) : g.recommended ? (
-                    <View
-                      style={[
-                        styles.recBadge,
-                        { backgroundColor: Accent.base },
-                        userOverrode && { opacity: 0.5 },
-                      ]}>
-                      <ThemedText style={styles.recBadgeText}>RECOMMENDED</ThemedText>
-                    </View>
-                  ) : null}
-                  <ThemedText style={[styles.tileNum, { color: active ? Accent.base : colors.text }]}>
-                    {g.value}
-                  </ThemedText>
-                  <ThemedText style={[styles.tileUnit, { color: colors.textHint }]}>CARDS / DAY</ThemedText>
-                  <ThemedText style={[styles.tileDesc, { color: colors.textMuted }]}>
-                    {g.mins} · {g.desc}
-                  </ThemedText>
-                </PressableScale>
+                  </View>
+                  <Icon size={17} color={Accent.base} />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <ThemedText style={[styles.flowTitle, { color: colors.text }]}>{item.title}</ThemedText>
+                    <ThemedText style={[styles.flowText, { color: colors.textMuted }]}>{item.th}</ThemedText>
+                  </View>
+                </View>
               );
             })}
           </View>
 
-          {/* Reminder */}
-          <View style={styles.section}>
-            <View style={styles.kickerRow}>
-              <View style={[styles.pip, { backgroundColor: Accent.base }]} />
-              <ThemedText style={[styles.kicker, { color: colors.textMuted }]}>
-                REMINDER · เตือนทุกวัน
-              </ThemedText>
-            </View>
-            {/* Round-5 P1 — utility-surface treatment per GPT round-4:
-                "Reminder block ยัง selection-card · thinner frame ·
-                lower contrast · smaller padding · control panel feel".
-                Hairline border + no bg fill + tighter padding lands it
-                in the configuration layer instead of competing with
-                the goal tiles above. */}
-            <View style={[styles.reminderCard, { borderColor: colors.border }]}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <ThemedText style={[styles.reminderLabel, { color: colors.textHint }]}>REMIND ME AT</ThemedText>
-                <ThemedText style={[styles.reminderClock, { color: Accent.base }]}>{reminderTime}</ThemedText>
-                <ThemedText style={[styles.reminderDesc, { color: colors.textMuted }]}>
-                  {reminderEnabled ? 'เตือนทุกวัน · ปิดได้ใน Settings' : 'ปิดอยู่ · แตะเพื่อเปิด'}
-                </ThemedText>
-              </View>
-              <Pressable
-                onPress={() => setReminderEnabled(!reminderEnabled)}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: reminderEnabled }}
-                accessibilityLabel="เปิด/ปิดการแจ้งเตือน"
-                style={[
-                  styles.toggleTrack,
-                  {
-                    backgroundColor: reminderEnabled ? Accent.base : colors.border,
-                  },
-                ]}>
-                <View
-                  style={[
-                    styles.toggleThumb,
-                    {
-                      backgroundColor: '#fff',
-                      transform: [{ translateX: reminderEnabled ? 22 : 2 }],
-                    },
-                  ]}
-                />
-              </Pressable>
-            </View>
-
-            {/* Time pills — horizontal scroll instead of wrap per
-                round-3 verdict P2: avoids 320px overflow into 2 lines
-                that looked broken; "premium" feel = snap-style pills. */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.timeRow}
-              style={styles.timeScroll}>
-              {REMINDER_TIMES.map((t) => {
-                const active = t === reminderTime;
-                return (
-                  <PressableScale
-                    key={t}
-                    onPress={() => setReminderTime(t)}
-                    disabled={!reminderEnabled}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={`เลือกเวลา ${t}`}
-                    style={[
-                      styles.timePill,
-                      {
-                        borderColor: active ? Accent.base : colors.border,
-                        backgroundColor: active ? Accent.bg : 'transparent',
-                      },
-                      !reminderEnabled && { opacity: 0.4 },
-                    ]}>
-                    <ThemedText
-                      style={[
-                        styles.timeLabel,
-                        { color: active ? Accent.base : colors.textMuted },
-                      ]}>
-                      {t}
-                    </ThemedText>
-                  </PressableScale>
-                );
-              })}
-            </ScrollView>
+          <View style={[styles.noteBox, { borderLeftColor: Accent.base, backgroundColor: colors.surface2 }]}>
+            <ThemedText style={[styles.noteText, { color: colors.textMuted }]}>
+              <ThemedText style={[styles.noteLabel, { color: colors.text }]}>ไม่ต้องตั้งค่าเยอะตอนนี้</ThemedText>
+              {' · เข้า app ก่อน แล้วค่อยปรับการ์ด ธีม และ backup ใน Settings เมื่อจำเป็น'}
+            </ThemedText>
           </View>
         </ScrollView>
 
@@ -266,16 +154,13 @@ export default function PaceScreen() {
             },
           ]}>
           <PressableScale
-            onPress={handleBegin}
+            onPress={enterBrowse}
             accessibilityRole="button"
-            accessibilityLabel="เริ่มเรียน"
+            accessibilityLabel="เข้าคลังคำศัพท์"
             style={[styles.ctaPrimary, { backgroundColor: Accent.base }]}>
             <FiPlay size={14} color="#fff" strokeWidth={2.2} />
-            <ThemedText style={styles.ctaLabel}>เริ่มเรียน · BEGIN</ThemedText>
+            <ThemedText style={styles.ctaLabel}>เข้าคลังคำศัพท์</ThemedText>
           </PressableScale>
-          <ThemedText style={[styles.footerHint, { color: colors.textHint }]}>
-            เปลี่ยนค่าได้ใน SETTINGS ภายหลัง
-          </ThemedText>
         </View>
       </SafeAreaView>
     </ThemedView>
@@ -307,10 +192,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navTitle: {
-    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
+    fontFamily: Platform.select({ web: '"Noto Serif JP", serif', default: undefined }),
     fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 1.5,
+    letterSpacing: 1,
   },
   skipBtn: {
     paddingVertical: Spacing.one,
@@ -319,10 +204,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   skipLabel: {
-    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 1.2,
   },
 
   scroll: { flex: 1 },
@@ -335,7 +218,7 @@ const styles = StyleSheet.create({
 
   ghostKanji: {
     position: 'absolute',
-    top: '25%',
+    top: '24%',
     left: 0,
     right: 0,
     textAlign: 'center',
@@ -372,130 +255,46 @@ const styles = StyleSheet.create({
   },
   heroSub: { fontSize: 12, lineHeight: 18 },
 
-  grid: {
+  flowList: { gap: Spacing.two, zIndex: 1 },
+  flowRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'flex-start',
     gap: Spacing.two,
-    zIndex: 1,
-  },
-  tile: {
-    flexBasis: '48%',
-    flexGrow: 1,
-    minWidth: 140,
-    padding: Spacing.three,
-    borderRadius: Radii.sm,
     borderWidth: 1,
-    gap: 2,
-    position: 'relative',
-  },
-  recBadge: {
-    position: 'absolute',
-    top: -8,
-    right: 8,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
     borderRadius: Radii.sm,
+    padding: Spacing.three,
   },
-  recBadgeText: {
-    color: '#fff',
+  flowIndex: { minWidth: 26 },
+  flowIndexText: {
     fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    fontSize: 8,
+    fontSize: 18,
     fontWeight: '700',
-    letterSpacing: 1.2,
   },
-  /* Mono micro-state label per GPT round-3 verdict P1 — matches the
-     SELECTED chip style used on the Level tile. */
-  stateLabel: {
-    position: 'absolute',
-    top: Spacing.two,
-    right: Spacing.two,
+  flowTitle: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.2,
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
     fontWeight: '600',
   },
-  tileNum: {
-    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    fontSize: 40,
-    lineHeight: 44,
+  flowText: { fontSize: 12, lineHeight: 18 },
+  noteBox: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderLeftWidth: 2,
+    zIndex: 1,
+  },
+  noteText: {
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  noteLabel: {
     fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  tileUnit: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  tileDesc: { fontSize: 11, lineHeight: 16, marginTop: 4 },
-
-  section: { gap: Spacing.two, zIndex: 1 },
-  reminderCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    /* Round-5 P1 utility — was Spacing.three + borderWidth 1 + surface
-       fill, which read as a selection card. Hairline + tighter padding
-       + no fill drops it into the "control panel" layer below the
-       goal grid. */
-    padding: Spacing.two,
-    borderRadius: Radii.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  reminderLabel: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  reminderClock: {
-    fontFamily: Platform.select({ web: '"Oswald", sans-serif', default: undefined }),
-    /* Was 32/36 — too hero for a utility readout. 24/28 sits closer to
-       a settings-row clock. */
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  reminderDesc: { fontSize: 11, lineHeight: 16 },
-
-  toggleTrack: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    ...(Platform.OS === 'web' ? ({ transitionProperty: 'background-color', transitionDuration: '160ms' } as object) : null),
-  } as any,
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    ...(Platform.OS === 'web' ? ({ transitionProperty: 'transform', transitionDuration: '160ms' } as object) : null),
-  } as any,
-
-  timeScroll: { marginTop: Spacing.one },
-  timeRow: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-    paddingRight: Spacing.four,
-  },
-  timePill: {
-    paddingVertical: 6,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-  },
-  timeLabel: {
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 12,
-    letterSpacing: 0.5,
   },
 
   footer: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.three,
-    /* paddingBottom set inline (safe-area-aware) per round-3 verdict. */
-    gap: Spacing.two,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   ctaPrimary: {
@@ -511,14 +310,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  footerHint: {
-    textAlign: 'center',
-    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
-    fontSize: 9,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 });

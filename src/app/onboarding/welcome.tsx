@@ -24,21 +24,21 @@ import { usePersistedState } from '@/hooks/use-persisted-state';
 const BULLETS = [
   {
     num: '01',
-    title: 'DECK + FSRS',
-    jp: '単語帳・スマート復習',
-    th: 'ระบบทบทวนตามจังหวะลืม · 4 ปุ่มประเมิน',
+    title: 'BROWSE FIRST',
+    jp: 'まず一覧を見る',
+    th: 'เปิดคลังคำศัพท์ก่อน แล้วค่อยเลือก deck ที่อยากเรียน',
   },
   {
     num: '02',
-    title: 'JP · TH FIRST',
-    jp: '日本語・タイ語',
-    th: 'คำแปลภาษาไทย · ไม่ผ่านอังกฤษเป็นภาษากลาง',
+    title: 'TERM PREVIEW',
+    jp: '語を確認する',
+    th: 'ดูคำ ความหมาย คำอ่าน และรายละเอียดก่อนเริ่มโหมดเรียน',
   },
   {
     num: '03',
-    title: 'N5 → N1 + 辞',
-    jp: '五段階・辞典付き',
-    th: 'ครบทุกระดับ JLPT · ปลดล็อกตามจังหวะ',
+    title: 'LEARN WHEN READY',
+    jp: '準備してから学ぶ',
+    th: 'พร้อมแล้วค่อยเข้า Quiz Card, Multiple Choice หรือ Dictation',
   },
 ];
 
@@ -102,15 +102,15 @@ export default function WelcomeScreen() {
             <View style={styles.kickerRow}>
               <View style={[styles.pip, { backgroundColor: Accent.base }]} />
               <ThemedText style={[styles.kicker, { color: colors.textMuted }]}>
-                // WELCOME · ยินดีต้อนรับ
+                // ORIENTATION · เริ่มใช้งาน
               </ThemedText>
             </View>
             <ThemedText style={[styles.headline, { color: colors.text }]}>
-              ภาษาญี่ปุ่น{'\n'}
-              <ThemedText style={[styles.headline, { color: Accent.base }]}>แบบเข้าใจ.</ThemedText>
+              เปิดคลัง{'\n'}
+              <ThemedText style={[styles.headline, { color: Accent.base }]}>แล้วเริ่มเรียน.</ThemedText>
             </ThemedText>
             <ThemedText style={[styles.heroSub, { color: colors.textMuted }]}>
-              ไม่ใช่แค่ท่องจำ · เรียนรู้คันจิ คำศัพท์ และไวยากรณ์ผ่านบัตรที่ออกแบบมาเพื่อคนไทย
+              Nihon Bunkai เริ่มจาก Browse: เลือก deck, เปิดดูคำ, แล้วค่อยเข้าโหมดเรียนที่เหมาะกับจังหวะของคุณ
             </ThemedText>
           </View>
 
@@ -145,20 +145,16 @@ export default function WelcomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="เริ่มต้น"
             style={[styles.ctaPrimary, { backgroundColor: Accent.base }]}>
-            <ThemedText style={styles.ctaLabel}>เริ่มเลย · CONTINUE</ThemedText>
+            <ThemedText style={styles.ctaLabel}>เลือกจุดเริ่มต้น</ThemedText>
             <FiArrowRight size={16} color="#fff" strokeWidth={2.2} />
           </PressableScale>
-          {/* SIGN IN link — emphasis reduced per GPT round-3 verdict.
-              Previously SIGN IN was full crimson which dual-focused with
-              the primary CTA on mobile. Now the prompt sits muted +
-              SIGN IN as a quieter underline (still scannable). */}
           <PressableScale
             onPress={handleSignIn}
             accessibilityRole="link"
             accessibilityLabel="เข้าสู่ระบบ"
             style={styles.signInLink}>
             <ThemedText style={[styles.signInLabel, { color: colors.textHint }]}>
-              already have account?{' '}
+              มีบัญชีอยู่แล้ว?{' '}
               <ThemedText
                 style={[
                   styles.signInAccent,
@@ -168,7 +164,7 @@ export default function WelcomeScreen() {
                     textDecorationColor: colors.textHint,
                   } as any,
                 ]}>
-                sign in
+                เข้าสู่ระบบ
               </ThemedText>
             </ThemedText>
           </PressableScale>

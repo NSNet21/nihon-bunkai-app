@@ -30,6 +30,8 @@ try {
   await page.getByLabel('เปิดคู่มือ Markdown สำหรับ E').click();
   await page.getByText('ตัวอย่างเต็ม').waitFor({ timeout: 15_000 });
   await page.getByText('เข้าใจแล้ว').click({ force: true });
+  const valueAfterGuide = await eInput.inputValue();
+
   await page.getByLabel('เขียน E แบบเต็ม').click();
   await page.getByLabel('ปิด editor E').waitFor({ timeout: 15_000 });
   const fullEditorInput = page.locator('textarea').last();
@@ -49,6 +51,7 @@ try {
   const result = {
     selection,
     fullSelection,
+    guidePreservedDraft: valueAfterGuide.includes('### Smoke') && valueAfterGuide.includes('**Label:** ทดลอง'),
     finalValueIncludesFullEditor: finalValue.includes('Full editor'),
     overflow,
     consoleErrors: errors,
@@ -61,6 +64,8 @@ try {
     || selection.end !== selection.valueLength
     || fullSelection.start !== 0
     || fullSelection.end !== fullSelection.valueLength
+    || !valueAfterGuide.includes('### Smoke')
+    || !valueAfterGuide.includes('**Label:** ทดลอง')
     || !finalValue.includes('Full editor')
     || overflow !== 0
   ) {

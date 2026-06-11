@@ -40,6 +40,10 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 90_000 });
   await page.getByLabel('เพิ่มคำใหม่').click();
   await page.getByText('เลือกที่เก็บคำ').first().waitFor({ timeout: 15_000 });
+  await page.getByLabel('ปิดเพิ่มคำ').click();
+  await page.getByText('เลือกที่เก็บคำ').first().waitFor({ state: 'hidden', timeout: 15_000 });
+  await page.getByLabel('เพิ่มคำใหม่').click();
+  await page.getByText('เลือกที่เก็บคำ').first().waitFor({ timeout: 15_000 });
   await page.getByPlaceholder('คำศัพท์ / Japanese expression').fill(secondTerm);
   await page.getByPlaceholder('ความหมายภาษาไทย').fill('คำทดสอบต่อ');
   await page.getByPlaceholder('คำอ่าน / pronunciation').fill('ついしご');
@@ -58,18 +62,41 @@ try {
   await page.getByText(secondTerm).waitFor({ timeout: 30_000 });
   const searchOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+  await page.goto(`${baseUrl}/deck/${deckId}/term/${deckId}-2`, { waitUntil: 'networkidle', timeout: 90_000 });
+  await page.getByText(secondTerm).waitFor({ timeout: 30_000 });
+  await page.reload({ waitUntil: 'networkidle', timeout: 90_000 });
+  await page.getByText(secondTerm).waitFor({ timeout: 30_000 });
+  const reloadOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 90_000 });
+  await page.getByLabel('เพิ่มคำใหม่').click();
+  await page.getByText('เลือกที่เก็บคำ').first().waitFor({ timeout: 15_000 });
+  const tabletOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  await page.getByLabel('ปิดเพิ่มคำ').click();
+  await page.getByText('เลือกที่เก็บคำ').first().waitFor({ state: 'hidden', timeout: 15_000 });
+
   const result = {
     deckId,
     mobileOverflow,
     desktopOverflow,
     searchOverflow,
+    reloadOverflow,
+    tabletOverflow,
     modalStillOpen,
     consoleErrors: errors,
   };
   console.log(JSON.stringify(result, null, 2));
 
   if (errors.length > 0) process.exitCode = 2;
-  if (mobileOverflow !== 0 || desktopOverflow !== 0 || searchOverflow !== 0 || !modalStillOpen) {
+  if (
+    mobileOverflow !== 0
+    || desktopOverflow !== 0
+    || searchOverflow !== 0
+    || reloadOverflow !== 0
+    || tabletOverflow !== 0
+    || !modalStillOpen
+  ) {
     process.exitCode = 3;
   }
 } finally {

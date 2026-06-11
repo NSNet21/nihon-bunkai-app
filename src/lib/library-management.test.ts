@@ -35,6 +35,7 @@ vi.mock('./download-store', () => ({
 }));
 
 import {
+  createGlobalUserLibraryEntry,
   createUserLibraryEntry,
   deleteUserLibraryEntry,
   deleteUserLibraryDeck,
@@ -409,6 +410,103 @@ describe('library management operations', () => {
       reason: 'Official Source ลบหรือแก้ metadata ไม่ได้',
     });
     expect(entries.get('official')).toHaveLength(1);
+  });
+
+  it('globally creates a term in an existing user deck and preserves next NO', async () => {
+    entries.set(manualDeck.pack, [
+      { no: 2, t: '編集テスト', d: 'ทดสอบแก้ไข', p: 'へんしゅうてすと', e: '### Edit smoke' },
+      { no: 7, t: '間隔テスト', d: 'ทดสอบช่องว่างเลข', p: 'かんかくてすと', e: '' },
+    ]);
+
+    const result = await createGlobalUserLibraryEntry({
+      target: { kind: 'existing-deck', deckId: manualDeck.id },
+      fields: {
+        t: '追加テスト',
+        d: 'ทดสอบเพิ่ม',
+        p: 'ついかてすと',
+        e: '### Add smoke',
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      deckId: manualDeck.id,
+      entry: {
+        id: `${manualDeck.id}-8`,
+        no: 8,
+        t: '追加テスト',
+        d: 'ทดสอบเพิ่ม',
+      },
+    });
+    expect(entries.get(manualDeck.pack)?.at(-1)).toEqual({
+      no: 8,
+      t: '追加テスト',
+      d: 'ทดสอบเพิ่ม',
+      p: 'ついかてすと',
+      e: '### Add smoke',
+    });
+    expect(decks.get(manualDeck.id)?.entryCount).toBe(3);
+  });
+
+  it('globally creates a new custom deck with the first term and organization metadata', async () => {
+    const result = await createGlobalUserLibraryEntry({
+      target: {
+        kind: 'new-deck',
+        title: 'คำที่เจอบ่อย',
+        organization: { group: 'My practice', section: 'Week 1' },
+      },
+      fields: { t: '始める', d: 'เริ่ม', p: 'はじめる', e: '### Note' },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.deckId).toMatch(/^custom-/);
+    expect(result.entry).toMatchObject({ no: 1, t: '始める', d: 'เริ่ม' });
+    const deck = decks.get(result.deckId ?? '');
+    expect(deck).toMatchObject({
+      title: 'คำที่เจอบ่อย',
+      source: 'custom',
+      isUserContent: true,
+      entryCount: 1,
+      userGroup: 'My practice',
+      userSection: 'Week 1',
+    });
+    expect(deck?.tags).toContain('custom');
+    expect(deck?.tags).toContain('group:My practice');
+    expect(deck?.tags).toContain('section:Week 1');
+    expect(entries.get(deck?.pack ?? '')).toEqual([
+      { no: 1, t: '始める', d: 'เริ่ม', p: 'はじめる', e: '### Note' },
+    ]);
+  });
+
+  it('rejects global creation into Official Source', async () => {
+    decks.set('official', { ...manualDeck, id: 'official', pack: 'official', source: 'entitlement' });
+    entries.set('official', [{ no: 1, t: '公式', d: 'official', p: 'こうしき', e: '' }]);
+
+    await expect(createGlobalUserLibraryEntry({
+      target: { kind: 'existing-deck', deckId: 'official' },
+      fields: { t: 'Nope', d: 'Nope', p: '', e: '' },
+    })).resolves.toEqual({
+      ok: false,
+      reason: 'Official Source ลบหรือแก้ metadata ไม่ได้',
+    });
+    expect(entries.get('official')).toHaveLength(1);
+  });
+
+  it('rejects new custom deck with blank title or blank destination names', async () => {
+    await expect(createGlobalUserLibraryEntry({
+      target: { kind: 'new-deck', title: '   ', organization: { group: 'A', section: 'B' } },
+      fields: { t: '語', d: 'คำ', p: '', e: '' },
+    })).resolves.toEqual({ ok: false, reason: 'ชื่อ deck ว่างไม่ได้' });
+
+    await expect(createGlobalUserLibraryEntry({
+      target: { kind: 'new-deck', title: 'Deck', organization: { group: '   ', section: 'B' } },
+      fields: { t: '語', d: 'คำ', p: '', e: '' },
+    })).resolves.toEqual({ ok: false, reason: 'ชื่อ group ว่างไม่ได้' });
+
+    await expect(createGlobalUserLibraryEntry({
+      target: { kind: 'new-deck', title: 'Deck', organization: { group: 'A', section: '   ' } },
+      fields: { t: '語', d: 'คำ', p: '', e: '' },
+    })).resolves.toEqual({ ok: false, reason: 'ชื่อ section ว่างไม่ได้' });
   });
 
   it('saves an official personal edit as an override without mutating source rows', async () => {

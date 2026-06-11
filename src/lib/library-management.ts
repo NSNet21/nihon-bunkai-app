@@ -24,6 +24,19 @@ export type LibraryEntryCreateResult = LibraryMutationResult & {
   entry?: Entry;
 };
 
+export type GlobalUserLibraryCreateTarget =
+  | { kind: 'existing-deck'; deckId: string }
+  | { kind: 'new-deck'; title: string; organization: Required<DeckOrganization> };
+
+export type GlobalUserLibraryEntryCreateInput = {
+  target: GlobalUserLibraryCreateTarget;
+  fields: EditableEntryFields;
+};
+
+export type GlobalUserLibraryEntryCreateResult = LibraryEntryCreateResult & {
+  deckId?: string;
+};
+
 export type LibraryBulkMutationResult = LibraryMutationResult & {
   changed?: number;
 };
@@ -235,6 +248,58 @@ export async function createUserLibraryEntry(
   return { ok: true, entry };
 }
 
+export async function createGlobalUserLibraryEntry(
+  input: GlobalUserLibraryEntryCreateInput,
+): Promise<GlobalUserLibraryEntryCreateResult> {
+  if (input.target.kind === 'existing-deck') {
+    const result = await createUserLibraryEntry(input.target.deckId, input.fields);
+    return { ...result, deckId: result.ok ? input.target.deckId : undefined };
+  }
+
+  const title = cleanRequired(input.target.title);
+  const group = cleanRequired(input.target.organization.group);
+  const section = cleanRequired(input.target.organization.section);
+  if (!title) return { ok: false, reason: EMPTY_TITLE_REASON };
+  if (!group) return { ok: false, reason: EMPTY_GROUP_REASON };
+  if (!section) return { ok: false, reason: EMPTY_SECTION_REASON };
+
+  const now = Date.now();
+  const deckId = await nextCustomDeckId(title);
+  const baseDeck: LibraryDeckRecord = {
+    id: deckId,
+    type: 'vocab',
+    level: null,
+    title,
+    entryCount: 1,
+    isFree: false,
+    pack: deckId,
+    tags: ['custom', deckId],
+    source: 'custom',
+    userGroup: group,
+    userSection: section,
+    isUserContent: true,
+    importedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const deck = applyDeckOrganization(baseDeck, { group, section });
+  const row = { no: 1, ...input.fields };
+  const entry: Entry = {
+    ...row,
+    id: `${deck.id}-1`,
+    type: deck.type,
+    level: deck.level,
+    pack: deck.pack,
+    tags: deck.tags,
+  };
+
+  await putLibraryDeck(deck);
+  await putLibraryEntriesRecord({ pack: deck.pack, source: 'custom', rows: [row] });
+  notifyLibraryChanged({ source: 'user-content', action: 'deck-create', deckId: deck.id });
+  notifyLibraryChanged({ source: 'user-content', action: 'term-create', deckId: deck.id, no: '1' });
+  return { ok: true, deckId: deck.id, entry };
+}
+
 export async function deleteUserLibraryEntry(deckId: string, no: number): Promise<LibraryMutationResult> {
   const deck = await getMutableLibraryDeck(deckId);
   if ('ok' in deck) return deck;
@@ -345,6 +410,26 @@ function cleanTag(tags: readonly string[] | undefined, key: string): string | un
 function cleanRequired(value: string | undefined): string | undefined {
   const clean = value?.trim();
   return clean ? clean : undefined;
+}
+
+async function nextCustomDeckId(title: string): Promise<string> {
+  const decks = await listLibraryDecks();
+  const base = `custom-${slugId(title) || 'deck'}`;
+  const existing = new Set(decks.map((deck) => deck.id));
+  if (!existing.has(base)) return base;
+  for (let index = 2; index < 10000; index += 1) {
+    const candidate = `${base}-${index}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+function slugId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9ก-๙ぁ-んァ-ン一-龯]+/gi, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function notifyLibraryChanged(detail: Record<string, string>) {

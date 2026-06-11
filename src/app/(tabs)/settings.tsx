@@ -123,18 +123,6 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.section}>
-            {/* Section label upgraded from plain "ภาษา" to bilingual mono
-                kicker pattern per GPT polish round 2026-05-27 — matches
-                the editorial rhythm of "// QUIZ CARD · ทดสอบ" elsewhere
-                in this screen. Single-word labels were breaking the
-                visual cadence. */}
-            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-              ภาษา · LANGUAGE
-            </ThemedText>
-            <LanguageToggle />
-          </View>
-
-          <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
               นำเข้า · IMPORT
             </ThemedText>
@@ -566,115 +554,6 @@ const columnsStyles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderRadius: Radii.sm,
     borderWidth: 1,
-  },
-});
-
-/* ─── LANGUAGE ─────────────────────────────────────────────────────── */
-
-type Lang = 'th' | 'en';
-
-const LANG_SEGMENTS: { value: Lang; label: string }[] = [
-  { value: 'th', label: 'ไทย' },
-  { value: 'en', label: 'English' },
-];
-
-const LANG_TRACK_WIDTH = 200;
-const LANG_SEGMENT_WIDTH = LANG_TRACK_WIDTH / LANG_SEGMENTS.length;
-
-/* Web-only CSS transition for the LanguageToggle pill — see comment in
-   theme-toggle.tsx for why this is preferred over Reanimated for
-   slide-between-segments animations. */
-const LANG_PILL_TRANSITION = Platform.select({
-  web: {
-    transitionProperty: 'transform',
-    transitionDuration: '180ms',
-    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-  } as object,
-  default: undefined,
-});
-
-/** Persisted UI language preference. Toggle is wired (state persists), but
- *  the actual i18n string flip is Phase 2 — strings remain Thai for now.
- *  Sliding-pill animation mirrors ThemeToggle so the segmented-control
- *  feel is consistent across settings. */
-function LanguageToggle() {
-  const colors = useThemePalette();
-  const actionSurface = getSettingsActionSurface(colors);
-  const [lang, setLang] = usePersistedState<Lang>('lang', 'th');
-
-  /* Clamp index — corrupt persisted lang would return -1 and translate
-     pill off-track left. Same defensive guard as ThemeToggle. */
-  const rawIndex = LANG_SEGMENTS.findIndex((s) => s.value === lang);
-  const selectedIndex = rawIndex < 0 ? 0 : rawIndex;
-
-  return (
-    <View style={{ gap: Spacing.two }}>
-      <View
-        style={[
-          langStyles.track,
-          { borderColor: actionSurface, backgroundColor: actionSurface },
-        ]}>
-        {/* Pill slides via CSS transition (web) — compositor-thread
-            animation that browser cancels/restarts smoothly on rapid
-            clicks, with zero JS thread cost. Same approach as ThemeToggle. */}
-        <View
-          style={[
-            langStyles.pill,
-            {
-              backgroundColor: Accent.base,
-              width: LANG_SEGMENT_WIDTH - 4,
-              transform: [{ translateX: selectedIndex * LANG_SEGMENT_WIDTH }],
-            },
-            LANG_PILL_TRANSITION,
-          ]}
-        />
-        {LANG_SEGMENTS.map((seg) => {
-          const active = seg.value === lang;
-          const fg = active ? '#ffffff' : colors.text;
-          return (
-            <Pressable
-              key={seg.value}
-              onPress={() => setLang(seg.value)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`เลือกภาษา ${seg.label}`}
-              style={({ pressed }) => [langStyles.segment, pressed && { opacity: 0.85 }]}>
-              <ThemedText type="defaultSemiBold" style={{ color: fg, fontSize: 14 }}>
-                {seg.label}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
-      </View>
-      <ThemedText type="small" themeColor="textHint">
-        บางส่วนของแอปยังเป็นภาษาไทย · การแปลจะทยอยเพิ่มเร็วๆ นี้
-      </ThemedText>
-    </View>
-  );
-}
-
-const langStyles = StyleSheet.create({
-  track: {
-    width: LANG_TRACK_WIDTH,
-    height: 44,
-    flexDirection: 'row',
-    borderRadius: Radii.sm,
-    borderWidth: 1,
-    padding: 2,
-    position: 'relative',
-  },
-  pill: {
-    position: 'absolute',
-    top: 2,
-    bottom: 2,
-    left: 2,
-    borderRadius: 2,
-  },
-  segment: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
   },
 });
 
@@ -1486,7 +1365,7 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.four,
     /* Round-5 P0 — GPT verdict "long list flatten · 32-40px section
        gaps ช่วยเยอะมาก". Bumped from 16 → 32 so each section (บัญชี ·
-       ธีม · การ์ด · ภาษา · ซิงค์ · เกี่ยวกับ) sits in its own slot. */
+       ธีม · การ์ด · ซิงค์ · เกี่ยวกับ) sits in its own slot. */
     gap: Spacing.six,
   },
   header: { gap: Spacing.one, marginBottom: Spacing.two },

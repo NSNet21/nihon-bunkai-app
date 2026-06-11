@@ -64,6 +64,18 @@ async function checkSettings(viewport, label, themeOverride) {
   });
   if (staleCopy.length > 0) fail('Settings should use Thai-first labels in the first-pass polish', { staleCopy });
 
+  const launchDeferredLanguageCopy = await page.evaluate(() => {
+    const lines = document.body.innerText.split('\n').map((line) => line.trim());
+    return [
+      'ภาษา · LANGUAGE',
+      'English',
+      'บางส่วนของแอปยังเป็นภาษาไทย · การแปลจะทยอยเพิ่มเร็วๆ นี้',
+    ].filter((value) => lines.includes(value));
+  });
+  if (launchDeferredLanguageCopy.length > 0) {
+    fail('Settings should hide the deferred app language toggle during launch scope', { launchDeferredLanguageCopy });
+  }
+
   await page.getByText('นำเข้า · IMPORT').waitFor({ timeout: 15_000 });
   await page.getByText('ช่วยเหลือ · SUPPORT').waitFor({ timeout: 15_000 });
   await page.getByText('เกี่ยวกับ · ABOUT').waitFor({ timeout: 15_000 });

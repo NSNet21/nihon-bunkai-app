@@ -4,6 +4,7 @@ import { FiChevronLeft } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CustomTermCreateFlow } from '@/components/custom-term-create-flow';
+import { MobileBottomNav } from '@/components/top-nav-bar';
 import { RouteLoadingIndicator } from '@/components/route-loading-indicator';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -51,6 +52,7 @@ export default function NewTermScreen() {
           />
         )}
       </SafeAreaView>
+      <MobileBottomNav />
     </ThemedView>
   );
 }

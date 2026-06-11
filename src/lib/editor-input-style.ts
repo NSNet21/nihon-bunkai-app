@@ -39,5 +39,10 @@ export function getEditorTextInputWebStyle() {
     userSelect: 'text',
     WebkitUserSelect: 'text',
     cursor: 'text',
+    minWidth: 0,
+    maxWidth: '100%',
+    fontFamily: '"Sarabun", "Noto Sans Thai", "Noto Sans JP", "Inter", system-ui, sans-serif',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
   };
 }

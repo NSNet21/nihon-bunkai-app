@@ -69,6 +69,8 @@
     "smoke:deck-route": "node tools/deck-route-regression-smoke.mjs",
     "smoke:browse-toolbar": "node tools/browse-toolbar-smoke.mjs",
     "smoke:custom-term-create": "node tools/custom-term-create-ux-smoke.mjs",
+    "smoke:e-field-editor": "node tools/e-field-editor-smoke.mjs",
+    "smoke:global-custom-term-create": "node tools/global-custom-term-create-smoke.mjs",
     "smoke:settings-polish": "node tools/settings-polish-smoke.mjs",
     "smoke:shuffle-session": "node tools/shuffle-session-smoke.mjs",
     "smoke:study-mode-fsrs": "node tools/study-mode-fsrs-smoke.mjs",

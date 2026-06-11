@@ -38,4 +38,14 @@ describe('editor input focus styling', () => {
       cursor: 'text',
     });
   });
+
+  it('uses multi-script input safeguards on web', () => {
+    expect(getEditorTextInputWebStyle()).toMatchObject({
+      minWidth: 0,
+      maxWidth: '100%',
+      fontFamily: '"Sarabun", "Noto Sans Thai", "Noto Sans JP", "Inter", system-ui, sans-serif',
+      overflowWrap: 'anywhere',
+      wordBreak: 'break-word',
+    });
+  });
 });

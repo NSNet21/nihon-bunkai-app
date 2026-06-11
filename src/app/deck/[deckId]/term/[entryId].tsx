@@ -261,6 +261,17 @@ export default function TermCardDisplayScreen() {
     replaceTermUrl(activeDeckId, nextEntry.id);
   }
 
+  if (!hasHydrated) {
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <Header onBack={() => replace(backFallbackHref as never)} colors={colors} />
+          <RouteLoadingIndicator />
+        </SafeAreaView>
+      </ThemedView>
+    );
+  }
+
   if (!deck || entriesLoading || !current) {
     const isLoading = deckRouteState === 'loading' || entriesLoading;
     if (isLoading) {

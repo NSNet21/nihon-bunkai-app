@@ -14,10 +14,11 @@
  * becomes a `.html` file in the export and CF Pages serves the right
  * shell on cold load — hydration matches.
  *
- * Paid deck IDs are not knowable at build time (they live in the user's
- * IndexedDB after purchase). Direct URL access to a paid deck still
- * falls through to the SPA fallback and will hydration-mismatch.
- * Accepted edge case — in-app navigation works either way.
+ * Paid/custom deck IDs are not knowable at build time (they live in the
+ * user's IndexedDB after purchase/import/create). For user-created custom
+ * term preview routes, `public/_redirects` rewrites `custom-*` term URLs
+ * to the generic dynamic HTML shell so cold load/reload can hydrate before
+ * local-library lookup finishes instead of falling through to Browse.
  */
 
 import { decks as freeDecks } from './free-tier';

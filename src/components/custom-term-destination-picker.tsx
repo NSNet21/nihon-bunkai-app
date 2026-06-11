@@ -46,8 +46,14 @@ export function CustomTermDestinationPicker({
     [groups, groupQuery],
   );
   const visibleSections = useMemo(
-    () => selectedGroup ? filterImportDestinationSections(selectedGroup, sectionQuery) : [],
-    [selectedGroup, sectionQuery],
+    () => {
+      const userSections = selectedGroup ? filterImportDestinationSections(selectedGroup, sectionQuery) : [];
+      const normalizedQuery = sectionQuery.trim().toLowerCase();
+      const officialSections = uniqueOfficialSections(groups)
+        .filter((section) => !normalizedQuery || section.label.toLowerCase().includes(normalizedQuery));
+      return [...userSections, ...officialSections];
+    },
+    [groups, selectedGroup, sectionQuery],
   );
   const groupDraft = groupQuery.trim();
   const sectionDraft = sectionQuery.trim();
@@ -131,23 +137,21 @@ export function CustomTermDestinationPicker({
           icon
           onChangeText={setSectionQuery}
         />
-        {selectedGroup ? (
-          <ScrollView
-            style={[styles.list, { borderColor: colors.border }]}
-            keyboardShouldPersistTaps="handled"
-            {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'custom-term-destination-section' } } as any) : null)}>
-            {visibleSections.map((section) => (
-              <ChoiceRow
-                key={section.key}
-                label={section.label}
-                meta={section.disabled ? 'Official Source · ใช้ไม่ได้' : undefined}
-                selected={!section.disabled && section.label === normalized.section}
-                disabled={busy || Boolean(section.disabled)}
-                onPress={() => chooseSection(section)}
-              />
-            ))}
-          </ScrollView>
-        ) : null}
+        <ScrollView
+          style={[styles.list, { borderColor: colors.border }]}
+          keyboardShouldPersistTaps="handled"
+          {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'custom-term-destination-section' } } as any) : null)}>
+          {visibleSections.map((section) => (
+            <ChoiceRow
+              key={section.key}
+              label={section.label}
+              meta={section.disabled ? 'Official Source · ใช้ไม่ได้' : undefined}
+              selected={!section.disabled && section.label === normalized.section}
+              disabled={busy || Boolean(section.disabled)}
+              onPress={() => chooseSection(section)}
+            />
+          ))}
+        </ScrollView>
         <CreatePanel
           label="สร้าง section ใหม่"
           open={createSectionOpen}
@@ -168,6 +172,21 @@ export function CustomTermDestinationPicker({
       </View>
     </View>
   );
+}
+
+function uniqueOfficialSections(groups: readonly ImportDestinationGroupOption[]) {
+  const seen = new Set<string>();
+  const sections: { key: string; label: string; disabled?: boolean }[] = [];
+  for (const group of groups) {
+    if (!group.disabled) continue;
+    for (const section of group.sections) {
+      const key = `official-section:${section.label}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      sections.push({ key, label: section.label, disabled: true });
+    }
+  }
+  return sections;
 }
 
 function CollapsibleBlock({

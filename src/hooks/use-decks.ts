@@ -7,7 +7,7 @@
  *   - window regains focus (cross-tab + cross-session safety net)
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { decks as freeDecks, entriesForDeckAsync as freeEntriesForDeckAsync } from '@/data/free-tier';
@@ -23,6 +23,7 @@ type EntryReadOptions = {
 export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () => void } {
   const [paidDecks, setPaidDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedRef = useRef(false);
   /* Bump on user-initiated refresh — separate from the mount effect so
      we can re-trigger the load without remounting the consumer tree.
      Cleaner than threading a setState through an event-driven side
@@ -34,10 +35,11 @@ export function useAllDecks(): { decks: Deck[]; loading: boolean; refresh: () =>
     let cancelled = false;
 
     async function load() {
-      setLoading(true);
+      if (!hasLoadedRef.current) setLoading(true);
       const paid = await listLibraryDecks();
       if (cancelled) return;
       setPaidDecks(paid as Deck[]);
+      hasLoadedRef.current = true;
       setLoading(false);
     }
 

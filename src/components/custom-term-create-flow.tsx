@@ -48,19 +48,28 @@ export function CustomTermCreateFlow({
   const [latestCreated, setLatestCreated] = useState<{ deckId: string; entryId: string } | null>(null);
   const [eEditorOpen, setEEditorOpen] = useState(false);
   const [markdownGuideOpen, setMarkdownGuideOpen] = useState(false);
+  const [optimisticDecks, setOptimisticDecks] = useState<Deck[]>([]);
   const previousDestinationRef = useRef('');
 
+  const availableDecks = useMemo(() => {
+    if (optimisticDecks.length === 0) return decks;
+    const byId = new Map(decks.map((deck) => [deck.id, deck]));
+    for (const deck of optimisticDecks) {
+      if (!byId.has(deck.id)) byId.set(deck.id, deck);
+    }
+    return [...byId.values()];
+  }, [decks, optimisticDecks]);
   const destination = useMemo(
     () => normalizeImportDestination({ group, section }),
     [group, section],
   );
-  const destinationOptions = useMemo(() => buildImportDestinationOptions(decks), [decks]);
-  const editableDecks = useMemo(() => decks.filter((deck) => {
+  const destinationOptions = useMemo(() => buildImportDestinationOptions(availableDecks), [availableDecks]);
+  const editableDecks = useMemo(() => availableDecks.filter((deck) => {
     if (!isUserEditableDeck(deck)) return false;
     const organization = getDeckOrganization(deck);
     return organization.group === destination.group
       && (organization.section ?? DEFAULT_IMPORT_SECTION) === destination.section;
-  }), [decks, destination.group, destination.section]);
+  }), [availableDecks, destination.group, destination.section]);
 
   const fields = normalizeTermEditingFields({ t, d, p, e });
   const canSaveTerm = canSaveTermEditingForm({ editable: true, t, d, p, e });
@@ -116,15 +125,32 @@ export function CustomTermCreateFlow({
 
       const entry = result.entry;
       const deckId = result.deckId;
+      if (deckMode === 'new') {
+        const title = newDeckTitle.trim();
+        setOptimisticDecks((current) => upsertDeck(current, {
+          id: deckId,
+          type: 'vocab',
+          level: null,
+          title,
+          entryCount: 1,
+          isFree: false,
+          pack: deckId,
+          tags: ['custom', deckId, `group:${destination.group}`, `section:${destination.section}`],
+          source: 'custom',
+          isUserContent: true,
+          userGroup: destination.group,
+          userSection: destination.section,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }));
+        setDeckMode('existing');
+        setSelectedDeckId(deckId);
+      }
       await onCreated?.({ deckId, entry });
       setT('');
       setD('');
       setP('');
       setE('');
-      if (deckMode === 'new') {
-        setDeckMode('existing');
-        setSelectedDeckId(deckId);
-      }
       setLatestCreated({ deckId, entryId: entry.id });
       showToast('บันทึกคำแล้ว', {
         kind: 'success',
@@ -314,6 +340,14 @@ export function CustomTermCreateFlow({
       <MarkdownGuideModal visible={markdownGuideOpen} onClose={() => setMarkdownGuideOpen(false)} />
     </View>
   );
+}
+
+function upsertDeck(decks: Deck[], next: Deck) {
+  const index = decks.findIndex((deck) => deck.id === next.id);
+  if (index < 0) return [...decks, next];
+  const copy = [...decks];
+  copy[index] = next;
+  return copy;
 }
 
 function GuideLine({ code, note }: { code: string; note: string }) {

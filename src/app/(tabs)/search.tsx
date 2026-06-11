@@ -12,6 +12,7 @@ import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemePalette } from '@/context/theme';
+import { useHasHydrated } from '@/hooks/use-has-hydrated';
 import { useSearchIndex } from '@/hooks/use-search-index';
 import { Accent, BottomTabInset, Colors, MaxContentWidth, Radii, Spacing } from '@/constants/theme';
 import type { ContentType, JlptLevel } from '@/data/types';
@@ -83,18 +84,19 @@ export default function SearchScreen() {
   const c = useThemePalette();
 
   const { ready, totalEntries, allEntries, run, refresh } = useSearchIndex();
+  const hasHydrated = useHasHydrated();
   const { width: viewportW, height: viewportH } = useWindowDimensions();
-  const compact = viewportW > 0 && viewportW < 480;
-  const mobileSearchBack = viewportW > 0 && viewportW < 768;
-  const compactToast = viewportW > 0 && viewportW < 768;
-  const shortMobileViewport = viewportW > 0 && viewportW < 768 && viewportH > 0 && viewportH < 680;
-  const edgeScrollSurface = Platform.OS === 'web' && viewportW >= 768;
+  const compact = hasHydrated && viewportW > 0 && viewportW < 480;
+  const mobileSearchBack = hasHydrated && viewportW > 0 && viewportW < 768;
+  const compactToast = hasHydrated && viewportW > 0 && viewportW < 768;
+  const shortMobileViewport = hasHydrated && viewportW > 0 && viewportW < 768 && viewportH > 0 && viewportH < 680;
+  const edgeScrollSurface = hasHydrated && Platform.OS === 'web' && viewportW >= 768;
   /* Touch-class breakpoint — phone portrait through tablet landscape.
      Used to gate the FastScroller + native-scrollbar-hide pair, so
      iPad / Android tablet users get the same draggable-thumb
      affordance the phone gets. Above 1024 px we assume mouse + wheel
      and keep the native scrollbar. */
-  const touchSeek = viewportW > 0 && viewportW < 1024;
+  const touchSeek = hasHydrated && viewportW > 0 && viewportW < 1024;
   const tabletSearchRail = edgeScrollSurface && touchSeek;
 
   /* Two fixed size tiers — compact (mobile) vs wide (desktop). Earlier

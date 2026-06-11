@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiCheck, FiChevronDown, FiFolder, FiPlus, FiSearch, FiSlash } from 'react-icons/fi';
+import { FiCheck, FiChevronDown, FiFolder, FiMapPin, FiPlus, FiSearch, FiSlash } from 'react-icons/fi';
 
 import { ThemedText } from '@/components/themed-text';
 import { Accent, Radii, Spacing } from '@/constants/theme';
@@ -89,18 +89,6 @@ export function CustomTermDestinationPicker({
 
   return (
     <View style={styles.root}>
-      <View style={[styles.summary, { borderColor: colors.border, backgroundColor: colors.background }]}>
-        <View style={styles.summaryIcon}>
-          <FiFolder size={16} color={Accent.base} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <ThemedText type="smallBold">เลือกที่เก็บคำ</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {normalized.group} / {normalized.section}
-          </ThemedText>
-        </View>
-      </View>
-
       <CollapsibleBlock
         title="GROUP"
         summary={normalized.group}
@@ -168,6 +156,16 @@ export function CustomTermDestinationPicker({
           <DestinationInput value={newSection} disabled={busy} placeholder={sectionDraft || DEFAULT_IMPORT_SECTION} onChangeText={typeNewSection} />
         </CreatePanel>
       </CollapsibleBlock>
+
+      <View style={[styles.pathSummary, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+        <FiMapPin size={15} color={Accent.base} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ThemedText type="small" themeColor="textHint">ปลายทางตอนนี้</ThemedText>
+          <ThemedText type="smallBold" numberOfLines={1}>
+            {normalized.group} / {normalized.section}
+          </ThemedText>
+        </View>
+      </View>
     </View>
   );
 }
@@ -333,19 +331,6 @@ const styles = StyleSheet.create({
   root: {
     gap: Spacing.three,
   },
-  summary: {
-    minHeight: 58,
-    borderWidth: 1,
-    borderRadius: Radii.sm,
-    padding: Spacing.three,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  summaryIcon: {
-    width: 28,
-    alignItems: 'center',
-  },
   fieldLabel: {
     fontSize: 10,
     fontWeight: '700',
@@ -398,6 +383,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
+  },
+  pathSummary: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   inputShell: {
     minHeight: 40,

@@ -11,6 +11,7 @@ import { FiCheck, FiInfo, FiX, FiZap } from 'react-icons/fi';
 import Animated, { Easing, FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
 import { Accent, Radii, Spacing } from '@/constants/theme';
+import { formatToastText } from '@/lib/toast-message';
 import { ThemedText } from './themed-text';
 
 type ToastKind = 'success' | 'info' | 'error';
@@ -19,11 +20,15 @@ type ToastItem = {
   id: number;
   message: string;
   kind: ToastKind;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 type ToastOptions = {
   kind?: ToastKind;
   durationMs?: number; // default 3500
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 type ToastContextValue = {
@@ -48,7 +53,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       const id = nextIdRef.current++;
       const kind = opts?.kind ?? 'info';
       const duration = opts?.durationMs ?? DEFAULT_DURATION;
-      setToasts((prev) => [...prev, { id, message, kind }]);
+      setToasts((prev) => [...prev, {
+        id,
+        message,
+        kind,
+        actionLabel: opts?.actionLabel,
+        onAction: opts?.onAction,
+      }]);
       setTimeout(() => dismissToast(id), duration);
     },
     [dismissToast],
@@ -92,15 +103,25 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) 
     item.kind === 'error'   ? styles.toastError :
                               styles.toastInfo;
 
+  function runAction() {
+    item.onAction?.();
+    onDismiss();
+  }
+
   return (
     <Animated.View
       entering={SlideInDown.duration(260).easing(Easing.bezier(0.4, 0, 0.2, 1))}
       exiting={SlideOutDown.duration(180).easing(Easing.bezier(0.4, 0, 1, 1))}
       style={[styles.toast, tone]}>
       <IconCmp size={16} color="#ffffff" strokeWidth={2.5} />
-      <ThemedText type="defaultSemiBold" style={styles.toastText}>
-        {item.message}
-      </ThemedText>
+      <Pressable
+        onPress={item.onAction ? runAction : undefined}
+        disabled={!item.onAction}
+        style={({ pressed }) => [styles.toastTextWrap, pressed && item.onAction && { opacity: 0.72 }]}>
+        <ThemedText type="defaultSemiBold" style={styles.toastText}>
+          {formatToastText(item.message, item.actionLabel)}
+        </ThemedText>
+      </Pressable>
       <Pressable onPress={onDismiss} style={({ pressed }) => [styles.dismissBtn, pressed && { opacity: 0.6 }]}>
         <FiX size={14} color="#ffffff" />
       </Pressable>
@@ -138,9 +159,11 @@ const styles = StyleSheet.create({
   toastSuccess: { backgroundColor: Accent.base },
   toastInfo:    { backgroundColor: '#14110e' },
   toastError:   { backgroundColor: '#b5604a' },
+  toastTextWrap: {
+    flex: 1,
+  },
   toastText: {
     color: '#ffffff',
-    flex: 1,
     fontSize: 13,
   },
   dismissBtn: {

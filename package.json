@@ -75,6 +75,7 @@
     "smoke:onboarding-positioning": "node tools/onboarding-positioning-smoke.mjs",
     "smoke:settings-polish": "node tools/settings-polish-smoke.mjs",
     "smoke:shop-launch-cleanup": "node tools/shop-launch-cleanup-smoke.mjs",
+    "smoke:pwa-shortcut": "node tools/pwa-shortcut-smoke.mjs",
     "smoke:shuffle-session": "node tools/shuffle-session-smoke.mjs",
     "smoke:study-mode-fsrs": "node tools/study-mode-fsrs-smoke.mjs",
     "smoke:import-export": "node tools/import-export-flow-smoke.mjs"

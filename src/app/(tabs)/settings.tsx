@@ -7,6 +7,7 @@ import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, wi
 
 import type { ColumnVisibility } from '@/components/flashcard';
 import { ImportHowToContent } from '@/components/import-how-to-content';
+import { PwaShortcutNudge } from '@/components/pwa-shortcut-nudge';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ThemedText } from '@/components/themed-text';
@@ -104,6 +105,8 @@ export default function SettingsScreen() {
             </ThemedText>
             <ThemeToggle />
           </View>
+
+          <PwaShortcutNudge placement="settings" />
 
           <View style={styles.section}>
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>

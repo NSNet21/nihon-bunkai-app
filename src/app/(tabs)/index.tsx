@@ -34,6 +34,7 @@ import { CustomTermCreateModal } from '@/components/custom-term-create-modal';
 import { DeckManagementModal } from '@/components/deck-management-modal';
 import { LibraryActionsModal } from '@/components/library-actions-modal';
 import { PressableScale } from '@/components/pressable-scale';
+import { PwaShortcutNudge } from '@/components/pwa-shortcut-nudge';
 import { ScrollToTop } from '@/components/scroll-to-top';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -409,6 +410,7 @@ export default function BrowseScreen() {
               <ThemedText type="small" themeColor="textSecondary" style={styles.heroSubtitle}>
                 {librarySubtitle}
               </ThemedText>
+              <PwaShortcutNudge placement="browse" />
               {libraryReveal.showLibrary ? (
                 <Animated.View entering={FadeInUp.duration(160).easing(Easing.bezier(0.4, 0, 0.2, 1))} style={styles.browseContentRevealWrap}>
                   {/* Continue cluster header — gives Learn/Review resume cards

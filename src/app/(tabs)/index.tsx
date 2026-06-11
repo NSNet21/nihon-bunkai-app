@@ -607,6 +607,7 @@ function Toolbar({
   const isCompact = width < 520;
   const isWideToolbar = width >= 760;
   const useTouchIcons = width < 900;
+  const showCustomTermCreateButton = width >= 768;
   const expandLabel = isCompact ? 'Open' : 'Expand';
   const collapseLabel = isCompact ? 'Fold' : 'Collapse';
   const scopeLabel = subsOnly ? 'Group' : 'All';
@@ -706,15 +707,17 @@ function Toolbar({
               <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'Lib' : 'Library'}</ThemedText>
             </View>
           </ScaleButton>
-          <ScaleButton
-            onPress={onOpenCustomTermCreate}
-            accessibilityLabel="เพิ่มคำใหม่"
-            style={[styles.toolBtn, { borderColor: colors.border }]}>
-            <View style={styles.toolBtnContent}>
-              <FiEdit3 size={14} color={Accent.base} />
-              <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'คำ' : 'เพิ่มคำ'}</ThemedText>
-            </View>
-          </ScaleButton>
+          {showCustomTermCreateButton ? (
+            <ScaleButton
+              onPress={onOpenCustomTermCreate}
+              accessibilityLabel="เพิ่มคำใหม่"
+              style={[styles.toolBtn, { borderColor: colors.border }]}>
+              <View style={styles.toolBtnContent}>
+                <FiEdit3 size={14} color={Accent.base} />
+                <ThemedText type="small" themeColor="textSecondary">{isCompact ? 'คำ' : 'เพิ่มคำ'}</ThemedText>
+              </View>
+            </ScaleButton>
+          ) : null}
         </View>
         <View style={[styles.toolbarSortCluster, isWideToolbar && styles.toolbarSortClusterWide]}>
           <View ref={sortButtonRef} collapsable={false}>

@@ -1,7 +1,7 @@
 import { useRouter, usePathname, router as imperativeRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { FiArrowLeft, FiPlus, FiSearch } from 'react-icons/fi';
+import { FiArrowLeft, FiEdit3, FiSearch } from 'react-icons/fi';
 import { PiBookOpenText, PiGearSix, PiShoppingBagOpen } from 'react-icons/pi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -13,7 +13,7 @@ import { useThemePalette } from '@/context/theme';
 import { useHasHydrated } from '@/hooks/use-has-hydrated';
 
 type Tab = { href: string; label: string };
-type MobileTab = Tab & { Icon: typeof PiBookOpenText | typeof FiPlus };
+type MobileTab = Tab & { Icon: typeof PiBookOpenText | typeof FiEdit3 };
 
 const MOBILE_NAV_BREAKPOINT = 768;
 const SEARCH_PILL_NAV_DELAY_MS = 180;
@@ -181,7 +181,7 @@ const TABS: Tab[] = [
 
 const MOBILE_TABS: MobileTab[] = [
   { href: '/',          label: 'Browse',   Icon: PiBookOpenText },
-  { href: '/term/new',  label: 'เพิ่มคำ',   Icon: FiPlus },
+  { href: '/term/new',  label: 'เพิ่มคำ',   Icon: FiEdit3 },
   { href: '/shop',      label: 'Shop',     Icon: PiShoppingBagOpen },
   { href: '/settings',  label: 'Settings', Icon: PiGearSix },
 ];

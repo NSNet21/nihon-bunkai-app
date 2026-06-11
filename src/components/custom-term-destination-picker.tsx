@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiCheck, FiFolder, FiPlus, FiSearch, FiSlash } from 'react-icons/fi';
+import { FiCheck, FiChevronDown, FiFolder, FiPlus, FiSearch, FiSlash } from 'react-icons/fi';
 
 import { ThemedText } from '@/components/themed-text';
 import { Accent, Radii, Spacing } from '@/constants/theme';
@@ -34,6 +34,10 @@ export function CustomTermDestinationPicker({
   const [sectionQuery, setSectionQuery] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [newSection, setNewSection] = useState(DEFAULT_IMPORT_SECTION);
+  const [groupOpen, setGroupOpen] = useState(true);
+  const [sectionOpen, setSectionOpen] = useState(true);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [createSectionOpen, setCreateSectionOpen] = useState(false);
 
   const normalized = normalizeImportDestination(current);
   const selectedGroup = groups.find((group) => !group.disabled && group.label === normalized.group);
@@ -57,12 +61,15 @@ export function CustomTermDestinationPicker({
     const firstSection = group.sections.find((section) => !section.disabled)?.label ?? DEFAULT_IMPORT_SECTION;
     setGroupQuery('');
     setSectionQuery('');
+    setCreateGroupOpen(false);
+    setCreateSectionOpen(false);
     apply({ group: group.label, section: firstSection });
   }
 
   function chooseSection(section: { label: string; disabled?: boolean }) {
     if (busy || section.disabled) return;
     setSectionQuery('');
+    setCreateSectionOpen(false);
     apply({ section: section.label });
   }
 
@@ -94,15 +101,12 @@ export function CustomTermDestinationPicker({
         </View>
       </View>
 
-      <View style={styles.block}>
-        <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>GROUP</ThemedText>
-        <DestinationInput
-          value={groupQuery}
-          disabled={busy}
-          placeholder="ค้นหา group เดิม"
-          icon
-          onChangeText={setGroupQuery}
-        />
+      <CollapsibleBlock
+        title="GROUP"
+        summary={normalized.group}
+        open={groupOpen}
+        onToggle={() => setGroupOpen((value) => !value)}>
+        <DestinationInput value={groupQuery} disabled={busy} placeholder="ค้นหา group เดิม" icon onChangeText={setGroupQuery} />
         <ScrollView
           style={[styles.list, { borderColor: colors.border }]}
           keyboardShouldPersistTaps="handled"
@@ -118,22 +122,20 @@ export function CustomTermDestinationPicker({
             />
           ))}
         </ScrollView>
-        <View style={[styles.createPanel, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-          <View style={styles.createHead}>
-            <FiPlus size={15} color={Accent.base} />
-            <ThemedText type="smallBold" style={{ color: Accent.base }}>สร้าง group ใหม่</ThemedText>
-          </View>
-          <DestinationInput
-            value={newGroup}
-            disabled={busy}
-            placeholder={groupDraft || 'ชื่อ group ใหม่'}
-            onChangeText={typeNewGroup}
-          />
-        </View>
-      </View>
+        <CreatePanel
+          label="สร้าง group ใหม่"
+          open={createGroupOpen}
+          disabled={busy}
+          onToggle={() => setCreateGroupOpen((value) => !value)}>
+          <DestinationInput value={newGroup} disabled={busy} placeholder={groupDraft || 'ชื่อ group ใหม่'} onChangeText={typeNewGroup} />
+        </CreatePanel>
+      </CollapsibleBlock>
 
-      <View style={styles.block}>
-        <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>SECTION</ThemedText>
+      <CollapsibleBlock
+        title="SECTION"
+        summary={normalized.section}
+        open={sectionOpen}
+        onToggle={() => setSectionOpen((value) => !value)}>
         <DestinationInput
           value={sectionQuery}
           disabled={busy || !selectedGroup}
@@ -158,19 +160,90 @@ export function CustomTermDestinationPicker({
             ))}
           </ScrollView>
         ) : null}
-        <View style={[styles.createPanel, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-          <View style={styles.createHead}>
-            <FiPlus size={15} color={Accent.base} />
-            <ThemedText type="smallBold" style={{ color: Accent.base }}>สร้าง section ใหม่</ThemedText>
-          </View>
-          <DestinationInput
-            value={newSection}
-            disabled={busy}
-            placeholder={sectionDraft || DEFAULT_IMPORT_SECTION}
-            onChangeText={typeNewSection}
-          />
+        <CreatePanel
+          label="สร้าง section ใหม่"
+          open={createSectionOpen}
+          disabled={busy}
+          onToggle={() => setCreateSectionOpen((value) => !value)}>
+          <DestinationInput value={newSection} disabled={busy} placeholder={sectionDraft || DEFAULT_IMPORT_SECTION} onChangeText={typeNewSection} />
+        </CreatePanel>
+      </CollapsibleBlock>
+    </View>
+  );
+}
+
+function CollapsibleBlock({
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const colors = useThemePalette();
+  return (
+    <View style={[styles.blockShell, { borderColor: colors.border, backgroundColor: colors.background }]}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityLabel={`${open ? 'ย่อ' : 'ขยาย'} ${title}`}
+        style={({ pressed, hovered }: any) => [
+          styles.blockHeader,
+          { borderBottomColor: open ? colors.border : 'transparent', backgroundColor: hovered ? colors.surface2 : 'transparent' },
+          pressed && { opacity: 0.72 },
+        ]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <ThemedText style={[styles.fieldLabel, { color: colors.textHint }]}>{title}</ThemedText>
+          <ThemedText type="smallBold" numberOfLines={1}>{summary}</ThemedText>
         </View>
-      </View>
+        <FiChevronDown
+          size={15}
+          color={colors.textHint}
+          style={{ transform: open ? 'rotate(180deg)' : undefined }}
+        />
+      </Pressable>
+      {open ? <View style={styles.blockBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function CreatePanel({
+  label,
+  open,
+  disabled,
+  onToggle,
+  children,
+}: {
+  label: string;
+  open: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const colors = useThemePalette();
+  return (
+    <View style={[styles.createPanel, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
+      <Pressable
+        onPress={onToggle}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open, disabled }}
+        style={({ pressed }) => [styles.createHead, pressed && !disabled && { opacity: 0.72 }, disabled && { opacity: 0.52 }]}>
+        <FiPlus size={15} color={Accent.base} />
+        <ThemedText type="smallBold" style={{ color: Accent.base }}>{label}</ThemedText>
+        <FiChevronDown
+          size={14}
+          color={Accent.base}
+          style={{ marginLeft: 'auto', transform: open ? 'rotate(180deg)' : undefined }}
+        />
+      </Pressable>
+      {open ? children : null}
     </View>
   );
 }
@@ -273,13 +346,28 @@ const styles = StyleSheet.create({
     width: 28,
     alignItems: 'center',
   },
-  block: {
-    gap: Spacing.two,
-  },
   fieldLabel: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  blockShell: {
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    overflow: 'hidden',
+  },
+  blockHeader: {
+    minHeight: 54,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  blockBody: {
+    padding: Spacing.two,
+    gap: Spacing.two,
   },
   list: {
     maxHeight: 176,
@@ -306,6 +394,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   createHead: {
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,

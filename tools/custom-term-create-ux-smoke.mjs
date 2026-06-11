@@ -31,6 +31,17 @@ async function box(locator, label) {
   return rect;
 }
 
+async function parentBox(locator, label) {
+  const rect = await locator.evaluate((node) => {
+    const parent = node.parentElement;
+    if (!parent) return null;
+    const box = parent.getBoundingClientRect();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  });
+  if (!rect) fail(`${label}: parent element has no bounding box`);
+  return rect;
+}
+
 try {
   const context = await browser.newContext({ viewport: { width: 412, height: 628 } });
   await context.addInitScript(() => {
@@ -56,10 +67,32 @@ try {
   await page.getByText('เพิ่มคำใหม่').waitFor({ timeout: 30_000 });
   await page.getByRole('link', { name: 'เพิ่มคำ' }).waitFor({ timeout: 15_000 });
   await page.getByRole('button', { name: 'บันทึกคำ' }).waitFor({ timeout: 15_000 });
+  await page.getByText('T คำศัพท์').waitFor({ timeout: 15_000 });
+  const expandedRequirementBox = await parentBox(
+    page.getByLabel('พับรายการที่ต้องมีก่อนบันทึก'),
+    'expanded requirement summary',
+  );
+  await page.getByLabel('พับรายการที่ต้องมีก่อนบันทึก').click();
+  await page.getByLabel('กางรายการที่ต้องมีก่อนบันทึก').waitFor({ timeout: 15_000 });
+  const collapsedRequirementBox = await parentBox(
+    page.getByLabel('กางรายการที่ต้องมีก่อนบันทึก'),
+    'collapsed requirement summary',
+  );
+  const collapsedRequirementChipCount = await page.getByText('T คำศัพท์').count();
+  if (collapsedRequirementChipCount !== 0) {
+    fail('Requirement summary should hide chips when collapsed', { collapsedRequirementChipCount });
+  }
+  if (collapsedRequirementBox.height > 52 || collapsedRequirementBox.height > expandedRequirementBox.height * 0.62) {
+    fail('Collapsed requirement summary should be visibly compact on mobile', {
+      expandedRequirementBox,
+      collapsedRequirementBox,
+    });
+  }
   await page.getByRole('button', { name: 'บันทึกคำ' }).click();
   await page.getByText('ต้องใส่คำศัพท์ก่อนบันทึก').waitFor({ timeout: 15_000 });
   await page.getByText('ต้องใส่ความหมายภาษาไทยก่อนบันทึก').waitFor({ timeout: 15_000 });
   await page.getByText('ต้องมีก่อนบันทึก').waitFor({ timeout: 15_000 });
+  await page.getByText('T คำศัพท์').waitFor({ timeout: 15_000 });
 
   const saveBox = await box(page.getByRole('button', { name: 'บันทึกคำ' }), 'save footer');
   const navBox = await box(page.getByRole('link', { name: 'เพิ่มคำ' }), 'mobile bottom nav add link');

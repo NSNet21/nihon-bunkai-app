@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { FiBookOpen, FiCheck, FiFileText, FiFolder, FiHash, FiMaximize2, FiPlus, FiX } from 'react-icons/fi';
+import { FiBookOpen, FiCheck, FiChevronDown, FiChevronUp, FiFileText, FiFolder, FiHash, FiMaximize2, FiPlus, FiX } from 'react-icons/fi';
 
 import { CustomTermDestinationPicker } from '@/components/custom-term-destination-picker';
 import { ThemedText } from '@/components/themed-text';
@@ -50,6 +50,7 @@ export function CustomTermCreateFlow({
   const [markdownGuideOpen, setMarkdownGuideOpen] = useState(false);
   const [optimisticDecks, setOptimisticDecks] = useState<Deck[]>([]);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [requirementsExpanded, setRequirementsExpanded] = useState(true);
   const [touched, setTouched] = useState({ t: false, d: false, deck: false });
   const previousDestinationRef = useRef('');
   const tInputRef = useRef<TextInput | null>(null);
@@ -93,6 +94,12 @@ export function CustomTermCreateFlow({
     { key: 'd', label: 'D ความหมาย', done: !missingD },
     { key: 'deck', label: 'Deck', done: !missingDeck },
   ];
+
+  useEffect(() => {
+    if (submitAttempted && (missingT || missingD || missingDeck)) {
+      setRequirementsExpanded(true);
+    }
+  }, [missingD, missingDeck, missingT, submitAttempted]);
 
   useEffect(() => {
     const key = `${destination.group}\u0000${destination.section}`;
@@ -364,7 +371,12 @@ export function CustomTermCreateFlow({
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
-        <RequirementSummary items={requirementItems} showMissing={submitAttempted} />
+        <RequirementSummary
+          items={requirementItems}
+          showMissing={submitAttempted}
+          expanded={requirementsExpanded}
+          onToggle={() => setRequirementsExpanded((current) => !current)}
+        />
         {latestCreated ? (
           <Pressable
             onPress={() => onOpenCreated(latestCreated)}
@@ -438,40 +450,66 @@ function nextMissingMessage({
 function RequirementSummary({
   items,
   showMissing,
+  expanded,
+  onToggle,
 }: {
   items: { key: string; label: string; done: boolean }[];
   showMissing: boolean;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const colors = useThemePalette();
   const remaining = items.filter((item) => !item.done).length;
+  const ChevronIcon = expanded ? FiChevronUp : FiChevronDown;
   return (
-    <View style={[styles.requirementSummary, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-      <View style={styles.requirementHeader}>
-        <ThemedText type="smallBold">ต้องมีก่อนบันทึก</ThemedText>
-        <ThemedText type="small" themeColor={remaining === 0 ? undefined : 'textSecondary'} style={remaining === 0 ? { color: Accent.base } : undefined}>
-          {remaining === 0 ? 'ครบแล้ว' : `เหลือ ${remaining}`}
-        </ThemedText>
-      </View>
-      <View style={styles.requirementChips}>
-        {items.map((item) => {
-          const missing = !item.done;
-          const color = item.done ? Accent.base : showMissing ? Accent.strong : colors.textHint;
-          return (
-            <View
-              key={item.key}
-              style={[
-                styles.requirementChip,
-                {
-                  borderColor: item.done ? Accent.soft : showMissing && missing ? Accent.strong : colors.border,
-                  backgroundColor: item.done ? Accent.bg : showMissing && missing ? 'rgba(192, 24, 37, 0.08)' : colors.background,
-                },
-              ]}>
-              {item.done ? <FiCheck size={12} color={Accent.base} /> : <View style={[styles.requirementDot, { borderColor: color }]} />}
-              <ThemedText type="smallBold" style={{ color }}>{item.label}</ThemedText>
-            </View>
-          );
-        })}
-      </View>
+    <View
+      style={[
+        styles.requirementSummary,
+        !expanded && styles.requirementSummaryCollapsed,
+        { borderColor: colors.border, backgroundColor: colors.backgroundElement },
+      ]}>
+      <Pressable
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityLabel={expanded ? 'พับรายการที่ต้องมีก่อนบันทึก' : 'กางรายการที่ต้องมีก่อนบันทึก'}
+        accessibilityState={{ expanded }}
+        style={({ pressed }) => [
+          styles.requirementHeaderButton,
+          !expanded && styles.requirementHeaderButtonCollapsed,
+          pressed && { opacity: 0.72 },
+        ]}>
+        <View style={styles.requirementHeaderTitle}>
+          <ThemedText type="smallBold">ต้องมีก่อนบันทึก</ThemedText>
+        </View>
+        <View style={styles.requirementHeaderMeta}>
+          <ThemedText type="small" themeColor={remaining === 0 ? undefined : 'textSecondary'} style={remaining === 0 ? { color: Accent.base } : undefined}>
+            {remaining === 0 ? 'ครบแล้ว' : `เหลือ ${remaining}`}
+          </ThemedText>
+          <ChevronIcon size={15} color={colors.textHint} />
+        </View>
+      </Pressable>
+      {expanded ? (
+        <View style={styles.requirementChips}>
+          {items.map((item) => {
+            const missing = !item.done;
+            const color = item.done ? Accent.base : showMissing ? Accent.strong : colors.textHint;
+            return (
+              <View
+                key={item.key}
+                style={[
+                  styles.requirementChip,
+                  {
+                    borderColor: item.done ? Accent.soft : showMissing && missing ? Accent.strong : colors.border,
+                    backgroundColor: item.done ? Accent.bg : showMissing && missing ? 'rgba(192, 24, 37, 0.08)' : colors.background,
+                  },
+                ]}>
+                {item.done ? <FiCheck size={12} color={Accent.base} /> : <View style={[styles.requirementDot, { borderColor: color }]} />}
+                <ThemedText type="smallBold" style={{ color }}>{item.label}</ThemedText>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -914,11 +952,28 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     gap: Spacing.two,
   },
-  requirementHeader: {
+  requirementSummaryCollapsed: {
+    paddingVertical: Spacing.one,
+    gap: 0,
+  },
+  requirementHeaderButton: {
+    minHeight: 32,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.two,
+  },
+  requirementHeaderButtonCollapsed: {
+    minHeight: 34,
+  },
+  requirementHeaderTitle: {
+    flex: 1,
+    minWidth: 0,
+  },
+  requirementHeaderMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
   },
   requirementChips: {
     flexDirection: 'row',

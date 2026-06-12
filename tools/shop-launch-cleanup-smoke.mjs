@@ -51,7 +51,7 @@ async function checkShop(viewport, label) {
     localStorage.setItem('nb.onboarded', 'true');
     localStorage.setItem('nb.theme-override', JSON.stringify('dark'));
     localStorage.setItem('nb.shop-view-mode', JSON.stringify('grid'));
-    localStorage.setItem('nb.shop-tier', JSON.stringify('bundle'));
+    localStorage.setItem('nb.shop-tier', JSON.stringify('level'));
   });
 
   const page = await context.newPage();
@@ -69,7 +69,7 @@ async function checkShop(viewport, label) {
   if (viewport.width < 600) {
     const perLevelCard = page
       .getByText('N4 PDF', { exact: true })
-      .locator('xpath=ancestor::div[contains(@class,"css-view")][.//text()[contains(.,"ซื้อที่ Payhip")]][1]');
+      .locator('xpath=ancestor::div[.//text()[contains(.,"ซื้อที่ Payhip")]][1]');
     const perLevelHeight = await perLevelCard.evaluate((node) => node.getBoundingClientRect().height);
     if (perLevelHeight > maxMobilePerLevelCardHeight) {
       fail('Mobile per-level product card should stay compact enough for catalog scanning', {
@@ -86,7 +86,7 @@ async function checkShop(viewport, label) {
   if (viewport.width < 600) {
     const bundleCard = page
       .getByText('PDF Bundle', { exact: true })
-      .locator('xpath=ancestor::div[contains(@class,"css-view")][.//text()[contains(.,"ซื้อที่ Payhip")]][1]');
+      .locator('xpath=ancestor::div[.//text()[contains(.,"ซื้อที่ Payhip")]][1]');
     const bundleHeight = await bundleCard.evaluate((node) => node.getBoundingClientRect().height);
     if (bundleHeight > maxMobileBundleCardHeight) {
       fail('Mobile bundle product card should stay compact enough for catalog scanning', {

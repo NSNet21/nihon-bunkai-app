@@ -3,6 +3,8 @@ import { chromium } from 'playwright';
 const baseUrl = process.argv[2] ?? 'http://localhost:8097';
 const maxCenterDelta = 3;
 const maxPaddingImbalance = 4;
+const maxMobilePerLevelCardHeight = 124;
+const maxMobileBundleCardHeight = 140;
 
 function fail(message, details = {}) {
   const error = new Error(`${message}\n${JSON.stringify(details, null, 2)}`);
@@ -62,8 +64,38 @@ async function checkShop(viewport, label) {
   await page.goto(new URL('/shop', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 90_000 });
   await page.getByText('// CONTENT-BASED · จ่ายตามใช้').waitFor({ timeout: 30_000 });
   await page.getByLabel('เลือก BUNDLE').waitFor({ timeout: 15_000 });
+
+  let mobileCardHeights = null;
+  if (viewport.width < 600) {
+    const perLevelCard = page
+      .getByText('N4 PDF', { exact: true })
+      .locator('xpath=ancestor::div[contains(@class,"css-view")][.//text()[contains(.,"ซื้อที่ Payhip")]][1]');
+    const perLevelHeight = await perLevelCard.evaluate((node) => node.getBoundingClientRect().height);
+    if (perLevelHeight > maxMobilePerLevelCardHeight) {
+      fail('Mobile per-level product card should stay compact enough for catalog scanning', {
+        perLevelHeight,
+        maxMobilePerLevelCardHeight,
+      });
+    }
+    mobileCardHeights = { perLevelHeight };
+  }
+
   await page.getByLabel('เลือก BUNDLE').click();
   await page.getByText('Full Bundle', { exact: true }).waitFor({ timeout: 15_000 });
+
+  if (viewport.width < 600) {
+    const bundleCard = page
+      .getByText('PDF Bundle', { exact: true })
+      .locator('xpath=ancestor::div[contains(@class,"css-view")][.//text()[contains(.,"ซื้อที่ Payhip")]][1]');
+    const bundleHeight = await bundleCard.evaluate((node) => node.getBoundingClientRect().height);
+    if (bundleHeight > maxMobileBundleCardHeight) {
+      fail('Mobile bundle product card should stay compact enough for catalog scanning', {
+        bundleHeight,
+        maxMobileBundleCardHeight,
+      });
+    }
+    mobileCardHeights = { ...mobileCardHeights, bundleHeight };
+  }
 
   const staleFirstEditionCopy = await page.evaluate(() => {
     const body = document.body.innerText;
@@ -121,7 +153,7 @@ async function checkShop(viewport, label) {
 
   await expectNoHorizontalOverflow(page, label);
   await context.close();
-  return { label, viewport, consoleErrors, perLevel, bundle, viewToggle };
+  return { label, viewport, consoleErrors, perLevel, bundle, viewToggle, mobileCardHeights };
 }
 
 const browser = await chromium.launch({ headless: true });
@@ -132,7 +164,15 @@ try {
     await checkShop({ width: 1365, height: 768 }, 'shop-desktop'),
   ];
   const consoleErrors = results.flatMap((result) => result.consoleErrors);
-  console.log(JSON.stringify({ baseUrl, maxCenterDelta, maxPaddingImbalance, results, consoleErrors }, null, 2));
+  console.log(JSON.stringify({
+    baseUrl,
+    maxCenterDelta,
+    maxPaddingImbalance,
+    maxMobilePerLevelCardHeight,
+    maxMobileBundleCardHeight,
+    results,
+    consoleErrors,
+  }, null, 2));
   if (consoleErrors.length > 0) process.exitCode = 2;
 } finally {
   await browser.close();

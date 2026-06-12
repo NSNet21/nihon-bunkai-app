@@ -16,7 +16,7 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
 
   await page.goto(`${baseUrl}/term/new`, { waitUntil: 'networkidle', timeout: 90_000 });
-  const eInput = page.getByPlaceholder('รายละเอียด / markdown');
+  const eInput = page.getByPlaceholder('คำอธิบายเพิ่มเติม (รองรับ Markdown)');
   await eInput.fill('### Smoke\n**Label:** ทดลอง\n> reading\n---\nnote');
   await eInput.selectText();
   const selection = await eInput.evaluate((node) => ({
@@ -27,13 +27,13 @@ try {
     cursor: getComputedStyle(node).cursor,
   }));
 
-  await page.getByLabel('เปิดคู่มือ Markdown สำหรับ E').click();
-  await page.getByText('ตัวอย่างเต็ม').waitFor({ timeout: 15_000 });
+  await page.getByLabel('เปิดคู่มือสัญลักษณ์ Markdown สำหรับช่อง E').click();
+  await page.getByText('ตัวอย่างการประยุกต์ใช้งาน').waitFor({ timeout: 15_000 });
   await page.getByText('เข้าใจแล้ว').click({ force: true });
   const valueAfterGuide = await eInput.inputValue();
 
-  await page.getByLabel('เขียน E แบบเต็ม').click();
-  await page.getByLabel('ปิด editor E').waitFor({ timeout: 15_000 });
+  await page.getByLabel('เปิดหน้าต่างแก้ไขแบบเต็มหน้าจอ').click();
+  await page.getByLabel('ปิดหน้าต่างแก้ไข E').waitFor({ timeout: 15_000 });
   const fullEditorInput = page.locator('textarea').last();
   await fullEditorInput.fill('### Full editor\n**ทดสอบ:** เลือกข้อความได้');
   await fullEditorInput.selectText();
@@ -44,7 +44,7 @@ try {
     userSelect: getComputedStyle(node).userSelect,
     cursor: getComputedStyle(node).cursor,
   }));
-  await page.getByLabel('ใช้ E นี้').click();
+  await page.getByLabel('ใช้ข้อความ E นี้').click();
   const finalValue = await eInput.inputValue();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 

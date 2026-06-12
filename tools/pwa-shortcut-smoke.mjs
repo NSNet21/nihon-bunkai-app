@@ -52,20 +52,23 @@ async function run() {
     await mobile.evaluate(() => {
       window.localStorage.removeItem('nb.pwa-shortcut-nudge-dismissed');
     });
-    await mobile.getByText('Pin Web App').first().waitFor({ state: 'visible', timeout: 15000 });
-    await mobile.getByRole('button', { name: 'Add to Home Screen' }).first().waitFor({ state: 'visible', timeout: 15000 });
-    await mobile.getByRole('button', { name: 'Add to Home Screen' }).first().click();
-    await mobile.getByText('Use your browser menu to keep this web app close.').waitFor({ state: 'visible', timeout: 15000 });
-    await mobile.getByRole('button', { name: 'Close Add to Home Screen guide' }).click();
+    await mobile.getByText('ติดตั้งเว็บแอป').first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'เพิ่มไปยังหน้าจอหลัก' }).first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'เพิ่มไปยังหน้าจอหลัก' }).first().click();
+    await mobile.getByText('ใช้เมนูของเบราว์เซอร์เพื่อเพิ่มไอคอนของเว็บแอป').waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'ปิดคำแนะนำการเพิ่มไปยังหน้าจอหลัก' }).click();
 
     await dispatchAfterSettle(mobile);
-    await mobile.getByText('Pin Web App').first().waitFor({ state: 'visible', timeout: 15000 });
-    await mobile.getByRole('button', { name: 'Pin Web App' }).first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByText('ติดตั้งเว็บแอป').first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'เพิ่มไปยังหน้าจอหลัก' }).first().waitFor({ state: 'visible', timeout: 15000 });
 
     await mobile.goto(`${baseUrl}/settings`, { waitUntil: 'domcontentloaded' });
     await dispatchAfterSettle(mobile);
     await mobile.getByText('WEB APP', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
-    await mobile.getByRole('button', { name: 'Pin Web App' }).first().waitFor({ state: 'visible', timeout: 15000 });
+    await mobile
+      .getByText('เข้าใช้งาน Nihon Bunkai ได้ง่าย ๆ แค่แตะครั้งเดียวจากหน้าจอ', { exact: true })
+      .waitFor({ state: 'visible', timeout: 15000 });
+    await mobile.getByRole('button', { name: 'เพิ่มไปยังหน้าจอหลัก' }).first().waitFor({ state: 'visible', timeout: 15000 });
 
     const desktop = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     collectConsoleErrors(desktop, consoleErrors);
@@ -73,7 +76,7 @@ async function run() {
     await desktop.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     await dispatchAfterSettle(desktop);
     await desktop.waitForTimeout(750);
-    const desktopCount = await desktop.getByText('Pin Web App').count();
+    const desktopCount = await desktop.getByText('ติดตั้งเว็บแอป').count();
 
     const ios = await browser.newPage({
       viewport: { width: 390, height: 844 },
@@ -83,9 +86,9 @@ async function run() {
     collectConsoleErrors(ios, consoleErrors);
     await ios.addInitScript(setupIosScript);
     await ios.goto(`${baseUrl}/settings`, { waitUntil: 'domcontentloaded' });
-    await ios.getByRole('button', { name: 'Add to Home Screen' }).first().waitFor({ state: 'visible', timeout: 15000 });
-    await ios.getByRole('button', { name: 'Add to Home Screen' }).first().click();
-    await ios.getByText('Safari keeps web apps through the Share menu.').waitFor({ state: 'visible', timeout: 15000 });
+    await ios.getByRole('button', { name: 'เพิ่มไปยังหน้าจอหลัก' }).first().waitFor({ state: 'visible', timeout: 15000 });
+    await ios.getByRole('button', { name: 'เพิ่มไปยังหน้าจอหลัก' }).first().click();
+    await ios.getByText('Safari เพิ่มเว็บแอปผ่านเมนูแชร์').waitFor({ state: 'visible', timeout: 15000 });
 
     if (desktopCount !== 0 || consoleErrors.length > 0) {
       console.log(JSON.stringify({ desktopCount, consoleErrors }, null, 2));

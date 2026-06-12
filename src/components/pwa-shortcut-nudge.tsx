@@ -80,20 +80,20 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
 
   const hiddenByBrowseDismiss = placement === 'browse' && dismissed;
   const isSettings = placement === 'settings';
-  const actionLabel = mode === 'prompt' ? 'Pin Web App' : 'Add to Home Screen';
+  const actionLabel = 'เพิ่มไปยังหน้าจอหลัก';
   const instructionSubtitle = iosLike
-    ? 'Safari keeps web apps through the Share menu.'
-    : 'Use your browser menu to keep this web app close.';
+    ? 'Safari เพิ่มเว็บแอปผ่านเมนูแชร์'
+    : 'ใช้เมนูของเบราว์เซอร์เพื่อเพิ่มไอคอนของเว็บแอป';
   const instructionSteps = iosLike
     ? [
-        'Tap Share in the browser toolbar.',
-        'Choose Add to Home Screen.',
-        'Open Nihon Bunkai from the new icon.',
+        'แตะปุ่มแชร์ในแถบเครื่องมือของเบราว์เซอร์',
+        'เลือก เพิ่มไปยังหน้าจอหลัก',
+        'เปิด Nihon Bunkai จากไอคอนใหม่',
       ]
     : [
-        'Open the browser menu.',
-        'Choose Add to Home Screen.',
-        'Open Nihon Bunkai from the new icon.',
+        'เปิดเมนูของเบราว์เซอร์',
+        'เลือก เพิ่มไปยังหน้าจอหลัก',
+        'เปิด Nihon Bunkai จากไอคอนใหม่',
       ];
 
   const handlePrimary = useCallback(async () => {
@@ -163,12 +163,12 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
           </View>
         </View>
         <View style={[styles.copy, isSettings && styles.settingsCopy]}>
-          <ThemedText type="defaultSemiBold">Pin Web App</ThemedText>
+          <ThemedText type="defaultSemiBold">ติดตั้งเว็บแอป</ThemedText>
           <ThemedText
             type="small"
             themeColor="textSecondary"
             style={[styles.bodyCopy, isSettings && styles.settingsBodyCopy]}>
-            Keep Nihon Bunkai one tap away on this device.
+            เข้าใช้งาน Nihon Bunkai ได้ง่าย ๆ แค่แตะครั้งเดียวจากหน้าจอ
           </ThemedText>
           {isSettings ? actionButton : null}
         </View>
@@ -177,7 +177,7 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
             onPress={() => setDismissed(true)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Hide Pin Web App nudge"
+            accessibilityLabel="ซ่อนคำแนะนำการติดตั้งเว็บแอป"
             style={({ pressed }) => [styles.dismissButton, pressed && { opacity: 0.6 }]}>
             <FiX size={16} color={colors.textHint} />
           </Pressable>
@@ -215,7 +215,7 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
             ]}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1, gap: 2 }}>
-                <ThemedText type="defaultSemiBold">Add Nihon Bunkai to Home Screen</ThemedText>
+                <ThemedText type="defaultSemiBold">เพิ่ม Nihon Bunkai ไปยังหน้าจอหลัก</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
                   {instructionSubtitle}
                 </ThemedText>
@@ -224,7 +224,7 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
                 onPress={() => setInstructionsOpen(false)}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Close Add to Home Screen guide"
+                accessibilityLabel="ปิดคำแนะนำการเพิ่มไปยังหน้าจอหลัก"
                 style={({ pressed }) => [styles.modalCloseButton, pressed && { opacity: 0.7 }]}>
                 <FiX size={20} color={colors.text} />
               </Pressable>
@@ -271,6 +271,11 @@ const primaryButtonShadow = Platform.select({
   default: { elevation: 2 },
 });
 
+const settingsCardShadow = Platform.select({
+  web: { boxShadow: 'none' } as unknown as ViewStyle,
+  default: {},
+});
+
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
@@ -289,8 +294,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
   },
   settingsCard: {
-    paddingVertical: Spacing.four,
-    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+    gap: Spacing.two,
+    ...settingsCardShadow,
   },
   settingsSection: {
     gap: Spacing.two,
@@ -308,8 +314,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   settingsIconShell: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
   },
   iconGlyph: {
     width: 18,
@@ -325,10 +331,10 @@ const styles = StyleSheet.create({
   settingsGrid: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.two,
   },
   settingsIconSlot: {
-    flexBasis: 84,
+    flexBasis: 64,
     flexGrow: 0,
     flexShrink: 0,
     alignItems: 'center',
@@ -359,6 +365,8 @@ const styles = StyleSheet.create({
   },
   settingsPrimaryButton: {
     alignSelf: 'flex-start',
+    minHeight: 40,
+    paddingHorizontal: Spacing.three,
   },
   primaryButtonLabel: {
     color: '#fff',

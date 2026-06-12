@@ -32,13 +32,13 @@ export default function NewTermScreen() {
           <Pressable
             onPress={goBack}
             accessibilityRole="button"
-            accessibilityLabel="กลับ Browse"
+            accessibilityLabel="ย้อนกลับหน้าหลัก"
             style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.6 }]}>
             <FiChevronLeft size={18} color={colors.text} />
           </Pressable>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <ThemedText type="defaultSemiBold">เพิ่มคำใหม่</ThemedText>
-            <ThemedText type="small" style={{ color: Accent.base }}>// CUSTOM TERM · local library</ThemedText>
+            <ThemedText type="defaultSemiBold">เพิ่มคำศัพท์ใหม่</ThemedText>
+            <ThemedText type="small" style={{ color: Accent.base }}>// CUSTOM TERM · Local Library</ThemedText>
           </View>
         </View>
         {loading ? (

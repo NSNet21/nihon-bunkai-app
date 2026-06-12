@@ -555,6 +555,8 @@ function ProductCard({
   const isStarter = product.slug === 'n5-starter';
   const { entitledSkus } = useAuth();
   const { buying, startBuying, cancelBuying } = useBuyingContext();
+  const { width: viewportW } = useWindowDimensions();
+  const isCompactMobile = viewportW < 600;
   // Ownership includes coverage via bundle SKUs (e.g. Full Bundle covers n4-pdf, n4-csv, n4-bundle).
   const isOwned = !isFree && isSkuOwned(product.slug, entitledSkus);
   const canDownloadInApp = isOwned && product.grantsApp;
@@ -572,33 +574,34 @@ function ProductCard({
       type="backgroundElement"
       style={[
         styles.card,
+        isCompactMobile && styles.cardCompact,
         viewMode === 'grid' && styles.cardGrid,
         fillHeight && styles.cardFill,
         { borderColor: featured ? Accent.base : colors.border, borderWidth: featured ? 1.5 : 1 },
       ]}>
-      <View style={styles.cardHeader}>
+      <View style={[styles.cardHeader, isCompactMobile && styles.cardHeaderCompact]}>
         <View style={{ flex: 1, gap: 2 }}>
-          <View style={styles.cardTitleRow}>
+          <View style={[styles.cardTitleRow, isCompactMobile && styles.cardTitleRowCompact]}>
             <ThemedText type="defaultSemiBold">{product.name}</ThemedText>
             {product.grantsApp ? (
-              <View style={[styles.tag, { borderColor: Accent.base }]}>
+              <View style={[styles.tag, isCompactMobile && styles.tagCompact, { borderColor: Accent.base }]}>
                 <FiSmartphone size={9} color={Accent.base} />
-                <ThemedText type="small" style={[styles.tagText, { color: Accent.base }]}>
+                <ThemedText type="small" style={[styles.tagText, isCompactMobile && styles.tagTextCompact, { color: Accent.base }]}>
                   APP
                 </ThemedText>
               </View>
             ) : (
-              <View style={[styles.tag, { borderColor: colors.border }]}>
+              <View style={[styles.tag, isCompactMobile && styles.tagCompact, { borderColor: colors.border }]}>
                 <FiFileText size={9} color={colors.textSecondary} />
-                <ThemedText type="small" style={[styles.tagText, { color: colors.textSecondary }]}>
+                <ThemedText type="small" style={[styles.tagText, isCompactMobile && styles.tagTextCompact, { color: colors.textSecondary }]}>
                   PDF
                 </ThemedText>
               </View>
             )}
             {isOwned && (
-              <View style={[styles.tag, { borderColor: Accent.base, backgroundColor: Accent.bg }]}>
+              <View style={[styles.tag, isCompactMobile && styles.tagCompact, { borderColor: Accent.base, backgroundColor: Accent.bg }]}>
                 <FiCheck size={9} color={Accent.base} />
-                <ThemedText type="small" style={[styles.tagText, { color: Accent.base }]}>
+                <ThemedText type="small" style={[styles.tagText, isCompactMobile && styles.tagTextCompact, { color: Accent.base }]}>
                   OWNED
                 </ThemedText>
               </View>
@@ -608,23 +611,23 @@ function ProductCard({
                 but the title-row chip aligns N5 starter visually with
                 paid SKUs that carry OWNED. */}
             {isFree && !isOwned && (
-              <View style={[styles.tag, { borderColor: colors.border }]}>
-                <ThemedText type="small" style={[styles.tagText, { color: colors.textSecondary }]}>
+              <View style={[styles.tag, isCompactMobile && styles.tagCompact, { borderColor: colors.border }]}>
+                <ThemedText type="small" style={[styles.tagText, isCompactMobile && styles.tagTextCompact, { color: colors.textSecondary }]}>
                   FREE
                 </ThemedText>
               </View>
             )}
           </View>
           {isPdfBundle ? (
-            <View style={styles.specGrid}>
+            <View style={[styles.specGrid, isCompactMobile && styles.specGridCompact]}>
               {['N5', 'N4', 'N3', 'N2', 'N1'].map((lvl) => (
-                <View key={lvl} style={[styles.specChip, { borderColor: colors.border }]}>
+                <View key={lvl} style={[styles.specChip, isCompactMobile && styles.specChipCompact, { borderColor: colors.border }]}>
                   <ThemedText style={[styles.specChipText, { color: colors.textSecondary }]}>
                     {lvl}
                   </ThemedText>
                 </View>
               ))}
-              <View style={[styles.specChip, { borderColor: colors.border }]}>
+              <View style={[styles.specChip, isCompactMobile && styles.specChipCompact, { borderColor: colors.border }]}>
                 <ThemedText style={[styles.specChipText, { color: colors.textSecondary }]}>
                   OFFLINE ARCHIVE
                 </ThemedText>
@@ -632,23 +635,23 @@ function ProductCard({
             </View>
           ) : (
             product.desc && (
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="small" themeColor="textSecondary" style={isCompactMobile && styles.compactDesc}>
                 {product.desc}
               </ThemedText>
             )
           )}
         </View>
-        <View style={styles.priceCol}>
+        <View style={[styles.priceCol, isCompactMobile && styles.priceColCompact]}>
           {product.was && (
             <ThemedText type="small" themeColor="textHint" style={styles.wasPrice}>
               ฿{product.was.toLocaleString()}
             </ThemedText>
           )}
-          <ThemedText type="defaultSemiBold" style={[styles.price, isFree && { color: Accent.base }]}>
+          <ThemedText type="defaultSemiBold" style={[styles.price, isCompactMobile && styles.priceCompact, isFree && { color: Accent.base }]}>
             {isFree ? 'FREE' : `฿${product.price.toLocaleString()}`}
           </ThemedText>
           {product.save && (
-            <ThemedText type="small" style={{ color: Accent.base }}>
+            <ThemedText type="small" style={[isCompactMobile && styles.saveCompact, { color: Accent.base }]}>
               ประหยัด ฿{product.save}
             </ThemedText>
           )}
@@ -958,6 +961,8 @@ function DownloadButton({ onPress, label }: { onPress: () => void; label?: strin
 function BuyButton({ onPress }: { onPress: () => void }) {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const { width: viewportW } = useWindowDimensions();
+  const isCompactMobile = viewportW < 600;
   return (
     <Animated.View style={animStyle}>
       <Pressable
@@ -966,9 +971,10 @@ function BuyButton({ onPress }: { onPress: () => void }) {
         onPressOut={() => { scale.value = withTiming(1, { duration: 220, easing: Easing.bezier(0.34, 1.56, 0.64, 1) }); }}
         style={({ pressed }) => [
           styles.buyBtn,
+          isCompactMobile && styles.buyBtnCompact,
           { backgroundColor: Accent.base, opacity: pressed ? 0.88 : 1 },
         ]}>
-        <ThemedText type="defaultSemiBold" style={styles.buyBtnLabel}>
+        <ThemedText type="defaultSemiBold" style={[styles.buyBtnLabel, isCompactMobile && styles.buyBtnLabelCompact]}>
           ซื้อที่ Payhip
         </ThemedText>
         <FiExternalLink size={12} color="#fff" />
@@ -1181,11 +1187,19 @@ const styles = StyleSheet.create({
     gap: 4,
     marginTop: 2,
   },
+  specGridCompact: {
+    gap: 3,
+    marginTop: 1,
+  },
   specChip: {
     borderWidth: 1,
     borderRadius: Radii.sm,
     paddingHorizontal: Spacing.two,
     paddingVertical: 2,
+  },
+  specChipCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
   specChipText: {
     fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
@@ -1197,6 +1211,11 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     borderRadius: Radii.md,
     gap: Spacing.three,
+  },
+  cardCompact: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: 10,
+    gap: Spacing.two,
   },
   cardGrid: {
     flexBasis: '48%' as any,
@@ -1216,11 +1235,17 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.three,
   },
+  cardHeaderCompact: {
+    gap: Spacing.two,
+  },
   cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
     flexWrap: 'wrap',
+  },
+  cardTitleRowCompact: {
+    gap: 6,
   },
   tag: {
     flexDirection: 'row',
@@ -1231,10 +1256,20 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     borderWidth: 1,
   },
+  tagCompact: {
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 0,
+  },
   tagText: { fontSize: 9, letterSpacing: 0.8 },
+  tagTextCompact: { fontSize: 8, letterSpacing: 0.7 },
   priceCol: { alignItems: 'flex-end', gap: 1 },
+  priceColCompact: { minWidth: 44 },
   wasPrice: { textDecorationLine: 'line-through' },
   price: { fontSize: 18 },
+  priceCompact: { fontSize: 16, lineHeight: 20 },
+  saveCompact: { fontSize: 11, lineHeight: 14 },
+  compactDesc: { lineHeight: 18 },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1260,7 +1295,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
     borderRadius: Radii.sm,
   },
+  buyBtnCompact: {
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: Spacing.three,
+  },
   buyBtnLabel: { color: '#fff' },
+  buyBtnLabelCompact: { fontSize: 14, lineHeight: 18 },
   unlockedHint: {
     flexDirection: 'row',
     alignItems: 'center',

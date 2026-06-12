@@ -150,7 +150,7 @@ export function CustomTermCreateFlow({
         fields,
       });
       if (!result.ok || !result.entry || !result.deckId) {
-        setStatus(result.reason ?? 'บันทึกคำไม่สำเร็จ');
+        setStatus(result.reason ?? 'ไม่สามารถบันทึกคำศัพท์ได้');
         return;
       }
 
@@ -185,14 +185,14 @@ export function CustomTermCreateFlow({
       setP('');
       setE('');
       setLatestCreated({ deckId, entryId: entry.id });
-      showToast('บันทึกคำแล้ว', {
+      showToast('บันทึกคำศัพท์ลงระบบแล้ว', {
         kind: 'success',
         durationMs: 6500,
-        actionLabel: 'เปิดดู',
+        actionLabel: 'เปิดดูข้อความ',
         onAction: () => onOpenCreated({ deckId, entryId: entry.id }),
       });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'บันทึกคำไม่สำเร็จ');
+      setStatus(error instanceof Error ? error.message : 'ไม่สามารถบันทึกคำศัพท์ได้');
     } finally {
       setBusy(false);
     }
@@ -206,14 +206,14 @@ export function CustomTermCreateFlow({
         keyboardShouldPersistTaps="handled"
         {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'custom-term-create' } } as any) : null)}>
         <View style={[styles.intro, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-          <ThemedText type="smallBold" style={{ color: Accent.base }}>// CUSTOM TERM · local library</ThemedText>
+          <ThemedText type="smallBold" style={{ color: Accent.base }}>// CUSTOM TERM · Local Library</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            เพิ่มคำลง Custom Deck โดยไม่แตะ Official Source
+            จัดเก็บเข้า Custom Deck แยกอิสระจากคลังข้อมูลหลัก (Official)
           </ThemedText>
         </View>
 
         <View style={styles.step}>
-          <SectionHeader index="1" title="เขียนคำ" icon={<FiHash size={15} color={Accent.base} />} />
+          <SectionHeader index="1" title="ข้อมูลคำศัพท์" icon={<FiHash size={15} color={Accent.base} />} />
           <Field
             label="T"
             value={t}
@@ -222,9 +222,9 @@ export function CustomTermCreateFlow({
               setStatus('');
             }}
             onBlur={() => setTouched((current) => ({ ...current, t: true }))}
-            placeholder="คำศัพท์ / Japanese expression"
+            placeholder="คำศัพท์ภาษาญี่ปุ่น (Kanji / Kana)"
             required
-            error={showTError ? 'ต้องใส่คำศัพท์ก่อนบันทึก' : undefined}
+            error={showTError ? 'จำเป็นต้องระบุคำศัพท์ก่อนจัดเก็บ' : undefined}
             inputRef={tInputRef}
             disabled={busy}
           />
@@ -238,26 +238,26 @@ export function CustomTermCreateFlow({
             onBlur={() => setTouched((current) => ({ ...current, d: true }))}
             placeholder="ความหมายภาษาไทย"
             required
-            error={showDError ? 'ต้องใส่ความหมายภาษาไทยก่อนบันทึก' : undefined}
+            error={showDError ? 'จำเป็นต้องระบุความหมายภาษาไทย' : undefined}
             inputRef={dInputRef}
             disabled={busy}
           />
-          <Field label="P" value={p} onChange={setP} placeholder="คำอ่าน / pronunciation" disabled={busy} />
+          <Field label="P" value={p} onChange={setP} placeholder="คำอ่านออกเสียง (Romaji / Kana)" disabled={busy} />
           <Field
             label="E"
             value={e}
             onChange={setE}
-            placeholder="รายละเอียด / markdown"
+            placeholder="คำอธิบายเพิ่มเติม (รองรับ Markdown)"
             multiline
             disabled={busy}
             minInputHeight={190}
-            actionLabel="เขียน E แบบเต็ม"
+            actionLabel="เปิดหน้าต่างแก้ไขแบบเต็มหน้าจอ"
             onAction={() => setEEditorOpen(true)}
           />
           <Pressable
             onPress={() => setMarkdownGuideOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="เปิดคู่มือ Markdown สำหรับ E"
+            accessibilityLabel="เปิดคู่มือสัญลักษณ์ Markdown สำหรับช่อง E"
             style={({ pressed }) => [
               styles.markdownHelp,
               { borderColor: colors.border, backgroundColor: colors.backgroundElement },
@@ -265,9 +265,9 @@ export function CustomTermCreateFlow({
             ]}>
             <FiFileText size={14} color={Accent.base} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="smallBold">Markdown สั้น ๆ สำหรับ E</ThemedText>
+              <ThemedText type="smallBold">แนะนำการใช้สัญลักษณ์ Markdown สำหรับช่อง E</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                ### หัวข้อ · **Label:** รายละเอียด · &gt; note / reading · --- แยกช่วง
+                ### หัวข้อหลัก · **หัวข้อย่อย:** เนื้อหา · &gt; สังเกต/คำอ่าน · --- ขีดเส้นคั่น
               </ThemedText>
             </View>
             <FiMaximize2 size={14} color={colors.textHint} />
@@ -275,7 +275,7 @@ export function CustomTermCreateFlow({
         </View>
 
         <View style={styles.step}>
-          <SectionHeader index="2" title="เลือกที่เก็บคำ" icon={<FiFolder size={15} color={Accent.base} />} />
+          <SectionHeader index="2" title="กำหนดตำแหน่งจัดเก็บ" icon={<FiFolder size={15} color={Accent.base} />} />
           <CustomTermDestinationPicker
             groups={destinationOptions}
             current={destination}
@@ -290,7 +290,7 @@ export function CustomTermCreateFlow({
         </View>
 
         <View style={styles.step}>
-          <SectionHeader index="3" title="เลือก deck" icon={<FiBookOpen size={15} color={Accent.base} />} />
+          <SectionHeader index="3" title="เลือก Deck จัดเก็บ" icon={<FiBookOpen size={15} color={Accent.base} />} />
           <View style={styles.segmentRow}>
             <SegmentButton
               label="Existing"
@@ -346,7 +346,7 @@ export function CustomTermCreateFlow({
               }) : (
                 <View style={styles.emptyDecks}>
                   <ThemedText type="small" themeColor="textSecondary">
-                    ยังไม่มี custom deck ในที่เก็บนี้ สร้าง deck ใหม่ได้เลย
+                    ยังไม่พบ Custom Deck ในส่วนนี้ คุณสามารถพิมพ์สร้างใหม่ได้ทันที
                   </ThemedText>
                 </View>
               )}
@@ -360,9 +360,9 @@ export function CustomTermCreateFlow({
                 setStatus('');
               }}
               onBlur={() => setTouched((current) => ({ ...current, deck: true }))}
-              placeholder="ชื่อ deck ใหม่"
+              placeholder="ระบุชื่อ Deck ใหม่"
               required
-              error={showDeckError ? 'ต้องใส่ชื่อ deck ใหม่ก่อนบันทึก' : undefined}
+              error={showDeckError ? 'จำเป็นต้องระบุชื่อ Deck ใหม่' : undefined}
               inputRef={deckInputRef}
               disabled={busy}
             />
@@ -381,21 +381,21 @@ export function CustomTermCreateFlow({
           <Pressable
             onPress={() => onOpenCreated(latestCreated)}
             accessibilityRole="button"
-            accessibilityLabel="เปิดคำที่เพิ่งบันทึก"
+            accessibilityLabel="เปิดคำศัพท์ที่เพิ่งบันทึก"
             style={({ pressed }) => [
               styles.savedAction,
               { borderColor: colors.border, backgroundColor: colors.backgroundElement },
               pressed && { opacity: 0.72 },
             ]}>
             <FiCheck size={15} color={Accent.base} />
-            <ThemedText type="smallBold" style={{ color: Accent.base }}>บันทึกคำแล้ว · เปิดดู</ThemedText>
+            <ThemedText type="smallBold" style={{ color: Accent.base }}>บันทึกคำศัพท์สำเร็จ · เปิดดูข้อความ</ThemedText>
           </Pressable>
         ) : null}
         <Pressable
           onPress={() => void save()}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel="บันทึกคำ"
+          accessibilityLabel="บันทึกคำศัพท์"
           style={({ pressed }) => [
             styles.primaryButton,
             { backgroundColor: Accent.base, opacity: canSave ? 1 : 0.62 },
@@ -403,7 +403,7 @@ export function CustomTermCreateFlow({
           ]}>
           <FiPlus size={16} color="#ffffff" />
           <ThemedText type="defaultSemiBold" style={styles.primaryText}>
-            {busy ? 'กำลังบันทึก...' : 'บันทึกคำ'}
+            {busy ? 'กำลังจัดเก็บข้อมูล...' : 'บันทึกคำศัพท์'}
           </ThemedText>
         </Pressable>
         {status ? <ThemedText type="small" themeColor="textSecondary">{status}</ThemedText> : null}
@@ -443,8 +443,8 @@ function nextMissingMessage({
     missingDeck ? 'deck' : '',
   ].filter(Boolean);
   return missing.length > 0
-    ? `กรอก ${missing.join(' / ')} ก่อนบันทึก`
-    : 'กรอกช่องที่จำเป็นก่อนบันทึก';
+    ? `โปรดระบุข้อมูลที่จำเป็น (${missing.join(' / ')})`
+    : 'โปรดระบุข้อมูลที่จำเป็น';
 }
 
 function RequirementSummary({
@@ -472,7 +472,7 @@ function RequirementSummary({
       <Pressable
         onPress={onToggle}
         accessibilityRole="button"
-        accessibilityLabel={expanded ? 'พับรายการช่องที่ต้องกรอก' : 'กางรายการช่องที่ต้องกรอก'}
+        accessibilityLabel={expanded ? 'พับรายการข้อมูลที่จำเป็น' : 'กางรายการข้อมูลที่จำเป็น'}
         accessibilityState={{ expanded }}
         style={({ pressed }) => [
           styles.requirementHeaderButton,
@@ -480,11 +480,11 @@ function RequirementSummary({
           pressed && { opacity: 0.72 },
         ]}>
         <View style={styles.requirementHeaderTitle}>
-          <ThemedText type="smallBold">ช่องที่ต้องกรอก</ThemedText>
+          <ThemedText type="smallBold">รายการข้อมูลที่จำเป็น</ThemedText>
         </View>
         <View style={styles.requirementHeaderMeta}>
           <ThemedText type="small" themeColor={remaining === 0 ? undefined : 'textSecondary'} style={remaining === 0 ? { color: Accent.base } : undefined}>
-            {remaining === 0 ? 'ครบแล้ว' : `เหลือ ${remaining}`}
+            {remaining === 0 ? 'ครบถ้วน' : `คงเหลืออีก ${remaining} รายการ`}
           </ThemedText>
           <ChevronIcon size={15} color={colors.textHint} />
         </View>
@@ -560,13 +560,13 @@ function EFullEditor({
         <View style={[styles.editorPanel, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <View style={[styles.editorHeader, { borderBottomColor: colors.border }]}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="defaultSemiBold">เขียน E แบบเต็ม</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">Markdown note สำหรับ term นี้</ThemedText>
+              <ThemedText type="defaultSemiBold">เปิดหน้าต่างแก้ไขแบบเต็มหน้าจอ</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">คำอธิบายเพิ่มเติมสำหรับ Term นี้</ThemedText>
             </View>
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="ปิด editor E"
+              accessibilityLabel="ปิดหน้าต่างแก้ไข E"
               style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.6 }]}>
               <FiX size={18} color={colors.text} />
             </Pressable>
@@ -582,7 +582,7 @@ function EFullEditor({
                 value={value}
                 editable={!disabled}
                 onChangeText={onChange}
-                placeholder={'### หัวข้อ\n**Label:** รายละเอียด\n> note / reading\n---'}
+                placeholder={'### หัวข้อหลัก\n**หัวข้อย่อย:** เนื้อหา\n> สังเกต/คำอ่าน\n---'}
                 placeholderTextColor={colors.textHint}
                 multiline
                 autoCapitalize="none"
@@ -602,9 +602,9 @@ function EFullEditor({
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="ใช้ E นี้"
+              accessibilityLabel="ใช้ข้อความ E นี้"
               style={({ pressed }) => [styles.editorDoneButton, { backgroundColor: Accent.base }, pressed && { opacity: 0.78 }]}>
-              <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>ใช้ E นี้</ThemedText>
+              <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>ใช้ข้อความ E นี้</ThemedText>
             </Pressable>
           </View>
         </View>
@@ -625,16 +625,20 @@ function MarkdownGuideModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.editorOverlay}>
         <View style={[styles.guidePanel, { backgroundColor: colors.background, borderColor: colors.border }]}>
-          <View style={[styles.editorHeader, { borderBottomColor: colors.border }]}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="defaultSemiBold">คู่มือ Markdown สำหรับ E</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">ใช้จัด note ให้อ่านง่ายใน Term Preview</ThemedText>
+          <View style={[styles.guideHeader, { borderBottomColor: colors.border }]}>
+            <View style={styles.guideHeaderText}>
+              <ThemedText type="defaultSemiBold">คู่มือ Markdown สำหรับช่อง E</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">สัญลักษณ์ช่วยจัดโครงสร้างข้อความให้อ่านง่ายขึ้นในหน้าแสดงผลการเรียนรู้</ThemedText>
             </View>
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="ปิดคู่มือ Markdown"
-              style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.6 }]}>
+              accessibilityLabel="ปิดคู่มือสัญลักษณ์ Markdown"
+              style={({ pressed }) => [
+                styles.guideCloseButton,
+                { borderColor: colors.border },
+                pressed && { opacity: 0.68, backgroundColor: colors.backgroundElement },
+              ]}>
               <FiX size={18} color={colors.text} />
             </Pressable>
           </View>
@@ -642,12 +646,12 @@ function MarkdownGuideModal({
             style={styles.guideBody}
             contentContainerStyle={styles.guideBodyContent}
             {...(Platform.OS === 'web' ? ({ dataSet: { scroll: 'markdown-guide' } } as any) : null)}>
-            <GuideLine code="### วิธีใช้" note="หัวข้อใหญ่ของ note หรือ grammar point" />
-            <GuideLine code="**ความหมาย:** ..." note="ทำ label ให้เด่น แล้วตามด้วยรายละเอียด" />
-            <GuideLine code="> よみ / memo" note="ใช้กับ reading, quote, หรือ note สั้น ๆ" />
-            <GuideLine code="---" note="แบ่งช่วงเนื้อหาให้อ่านง่าย" />
+            <GuideLine code="### วิธีใช้" note="ใช้สำหรับสร้างหัวข้อหลักของเนื้อหา หรือประเด็นไวยากรณ์" />
+            <GuideLine code="**ความหมาย:** ..." note="ใช้สร้างหัวข้อย่อยแบบตัวหนา เพื่อแยกแยะข้อเท็จจริงในบรรทัด" />
+            <GuideLine code="> よみ / memo" note="ใช้แสดงเครื่องหมายอ้างอิง สำหรับข้อมูลเสริม คำแปลย่อย หรือจดบันทึกสั้น ๆ" />
+            <GuideLine code="---" note="ใช้สำหรับขีดเส้นแบ่งหัวข้อเพื่อจัดระเบียบบรรทัดในแนวนอน" />
             <View style={[styles.markdownExample, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-              <ThemedText type="smallBold" style={{ color: Accent.base }}>ตัวอย่างเต็ม</ThemedText>
+              <ThemedText type="smallBold" style={{ color: Accent.base }}>ตัวอย่างการประยุกต์ใช้งาน</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 ### ใช้ในประโยค{'\n'}**ความหมาย:** ใช้เมื่ออยากบอกว่าเริ่มทำบางอย่าง{'\n'}&gt; はじめる · เริ่ม{'\n'}---{'\n'}จำคู่กับคำกริยารูปพจนานุกรม
               </ThemedText>
@@ -657,7 +661,7 @@ function MarkdownGuideModal({
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="ปิดคู่มือ Markdown"
+              accessibilityLabel="ปิดคู่มือสัญลักษณ์ Markdown"
               style={({ pressed }) => [styles.editorDoneButton, { backgroundColor: Accent.base }, pressed && { opacity: 0.78 }]}>
               <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>เข้าใจแล้ว</ThemedText>
             </Pressable>
@@ -1069,6 +1073,29 @@ const styles = StyleSheet.create({
     borderRadius: Radii.sm,
     overflow: 'hidden',
   },
+  guideHeader: {
+    minHeight: 72,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.three,
+  },
+  guideHeaderText: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.one,
+    paddingTop: 2,
+  },
+  guideCloseButton: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   editorHeader: {
     minHeight: 62,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -1088,8 +1115,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   guideBodyContent: {
-    padding: Spacing.four,
-    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.four,
+    gap: Spacing.four,
   },
   editorInputShell: {
     minHeight: 360,

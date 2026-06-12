@@ -64,18 +64,18 @@ try {
   await mobileAddNav.click();
   await page.waitForURL(/\/term\/new/, { timeout: 30_000 });
 
-  await page.getByText('เพิ่มคำใหม่').waitFor({ timeout: 30_000 });
+  await page.getByText('เพิ่มคำศัพท์ใหม่').waitFor({ timeout: 30_000 });
   await page.getByRole('link', { name: 'เพิ่มคำ' }).waitFor({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'บันทึกคำ' }).waitFor({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'บันทึกคำศัพท์' }).waitFor({ timeout: 15_000 });
   await page.getByText('T คำศัพท์').waitFor({ timeout: 15_000 });
   const expandedRequirementBox = await parentBox(
-    page.getByLabel('พับรายการช่องที่ต้องกรอก'),
+    page.getByLabel('พับรายการข้อมูลที่จำเป็น'),
     'expanded requirement summary',
   );
-  await page.getByLabel('พับรายการช่องที่ต้องกรอก').click();
-  await page.getByLabel('กางรายการช่องที่ต้องกรอก').waitFor({ timeout: 15_000 });
+  await page.getByLabel('พับรายการข้อมูลที่จำเป็น').click();
+  await page.getByLabel('กางรายการข้อมูลที่จำเป็น').waitFor({ timeout: 15_000 });
   const collapsedRequirementBox = await parentBox(
-    page.getByLabel('กางรายการช่องที่ต้องกรอก'),
+    page.getByLabel('กางรายการข้อมูลที่จำเป็น'),
     'collapsed requirement summary',
   );
   const collapsedRequirementChipCount = await page.getByText('T คำศัพท์').count();
@@ -88,57 +88,57 @@ try {
       collapsedRequirementBox,
     });
   }
-  await page.getByRole('button', { name: 'บันทึกคำ' }).click();
-  await page.getByText('ต้องใส่คำศัพท์ก่อนบันทึก').waitFor({ timeout: 15_000 });
-  await page.getByText('ต้องใส่ความหมายภาษาไทยก่อนบันทึก').waitFor({ timeout: 15_000 });
-  await page.getByText('ช่องที่ต้องกรอก').waitFor({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'บันทึกคำศัพท์' }).click();
+  await page.getByText('จำเป็นต้องระบุคำศัพท์ก่อนจัดเก็บ').waitFor({ timeout: 15_000 });
+  await page.getByText('จำเป็นต้องระบุความหมายภาษาไทย').waitFor({ timeout: 15_000 });
+  await page.getByText('รายการข้อมูลที่จำเป็น').waitFor({ timeout: 15_000 });
   await page.getByText('T คำศัพท์').waitFor({ timeout: 15_000 });
 
-  const saveBox = await box(page.getByRole('button', { name: 'บันทึกคำ' }), 'save footer');
+  const saveBox = await box(page.getByRole('button', { name: 'บันทึกคำศัพท์' }), 'save footer');
   const navBox = await box(page.getByRole('link', { name: 'เพิ่มคำ' }), 'mobile bottom nav add link');
   if (saveBox.y + saveBox.height > navBox.y) {
     fail('Save footer should sit above mobile bottom nav', { saveBox, navBox });
   }
 
-  const destinationTitleCount = await page.getByText('เลือกที่เก็บคำ', { exact: true }).count();
+  const destinationTitleCount = await page.getByText('กำหนดตำแหน่งจัดเก็บ', { exact: true }).count();
   if (destinationTitleCount !== 1) fail('Destination step title should appear once', { destinationTitleCount });
 
-  const createGroupInputBefore = await page.getByPlaceholder('ชื่อ group ใหม่').count();
+  const createGroupInputBefore = await page.getByPlaceholder('ระบุชื่อ Group ใหม่').count();
   if (createGroupInputBefore !== 0) fail('Create group input should be hidden before expanding the row', { createGroupInputBefore });
 
-  await page.getByRole('button', { name: 'สร้าง group ใหม่' }).click();
-  await page.getByPlaceholder('ชื่อ group ใหม่').waitFor({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'สร้าง Group ใหม่' }).click();
+  await page.getByPlaceholder('ระบุชื่อ Group ใหม่').waitFor({ timeout: 15_000 });
 
   const createSectionInputBefore = await page.getByPlaceholder('Inbox').count();
   if (createSectionInputBefore !== 0) fail('Create section input should be hidden before expanding the row', { createSectionInputBefore });
-  await page.getByRole('button', { name: 'สร้าง section ใหม่' }).click();
+  await page.getByRole('button', { name: 'สร้าง Section ใหม่' }).click();
   await page.getByPlaceholder('Inbox').waitFor({ timeout: 15_000 });
 
-  await page.getByText('Official Source · ใช้เป็นที่เก็บคำไม่ได้').first().waitFor({ timeout: 15_000 });
-  await page.getByText('Official Source · ใช้ไม่ได้').first().waitFor({ timeout: 15_000 });
+  await page.getByText('Official Source · ไม่สามารถเพิ่มข้อมูลในส่วนนี้ได้').first().waitFor({ timeout: 15_000 });
+  await page.getByText('Official Source · ไม่สามารถเลือกใช้ได้').first().waitFor({ timeout: 15_000 });
 
   const sectionBox = await box(page.getByText('SECTION', { exact: true }).first(), 'section picker heading');
-  const pathBox = await box(page.getByText('ปลายทางตอนนี้').first(), 'destination path summary');
+  const pathBox = await box(page.getByText('ตำแหน่งจัดเก็บปลายทาง').first(), 'destination path summary');
   if (pathBox.y <= sectionBox.y) {
     fail('Destination path summary should appear below group/section controls', { sectionBox, pathBox });
   }
 
-  await page.getByLabel('เปิดคู่มือ Markdown สำหรับ E').click();
-  await page.getByText('ตัวอย่างเต็ม').waitFor({ timeout: 15_000 });
+  await page.getByLabel('เปิดคู่มือสัญลักษณ์ Markdown สำหรับช่อง E').click();
+  await page.getByText('ตัวอย่างการประยุกต์ใช้งาน').waitFor({ timeout: 15_000 });
   await page.getByText('เข้าใจแล้ว').click({ force: true });
 
-  await page.getByPlaceholder('ชื่อ group ใหม่').fill(`UX Group ${stamp}`);
+  await page.getByPlaceholder('ระบุชื่อ Group ใหม่').fill(`UX Group ${stamp}`);
   await page.getByPlaceholder('Inbox').fill('UX Section');
-  await page.getByPlaceholder('คำศัพท์ / Japanese expression').fill(term);
+  await page.getByPlaceholder('คำศัพท์ภาษาญี่ปุ่น (Kanji / Kana)').fill(term);
   await page.getByPlaceholder('ความหมายภาษาไทย').fill('ตรวจ flow เพิ่มคำ');
-  await page.getByPlaceholder('คำอ่าน / pronunciation').fill('どうせんかくにん');
-  await page.getByPlaceholder('รายละเอียด / markdown').fill('### UX smoke');
+  await page.getByPlaceholder('คำอ่านออกเสียง (Romaji / Kana)').fill('どうせんかくにん');
+  await page.getByPlaceholder('คำอธิบายเพิ่มเติม (รองรับ Markdown)').fill('### UX smoke');
   await page.getByText('New deck').click();
-  await page.getByRole('button', { name: 'บันทึกคำ' }).click();
-  await page.getByText('ต้องใส่ชื่อ deck ใหม่ก่อนบันทึก').waitFor({ timeout: 15_000 });
-  await page.getByPlaceholder('ชื่อ deck ใหม่').fill(deckTitle);
-  await page.getByRole('button', { name: 'บันทึกคำ' }).click();
-  await page.getByLabel('บันทึกคำแล้ว · เปิดดู').waitFor({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'บันทึกคำศัพท์' }).click();
+  await page.getByText('จำเป็นต้องระบุชื่อ Deck ใหม่').waitFor({ timeout: 15_000 });
+  await page.getByPlaceholder('ระบุชื่อ Deck ใหม่').fill(deckTitle);
+  await page.getByRole('button', { name: 'บันทึกคำศัพท์' }).click();
+  await page.getByText('บันทึกคำศัพท์สำเร็จ · เปิดดูข้อความ').waitFor({ timeout: 30_000 });
 
   const existingButtonState = await page.getByText('Existing').evaluate((node) => {
     let current = node;
@@ -160,9 +160,9 @@ try {
   await page.setViewportSize({ width: 1365, height: 768 });
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 90_000 });
   await page.getByLabel('เพิ่มคำใหม่').click();
-  await page.getByText('เลือกที่เก็บคำ', { exact: true }).waitFor({ timeout: 15_000 });
-  await page.getByText('ปลายทางตอนนี้').waitFor({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'สร้าง group ใหม่' }).waitFor({ timeout: 15_000 });
+  await page.getByText('กำหนดตำแหน่งจัดเก็บ', { exact: true }).waitFor({ timeout: 15_000 });
+  await page.getByText('ตำแหน่งจัดเก็บปลายทาง').waitFor({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'สร้าง Group ใหม่' }).waitFor({ timeout: 15_000 });
   await expectNoHorizontalOverflow(page, 'desktop modal');
 
   const result = {

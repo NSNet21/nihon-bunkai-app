@@ -30,13 +30,13 @@ export function CustomTermCreateModal({
           style={[styles.panel, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="defaultSemiBold">เพิ่มคำใหม่</ThemedText>
-              <ThemedText type="small" style={{ color: Accent.base }}>User Content · Custom deck</ThemedText>
+              <ThemedText type="defaultSemiBold">เพิ่มคำศัพท์ใหม่</ThemedText>
+              <ThemedText type="small" style={{ color: Accent.base }}>User Library · Custom Deck</ThemedText>
             </View>
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="ปิดเพิ่มคำ"
+              accessibilityLabel="ปิดหน้าต่างเพิ่มคำศัพท์"
               style={({ pressed }) => [styles.closeButton, pressed && { opacity: 0.6 }]}>
               <FiX size={18} color={colors.text} />
             </Pressable>

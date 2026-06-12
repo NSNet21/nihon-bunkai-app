@@ -25,6 +25,15 @@ type SupabaseResendClient = {
   };
 };
 
+type SupabaseMagicLinkClient = {
+  auth: {
+    signInWithOtp: (credentials: {
+      email: string;
+      options?: { emailRedirectTo?: string; shouldCreateUser?: boolean };
+    }) => Promise<{ error: AuthErrorLike }>;
+  };
+};
+
 type SupabasePasswordClient = {
   auth: {
     signInWithPassword: (credentials: {
@@ -58,6 +67,21 @@ export async function resendSignUpConfirmationEmail(
     type: 'signup',
     email,
     options: { emailRedirectTo: buildAuthEmailRedirectTo(currentUrl) },
+  });
+  return { error: mapAuthEmailError(error?.message) };
+}
+
+export async function signInWithExistingUserMagicLink(
+  client: SupabaseMagicLinkClient,
+  email: string,
+  currentUrl?: string | null,
+): Promise<{ error: string | null }> {
+  const { error } = await client.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: buildAuthEmailRedirectTo(currentUrl),
+      shouldCreateUser: false,
+    },
   });
   return { error: mapAuthEmailError(error?.message) };
 }

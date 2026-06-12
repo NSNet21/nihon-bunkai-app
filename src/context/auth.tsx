@@ -6,6 +6,7 @@ import { useToast } from '@/components/toast';
 import {
   resendSignUpConfirmationEmail,
   signInWithConfirmedPassword,
+  signInWithExistingUserMagicLink,
   signUpWithEmailConfirmation,
 } from '@/lib/auth-email-actions';
 import { clearAllSrsData } from '@/lib/srs-store';
@@ -149,13 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       entitledPacks,
       entitledSkus,
       async signInWithMagicLink(email) {
-        const redirectTo =
-          typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
-        });
-        return { error: error?.message ?? null };
+        const currentUrl = typeof window !== 'undefined' ? window.location.href : undefined;
+        return signInWithExistingUserMagicLink(supabase, email, currentUrl);
       },
       async signInWithPassword(email, password) {
         return signInWithConfirmedPassword(supabase, email, password);

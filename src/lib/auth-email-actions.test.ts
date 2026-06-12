@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   resendSignUpConfirmationEmail,
+  signInWithExistingUserMagicLink,
   signInWithConfirmedPassword,
   signUpWithEmailConfirmation,
 } from './auth-email-actions';
@@ -58,5 +59,25 @@ describe('auth email actions', () => {
     expect(result).toEqual({
       error: 'อีเมลนี้ยังไม่ได้ยืนยัน · เปิดอีเมลจาก Nihon Bunkai แล้วกดยืนยันก่อนเข้าสู่ระบบ',
     });
+  });
+
+  it('sends login magic links without creating new users', async () => {
+    const signInWithOtp = vi.fn().mockResolvedValue({ error: null });
+    const client = { auth: { signInWithOtp } };
+
+    const result = await signInWithExistingUserMagicLink(
+      client,
+      'learner@example.com',
+      'https://app.nihon-bunkai.com/signup',
+    );
+
+    expect(signInWithOtp).toHaveBeenCalledWith({
+      email: 'learner@example.com',
+      options: {
+        emailRedirectTo: 'https://app.nihon-bunkai.com/login',
+        shouldCreateUser: false,
+      },
+    });
+    expect(result).toEqual({ error: null });
   });
 });

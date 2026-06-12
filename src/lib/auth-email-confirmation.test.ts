@@ -21,7 +21,7 @@ describe('auth email confirmation helpers', () => {
 
   it('explains signup confirmation in Thai with the learner email', () => {
     expect(getEmailConfirmationSentMessage(' learner@example.com ')).toBe(
-      'สมัครแล้ว · เช็คอีเมล learner@example.com เพื่อยืนยันก่อนเข้าสู่ระบบ',
+      'สมัครสมาชิกสำเร็จ • โปรดตรวจสอบอีเมลเพื่อยืนยันบัญชี',
     );
   });
 

@@ -10,9 +10,8 @@ export function buildAuthEmailRedirectTo(originOrUrl?: string | null): string | 
   }
 }
 
-export function getEmailConfirmationSentMessage(email: string): string {
-  const normalized = email.trim();
-  return `สมัครแล้ว · เช็คอีเมล ${normalized} เพื่อยืนยันก่อนเข้าสู่ระบบ`;
+export function getEmailConfirmationSentMessage(_email: string): string {
+  return 'สมัครสมาชิกสำเร็จ • โปรดตรวจสอบอีเมลเพื่อยืนยันบัญชี';
 }
 
 export function mapAuthEmailError(message: string | null | undefined): string | null {

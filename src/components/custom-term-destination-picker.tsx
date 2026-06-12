@@ -100,7 +100,7 @@ export function CustomTermDestinationPicker({
         summary={normalized.group}
         open={groupOpen}
         onToggle={() => setGroupOpen((value) => !value)}>
-        <DestinationInput value={groupQuery} disabled={busy} placeholder="ค้นหา group เดิม" icon onChangeText={setGroupQuery} />
+        <DestinationInput value={groupQuery} disabled={busy} placeholder="ค้นหา Group เดิม" icon onChangeText={setGroupQuery} />
         <ScrollView
           style={[styles.list, { borderColor: colors.border }]}
           keyboardShouldPersistTaps="handled"
@@ -109,7 +109,7 @@ export function CustomTermDestinationPicker({
             <ChoiceRow
               key={group.key}
               label={group.label}
-              meta={group.disabled ? 'Official Source · ใช้เป็นที่เก็บคำไม่ได้' : `${group.sections.length} sections`}
+              meta={group.disabled ? 'Official Source · ไม่สามารถเพิ่มข้อมูลในส่วนนี้ได้' : `${group.sections.length} sections`}
               selected={!group.disabled && group.label === normalized.group}
               disabled={busy || Boolean(group.disabled)}
               onPress={() => chooseGroup(group)}
@@ -117,11 +117,11 @@ export function CustomTermDestinationPicker({
           ))}
         </ScrollView>
         <CreatePanel
-          label="สร้าง group ใหม่"
+          label="สร้าง Group ใหม่"
           open={createGroupOpen}
           disabled={busy}
           onToggle={() => setCreateGroupOpen((value) => !value)}>
-          <DestinationInput value={newGroup} disabled={busy} placeholder={groupDraft || 'ชื่อ group ใหม่'} onChangeText={typeNewGroup} />
+          <DestinationInput value={newGroup} disabled={busy} placeholder={groupDraft || 'ระบุชื่อ Group ใหม่'} onChangeText={typeNewGroup} />
         </CreatePanel>
       </CollapsibleBlock>
 
@@ -133,7 +133,7 @@ export function CustomTermDestinationPicker({
         <DestinationInput
           value={sectionQuery}
           disabled={busy || !selectedGroup}
-          placeholder={selectedGroup ? 'ค้นหา section เดิม' : 'เลือก group เดิม หรือสร้าง group ใหม่ก่อน'}
+          placeholder={selectedGroup ? 'ค้นหา Section เดิม' : 'โปรดเลือก Group หรือสร้าง Group ใหม่ก่อน'}
           icon
           onChangeText={setSectionQuery}
         />
@@ -145,7 +145,7 @@ export function CustomTermDestinationPicker({
             <ChoiceRow
               key={section.key}
               label={section.label}
-              meta={section.disabled ? 'Official Source · ใช้ไม่ได้' : undefined}
+              meta={section.disabled ? 'Official Source · ไม่สามารถเลือกใช้ได้' : undefined}
               selected={!section.disabled && section.label === normalized.section}
               disabled={busy || Boolean(section.disabled)}
               onPress={() => chooseSection(section)}
@@ -153,7 +153,7 @@ export function CustomTermDestinationPicker({
           ))}
         </ScrollView>
         <CreatePanel
-          label="สร้าง section ใหม่"
+          label="สร้าง Section ใหม่"
           open={createSectionOpen}
           disabled={busy}
           onToggle={() => setCreateSectionOpen((value) => !value)}>
@@ -164,7 +164,7 @@ export function CustomTermDestinationPicker({
       <View style={[styles.pathSummary, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
         <FiMapPin size={15} color={Accent.base} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <ThemedText type="small" themeColor="textHint">ปลายทางตอนนี้</ThemedText>
+          <ThemedText type="small" themeColor="textHint">ตำแหน่งจัดเก็บปลายทาง</ThemedText>
           <ThemedText type="smallBold" numberOfLines={1}>
             {normalized.group} / {normalized.section}
           </ThemedText>
@@ -208,7 +208,7 @@ function CollapsibleBlock({
       <Pressable
         onPress={onToggle}
         accessibilityRole="button"
-        accessibilityLabel={`${open ? 'ย่อ' : 'ขยาย'} ${title}`}
+        accessibilityLabel={`คลิกเพื่อ ${open ? 'ย่อ' : 'ขยาย'} ข้อมูล ${title}`}
         style={({ pressed, hovered }: any) => [
           styles.blockHeader,
           { borderBottomColor: open ? colors.border : 'transparent', backgroundColor: hovered ? colors.surface2 : 'transparent' },

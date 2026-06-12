@@ -14,6 +14,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
+import { getEmailConfirmationSentMessage } from '@/lib/auth-email-confirmation';
 import {
   getPasswordRequirementState,
   normalizeLoginEmail,
@@ -24,11 +25,11 @@ import { Accent, Radii, Spacing } from '@/constants/theme';
 
 type Mode = 'magic' | 'password';
 type Phase = 'idle' | 'sending' | 'sent' | 'error';
-type PendingAction = 'magic' | 'signin' | 'signup' | null;
+type PendingAction = 'magic' | 'signin' | 'signup' | 'resend-confirmation' | null;
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { status, signInWithMagicLink, signInWithPassword, signUpWithPassword } = useAuth();
+  const { status, signInWithMagicLink, signInWithPassword, signUpWithPassword, resendSignUpConfirmation } = useAuth();
 
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
@@ -37,6 +38,7 @@ export default function LoginScreen() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'signed-in') router.replace('/');
@@ -108,9 +110,28 @@ export default function LoginScreen() {
       return;
     }
     if (needsEmailConfirm) {
-      setErrMsg('สมัครแล้ว · เช็คอีเมลเพื่อยืนยันก่อนเข้าสู่ระบบ');
+      setConfirmationEmail(trimmed);
+      setErrMsg(getEmailConfirmationSentMessage(trimmed));
       setPhase('sent');
     }
+    setPendingAction(null);
+  }
+
+  async function onResendConfirmation() {
+    const targetEmail = confirmationEmail ?? validateEmail();
+    if (!targetEmail) return;
+    setPendingAction('resend-confirmation');
+    setErrMsg(null);
+    const { error } = await resendSignUpConfirmation(targetEmail);
+    if (error) {
+      setErrMsg(error);
+      setPhase('sent');
+      setPendingAction(null);
+      return;
+    }
+    setConfirmationEmail(targetEmail);
+    setErrMsg(`ส่งอีเมลยืนยันไปที่ ${targetEmail} อีกครั้งแล้ว`);
+    setPhase('sent');
     setPendingAction(null);
   }
 
@@ -133,7 +154,12 @@ export default function LoginScreen() {
           <ModeTabs mode={mode} onChange={(m) => { setMode(m); setPhase('idle'); setPendingAction(null); setErrMsg(null); }} />
 
           {phase === 'sent' ? (
-            <SuccessCard message={errMsg ?? `ส่งลิ้งค์ไปที่ ${email.trim()} แล้ว ✓`} onBack={() => router.replace('/')} />
+            <SuccessCard
+              message={errMsg ?? `ส่งลิ้งค์ไปที่ ${email.trim()} แล้ว ✓`}
+              onBack={() => router.replace('/')}
+              onResend={confirmationEmail ? onResendConfirmation : undefined}
+              resendBusy={pendingAction === 'resend-confirmation'}
+            />
           ) : (
             <WebForm onSubmit={mode === 'magic' ? onMagicLink : onPasswordSignIn}>
               <View style={styles.form}>
@@ -434,13 +460,39 @@ function StatusMessage({ tone, message }: { tone: 'error' | 'info'; message: str
   );
 }
 
-function SuccessCard({ message, onBack }: { message: string; onBack: () => void }) {
+function SuccessCard({
+  message,
+  onBack,
+  onResend,
+  resendBusy = false,
+}: {
+  message: string;
+  onBack: () => void;
+  onResend?: () => void;
+  resendBusy?: boolean;
+}) {
   return (
     <ThemedView type="backgroundElement" style={styles.successCard}>
       <ThemedText type="defaultSemiBold">{message}</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
-        เปิดอีเมลจาก Supabase Auth แล้วคลิกลิ้งค์เพื่อยืนยัน
+        เปิดอีเมลจาก Nihon Bunkai แล้วกดลิ้งค์ยืนยัน จากนั้นกลับมาเข้าสู่ระบบอีกครั้ง
       </ThemedText>
+      {onResend ? (
+        <Pressable
+          onPress={onResend}
+          disabled={resendBusy}
+          accessibilityRole="button"
+          accessibilityLabel="ส่งอีเมลยืนยันอีกครั้ง"
+          style={({ pressed }) => [
+            styles.successResend,
+            pressed && !resendBusy && { opacity: 0.72 },
+            resendBusy && { opacity: 0.58 },
+          ]}>
+          <ThemedText type="small" style={{ color: Accent.base }}>
+            {resendBusy ? 'กำลังส่งอีกครั้ง…' : 'ส่งอีเมลยืนยันอีกครั้ง'}
+          </ThemedText>
+        </Pressable>
+      ) : null}
       <Pressable onPress={onBack} style={styles.successBack}>
         <ThemedText type="small" style={{ color: Accent.base }}>
           กลับ Browse
@@ -552,6 +604,7 @@ const styles = StyleSheet.create({
   secondaryBtn: { paddingVertical: Spacing.three, paddingHorizontal: Spacing.four, borderRadius: Radii.sm, alignItems: 'center', borderWidth: 1, backgroundColor: 'transparent' },
   fineprint: { textAlign: 'center' },
   successCard: { padding: Spacing.four, borderRadius: Radii.md, gap: Spacing.two },
+  successResend: { alignSelf: 'flex-start', paddingVertical: Spacing.two },
   successBack: { marginTop: Spacing.two },
   cancel: { alignItems: 'center', paddingVertical: Spacing.three },
 });

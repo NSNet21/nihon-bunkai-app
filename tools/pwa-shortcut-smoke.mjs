@@ -48,7 +48,7 @@ async function run() {
     collectConsoleErrors(mobile, consoleErrors);
     await mobile.addInitScript(setupScript);
 
-    await mobile.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+    await mobile.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     await mobile.evaluate(() => {
       window.localStorage.removeItem('nb.pwa-shortcut-nudge-dismissed');
     });
@@ -62,7 +62,7 @@ async function run() {
     await mobile.getByText('Pin Web App').first().waitFor({ state: 'visible', timeout: 15000 });
     await mobile.getByRole('button', { name: 'Pin Web App' }).first().waitFor({ state: 'visible', timeout: 15000 });
 
-    await mobile.goto(`${baseUrl}/settings`, { waitUntil: 'networkidle' });
+    await mobile.goto(`${baseUrl}/settings`, { waitUntil: 'domcontentloaded' });
     await dispatchAfterSettle(mobile);
     await mobile.getByText('WEB APP', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
     await mobile.getByRole('button', { name: 'Pin Web App' }).first().waitFor({ state: 'visible', timeout: 15000 });
@@ -70,7 +70,7 @@ async function run() {
     const desktop = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     collectConsoleErrors(desktop, consoleErrors);
     await desktop.addInitScript(setupScript);
-    await desktop.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+    await desktop.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
     await dispatchAfterSettle(desktop);
     await desktop.waitForTimeout(750);
     const desktopCount = await desktop.getByText('Pin Web App').count();
@@ -82,7 +82,7 @@ async function run() {
     });
     collectConsoleErrors(ios, consoleErrors);
     await ios.addInitScript(setupIosScript);
-    await ios.goto(`${baseUrl}/settings`, { waitUntil: 'networkidle' });
+    await ios.goto(`${baseUrl}/settings`, { waitUntil: 'domcontentloaded' });
     await ios.getByRole('button', { name: 'Add to Home Screen' }).first().waitFor({ state: 'visible', timeout: 15000 });
     await ios.getByRole('button', { name: 'Add to Home Screen' }).first().click();
     await ios.getByText('Safari keeps web apps through the Share menu.').waitFor({ state: 'visible', timeout: 15000 });

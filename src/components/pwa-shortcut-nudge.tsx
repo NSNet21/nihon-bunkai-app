@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { FiExternalLink, FiPlus, FiShare2, FiSmartphone, FiX } from 'react-icons/fi';
 
+import { PressableScale } from './pressable-scale';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
@@ -30,7 +31,10 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
   const [dismissed, setDismissed] = usePersistedState(PWA_SHORTCUT_DISMISSED_KEY, false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [standalone, setStandalone] = useState(false);
-  const [iosLike, setIosLike] = useState(false);
+  const [iosLike] = useState(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+    return isIOSLikePlatform(window.navigator);
+  });
   const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   useEffect(() => {
@@ -43,7 +47,6 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
     }
 
     updateStandalone();
-    setIosLike(isIOSLikePlatform(nav));
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -76,8 +79,6 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
   }, [hasHydrated, installPrompt, iosLike, standalone, width]);
 
   const hiddenByBrowseDismiss = placement === 'browse' && dismissed;
-  if (mode === 'hidden' || hiddenByBrowseDismiss) return null;
-
   const isSettings = placement === 'settings';
   const actionLabel = mode === 'prompt' ? 'Pin Web App' : 'Add to Home Screen';
   const instructionSubtitle = iosLike
@@ -109,6 +110,31 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
     setInstallPrompt(null);
   }, [installPrompt, mode, setDismissed]);
 
+  if (mode === 'hidden' || hiddenByBrowseDismiss) return null;
+
+  const actionButton = (
+    <PressableScale
+      onPress={handlePrimary}
+      accessibilityRole="button"
+      accessibilityLabel={actionLabel}
+      scaleTo={0.98}
+      opacityTo={0.9}
+      style={[
+        styles.primaryButton,
+        isSettings && styles.settingsPrimaryButton,
+        { backgroundColor: Accent.base },
+      ]}>
+      {mode === 'prompt' ? (
+        <FiPlus size={15} color="#fff" strokeWidth={2.4} />
+      ) : (
+        <FiExternalLink size={15} color="#fff" strokeWidth={2.4} />
+      )}
+      <ThemedText type="smallBold" style={styles.primaryButtonLabel}>
+        {actionLabel}
+      </ThemedText>
+    </PressableScale>
+  );
+
   const card = (
     <ThemedView
       type="backgroundElement"
@@ -120,15 +146,31 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
           backgroundColor: isSettings ? colors.surface2 : colors.surface,
         },
       ]}>
-      <View style={styles.cardTopRow}>
-        <View style={[styles.iconShell, { borderColor: Accent.base, backgroundColor: Accent.bg }]}>
-          <FiSmartphone size={18} color={Accent.base} />
+      <View style={[styles.cardTopRow, isSettings && styles.settingsGrid]}>
+        <View style={isSettings ? styles.settingsIconSlot : undefined}>
+          <View
+            style={[
+              styles.iconShell,
+              isSettings && styles.settingsIconShell,
+              {
+                borderColor: Accent.base,
+                backgroundColor: isSettings ? Accent.base : Accent.bg,
+              },
+            ]}>
+            <View style={styles.iconGlyph}>
+              <FiSmartphone size={18} color={isSettings ? '#fff' : Accent.base} strokeWidth={2.4} />
+            </View>
+          </View>
         </View>
-        <View style={styles.copy}>
+        <View style={[styles.copy, isSettings && styles.settingsCopy]}>
           <ThemedText type="defaultSemiBold">Pin Web App</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.bodyCopy}>
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={[styles.bodyCopy, isSettings && styles.settingsBodyCopy]}>
             Keep Nihon Bunkai one tap away on this device.
           </ThemedText>
+          {isSettings ? actionButton : null}
         </View>
         {placement === 'browse' ? (
           <Pressable
@@ -141,26 +183,7 @@ export function PwaShortcutNudge({ placement }: PwaShortcutNudgeProps) {
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.actionRow}>
-        <Pressable
-          onPress={handlePrimary}
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { borderColor: Accent.base, backgroundColor: Accent.bg },
-            pressed && { opacity: 0.78 },
-          ]}>
-          {mode === 'prompt' ? (
-            <FiPlus size={14} color={Accent.base} />
-          ) : (
-            <FiExternalLink size={14} color={Accent.base} />
-          )}
-          <ThemedText type="smallBold" style={{ color: Accent.base }}>
-            {actionLabel}
-          </ThemedText>
-        </Pressable>
-      </View>
+      {!isSettings ? <View style={styles.actionRow}>{actionButton}</View> : null}
     </ThemedView>
   );
 
@@ -243,6 +266,11 @@ const webShadow = Platform.select({
   default: {},
 });
 
+const primaryButtonShadow = Platform.select({
+  web: { boxShadow: '0 3px 8px rgba(224, 32, 44, 0.28)' } as unknown as ViewStyle,
+  default: { elevation: 2 },
+});
+
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
@@ -260,7 +288,10 @@ const styles = StyleSheet.create({
   browseCard: {
     marginTop: Spacing.three,
   },
-  settingsCard: {},
+  settingsCard: {
+    paddingVertical: Spacing.four,
+    gap: Spacing.three,
+  },
   settingsSection: {
     gap: Spacing.two,
     marginBottom: Spacing.five,
@@ -276,24 +307,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  settingsIconShell: {
+    width: 44,
+    height: 44,
+  },
+  iconGlyph: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   copy: {
     flex: 1,
     minWidth: 0,
     gap: 2,
   },
+  settingsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  settingsIconSlot: {
+    flexBasis: 84,
+    flexGrow: 0,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsCopy: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+  },
   bodyCopy: {
     lineHeight: 18,
   },
+  settingsBodyCopy: {
+    textAlign: 'left',
+  },
   primaryButton: {
-    minHeight: 34,
+    minHeight: 42,
     borderRadius: Radii.sm,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: Spacing.one,
+    gap: Spacing.two,
     alignSelf: 'flex-start',
+    ...primaryButtonShadow,
+  },
+  settingsPrimaryButton: {
+    alignSelf: 'flex-start',
+  },
+  primaryButtonLabel: {
+    color: '#fff',
+    letterSpacing: 0.1,
   },
   actionRow: {
     paddingLeft: 42,

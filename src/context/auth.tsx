@@ -3,6 +3,11 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { Platform } from 'react-native';
 
 import { useToast } from '@/components/toast';
+import {
+  resendSignUpConfirmationEmail,
+  signInWithConfirmedPassword,
+  signUpWithEmailConfirmation,
+} from '@/lib/auth-email-actions';
 import { clearAllSrsData } from '@/lib/srs-store';
 import { startSync, stopSync } from '@/lib/srs-sync';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +26,7 @@ type AuthContextValue = {
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirm: boolean }>;
+  resendSignUpConfirmation: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
   refreshEntitlements: () => Promise<void>;
 };
@@ -152,14 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error?.message ?? null };
       },
       async signInWithPassword(email, password) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error?.message ?? null };
+        return signInWithConfirmedPassword(supabase, email, password);
       },
       async signUpWithPassword(email, password) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) return { error: error.message, needsEmailConfirm: false };
-        const needsEmailConfirm = !data.session && !!data.user;
-        return { error: null, needsEmailConfirm };
+        const currentUrl = typeof window !== 'undefined' ? window.location.href : undefined;
+        return signUpWithEmailConfirmation(supabase, email, password, currentUrl);
+      },
+      async resendSignUpConfirmation(email) {
+        const currentUrl = typeof window !== 'undefined' ? window.location.href : undefined;
+        return resendSignUpConfirmationEmail(supabase, email, currentUrl);
       },
       async signOut() {
         /* Stop sync BEFORE clearing local data — prevents listeners

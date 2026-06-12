@@ -5,7 +5,7 @@ import { FiBookOpen, FiCheck, FiChevronDown, FiChevronUp, FiFileText, FiFolder, 
 import { CustomTermDestinationPicker } from '@/components/custom-term-destination-picker';
 import { ThemedText } from '@/components/themed-text';
 import { Accent, Radii, Spacing } from '@/constants/theme';
-import { useThemePalette } from '@/context/theme';
+import { useThemeColors, useThemePalette } from '@/context/theme';
 import type { Deck, Entry } from '@/data/types';
 import { useToast } from '@/components/toast';
 import {
@@ -458,9 +458,10 @@ function RequirementSummary({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const colors = useThemePalette();
+  const { colors, scheme } = useThemeColors();
   const remaining = items.filter((item) => !item.done).length;
   const ChevronIcon = expanded ? FiChevronUp : FiChevronDown;
+  const isLight = scheme === 'light';
   return (
     <View
       style={[
@@ -471,7 +472,7 @@ function RequirementSummary({
       <Pressable
         onPress={onToggle}
         accessibilityRole="button"
-        accessibilityLabel={expanded ? 'พับรายการที่ต้องมีก่อนบันทึก' : 'กางรายการที่ต้องมีก่อนบันทึก'}
+        accessibilityLabel={expanded ? 'พับรายการช่องที่ต้องกรอก' : 'กางรายการช่องที่ต้องกรอก'}
         accessibilityState={{ expanded }}
         style={({ pressed }) => [
           styles.requirementHeaderButton,
@@ -479,7 +480,7 @@ function RequirementSummary({
           pressed && { opacity: 0.72 },
         ]}>
         <View style={styles.requirementHeaderTitle}>
-          <ThemedText type="smallBold">ต้องมีก่อนบันทึก</ThemedText>
+          <ThemedText type="smallBold">ช่องที่ต้องกรอก</ThemedText>
         </View>
         <View style={styles.requirementHeaderMeta}>
           <ThemedText type="small" themeColor={remaining === 0 ? undefined : 'textSecondary'} style={remaining === 0 ? { color: Accent.base } : undefined}>
@@ -493,6 +494,13 @@ function RequirementSummary({
           {items.map((item) => {
             const missing = !item.done;
             const color = item.done ? Accent.base : showMissing ? Accent.strong : colors.textHint;
+            const chipLabelColor = item.done
+              ? Accent.base
+              : showMissing && missing
+                ? Accent.strong
+                : isLight
+                  ? colors.textSecondary
+                  : colors.textHint;
             return (
               <View
                 key={item.key}
@@ -504,7 +512,15 @@ function RequirementSummary({
                   },
                 ]}>
                 {item.done ? <FiCheck size={12} color={Accent.base} /> : <View style={[styles.requirementDot, { borderColor: color }]} />}
-                <ThemedText type="smallBold" style={{ color }}>{item.label}</ThemedText>
+                <ThemedText
+                  type={isLight ? 'small' : 'smallBold'}
+                  style={[
+                    styles.requirementChipLabel,
+                    isLight && styles.requirementChipLabelLight,
+                    { color: chipLabelColor },
+                  ]}>
+                  {item.label}
+                </ThemedText>
               </View>
             );
           })}
@@ -988,6 +1004,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.one,
+  },
+  requirementChipLabel: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  requirementChipLabelLight: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   requirementDot: {
     width: 10,

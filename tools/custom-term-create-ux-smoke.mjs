@@ -69,13 +69,13 @@ try {
   await page.getByRole('button', { name: 'บันทึกคำ' }).waitFor({ timeout: 15_000 });
   await page.getByText('T คำศัพท์').waitFor({ timeout: 15_000 });
   const expandedRequirementBox = await parentBox(
-    page.getByLabel('พับรายการที่ต้องมีก่อนบันทึก'),
+    page.getByLabel('พับรายการช่องที่ต้องกรอก'),
     'expanded requirement summary',
   );
-  await page.getByLabel('พับรายการที่ต้องมีก่อนบันทึก').click();
-  await page.getByLabel('กางรายการที่ต้องมีก่อนบันทึก').waitFor({ timeout: 15_000 });
+  await page.getByLabel('พับรายการช่องที่ต้องกรอก').click();
+  await page.getByLabel('กางรายการช่องที่ต้องกรอก').waitFor({ timeout: 15_000 });
   const collapsedRequirementBox = await parentBox(
-    page.getByLabel('กางรายการที่ต้องมีก่อนบันทึก'),
+    page.getByLabel('กางรายการช่องที่ต้องกรอก'),
     'collapsed requirement summary',
   );
   const collapsedRequirementChipCount = await page.getByText('T คำศัพท์').count();
@@ -91,7 +91,7 @@ try {
   await page.getByRole('button', { name: 'บันทึกคำ' }).click();
   await page.getByText('ต้องใส่คำศัพท์ก่อนบันทึก').waitFor({ timeout: 15_000 });
   await page.getByText('ต้องใส่ความหมายภาษาไทยก่อนบันทึก').waitFor({ timeout: 15_000 });
-  await page.getByText('ต้องมีก่อนบันทึก').waitFor({ timeout: 15_000 });
+  await page.getByText('ช่องที่ต้องกรอก').waitFor({ timeout: 15_000 });
   await page.getByText('T คำศัพท์').waitFor({ timeout: 15_000 });
 
   const saveBox = await box(page.getByRole('button', { name: 'บันทึกคำ' }), 'save footer');

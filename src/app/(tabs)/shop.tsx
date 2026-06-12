@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { FiCheck, FiCheckCircle, FiDownload, FiDownloadCloud, FiExternalLink, FiFileText, FiGrid, FiHardDrive, FiHelpCircle, FiList, FiRefreshCw, FiSmartphone, FiZap } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInLeft, FadeOutRight, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { ScrollToTop } from '@/components/scroll-to-top';
@@ -193,11 +193,6 @@ export default function ShopScreen() {
               <ThemedText style={[styles.shopKicker, { color: colors.textMuted }]}>
                 // CONTENT-BASED · จ่ายตามใช้
               </ThemedText>
-              {showViewToggle && (
-                <View style={{ marginLeft: 'auto' }}>
-                  <ViewToggle mode={viewMode} onChange={setViewMode} colors={colors} />
-                </View>
-              )}
             </View>
             <ThemedText style={[styles.shopHeadline, { color: colors.text }]}>
               จ่าย{'\n'}
@@ -236,7 +231,7 @@ export default function ShopScreen() {
             </PressableScale>
           )}
 
-          {shopTier === 'level' && perLevel.map((group) => (
+          {shopTier === 'level' && perLevel.map((group, idx) => (
             <LevelSection
               key={group.level}
               level={group.level}
@@ -245,6 +240,9 @@ export default function ShopScreen() {
               products={group.products}
               colors={colors}
               viewMode={effectiveViewMode}
+              showViewToggle={showViewToggle && idx === 0}
+              viewToggleMode={viewMode}
+              onViewToggleChange={setViewMode}
             />
           ))}
 
@@ -255,6 +253,11 @@ export default function ShopScreen() {
                 <ThemedText type="defaultSemiBold" style={[styles.sectionTitle, { color: Accent.base }]}>
                   ชุดรวมหลายระดับ
                 </ThemedText>
+                {showViewToggle && (
+                  <View style={styles.sectionHeaderToggleSlot}>
+                    <ViewToggle mode={viewMode} onChange={setViewMode} colors={colors} />
+                  </View>
+                )}
               </View>
               <ThemedText type="small" themeColor="textSecondary" style={styles.bundleBlurb}>
                 ครอบคลุม N5–N1 ทั้งหมด · ประหยัดเทียบกับซื้อแยก
@@ -341,6 +344,9 @@ function LevelSection({
   products,
   colors,
   viewMode,
+  showViewToggle,
+  viewToggleMode,
+  onViewToggleChange,
 }: {
   level: string;
   kanji: string;
@@ -348,6 +354,9 @@ function LevelSection({
   products: Product[];
   colors: typeof Colors.light;
   viewMode: ViewMode;
+  showViewToggle?: boolean;
+  viewToggleMode: ViewMode;
+  onViewToggleChange: (m: ViewMode) => void;
 }) {
   return (
     <View style={styles.levelSection}>
@@ -359,6 +368,11 @@ function LevelSection({
         <ThemedText type="small" themeColor="textHint" style={styles.kanjiBadge}>
           {kanji}
         </ThemedText>
+        {showViewToggle && (
+          <View style={styles.sectionHeaderToggleSlot}>
+            <ViewToggle mode={viewToggleMode} onChange={onViewToggleChange} colors={colors} />
+          </View>
+        )}
       </View>
       <ThemedText type="small" themeColor="textSecondary" style={styles.levelBlurb}>
         {blurb}
@@ -388,21 +402,8 @@ const TOGGLE_SEGMENTS: { value: ViewMode; Icon: React.ComponentType<{ size: numb
   { value: 'list', Icon: FiList, label: 'List' },
   { value: 'grid', Icon: FiGrid, label: 'Grid' },
 ];
-const TOGGLE_TRACK_WIDTH = 88;
-const TOGGLE_PADDING = 2;
-const TOGGLE_SEGMENT_WIDTH = (TOGGLE_TRACK_WIDTH - TOGGLE_PADDING * 2) / TOGGLE_SEGMENTS.length;
-
-/* Web-only CSS transition for the pill — compositor-thread animation
-   that handles rapid retargeting smoothly (browser cancels/restarts
-   on its own). See theme-toggle.tsx for the full rationale. */
-const TOGGLE_PILL_TRANSITION = Platform.select({
-  web: {
-    transitionProperty: 'transform',
-    transitionDuration: '180ms',
-    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-  } as object,
-  default: undefined,
-});
+const VIEW_TOGGLE_ENTER = FadeInLeft.duration(150).easing(Easing.out(Easing.cubic));
+const VIEW_TOGGLE_EXIT = FadeOutRight.duration(120).easing(Easing.out(Easing.cubic));
 
 function ViewToggle({
   mode,
@@ -413,41 +414,45 @@ function ViewToggle({
   onChange: (m: ViewMode) => void;
   colors: typeof Colors.light;
 }) {
-  const selectedIndex = TOGGLE_SEGMENTS.findIndex((s) => s.value === mode);
+  const current = TOGGLE_SEGMENTS.find((s) => s.value === mode) ?? TOGGLE_SEGMENTS[0];
+  const nextMode: ViewMode = mode === 'list' ? 'grid' : 'list';
+  const nextLabel = nextMode === 'list' ? 'List' : 'Grid';
+  const { Icon } = current;
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  const handlePress = () => {
+    setHasInteracted(true);
+    onChange(nextMode);
+  };
 
   return (
     <View style={styles.toggleColumn}>
-      <View style={[styles.toggleTrack, { width: TOGGLE_TRACK_WIDTH, borderColor: colors.border, backgroundColor: colors.backgroundElement }]}>
-        <View
-          style={[
-            styles.togglePill,
-            {
-              backgroundColor: Accent.base,
-              width: TOGGLE_SEGMENT_WIDTH,
-              transform: [{ translateX: selectedIndex * TOGGLE_SEGMENT_WIDTH }],
-            },
-            TOGGLE_PILL_TRANSITION,
-          ]}
-        />
-        {TOGGLE_SEGMENTS.map((seg) => {
-          const isActive = seg.value === mode;
-          const { Icon } = seg;
-          return (
-            <Pressable
-              key={seg.value}
-              onPress={() => onChange(seg.value)}
-              accessibilityLabel={`${seg.label} view`}
-              // @ts-ignore web tooltip
-              title={`${seg.label} view`}
-              style={styles.toggleSegment}>
-              <Icon size={14} color={isActive ? '#ffffff' : colors.textSecondary} />
-            </Pressable>
-          );
-        })}
-      </View>
-      <ThemedText type="small" themeColor="textHint" style={styles.toggleHint}>
-        View: {mode === 'list' ? 'List' : 'Grid'}
-      </ThemedText>
+      <PressableScale
+        onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel={`Switch to ${nextLabel} view`}
+        // @ts-ignore web tooltip
+        title={`Switch to ${nextLabel} view`}
+        scaleTo={0.96}
+        opacityTo={0.9}
+        style={[
+          styles.viewModeButton,
+          {
+            borderColor: colors.borderStrong,
+            backgroundColor: colors.background,
+          },
+        ]}>
+        <Animated.View
+          key={mode}
+          entering={hasInteracted ? VIEW_TOGGLE_ENTER : undefined}
+          exiting={hasInteracted ? VIEW_TOGGLE_EXIT : undefined}
+          style={styles.viewModeButtonInner}>
+          <Icon size={13} color={colors.textSecondary} />
+          <ThemedText type="smallBold" style={[styles.viewModeButtonLabel, { color: colors.textSecondary }]}>
+            {current.label.toUpperCase()}
+          </ThemedText>
+        </Animated.View>
+      </PressableScale>
     </View>
   );
 }
@@ -1111,32 +1116,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: Spacing.three,
   },
-  toggleColumn: { alignItems: 'flex-end', gap: 2 },
-  toggleTrack: {
+  toggleColumn: { alignItems: 'flex-end' },
+  viewModeButton: {
     flexDirection: 'row',
+    width: 96,
     height: 32,
     borderRadius: Radii.sm,
     borderWidth: 1,
-    padding: 2,
-    position: 'relative',
-  },
-  togglePill: {
-    position: 'absolute',
-    top: 2,
-    bottom: 2,
-    left: 2,
-    borderRadius: 2,
-  },
-  toggleSegment: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
+    overflow: 'hidden',
   },
-  toggleHint: { fontSize: 11, letterSpacing: 0.5 },
+  viewModeButtonInner: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  viewModeButtonLabel: {
+    fontFamily: Platform.select({ web: '"JetBrains Mono", monospace', default: undefined }),
+    fontSize: 11,
+    lineHeight: 13,
+    letterSpacing: 1.4,
+    marginRight: -1.4,
+  },
   levelSection: { gap: Spacing.two },
   bundlesSection: { gap: Spacing.two, marginTop: Spacing.three },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  sectionHeaderToggleSlot: { marginLeft: 'auto' },
   rule: { width: 28, height: 2 },
   sectionTitle: { fontSize: 18, letterSpacing: 1.5 },
   kanjiBadge: { fontSize: 16, marginLeft: Spacing.one },

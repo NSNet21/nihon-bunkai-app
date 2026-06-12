@@ -93,8 +93,14 @@ async function checkShop(viewport, label) {
 
   let viewToggle = null;
   if (viewport.width >= 600) {
-    const list = await centerDelta(page.getByLabel('List view').first(), 'svg');
-    const grid = await centerDelta(page.getByLabel('Grid view').first(), 'svg');
+    const switchToList = page.getByLabel('Switch to List view').first();
+    await switchToList.waitFor({ timeout: 15_000 });
+    const grid = await centerDelta(switchToList, 'svg, [dir="auto"]');
+    await switchToList.click();
+    const switchToGrid = page.getByLabel('Switch to Grid view').first();
+    await switchToGrid.waitFor({ timeout: 15_000 });
+    await page.waitForTimeout(250);
+    const list = await centerDelta(switchToGrid, 'svg, [dir="auto"]');
     viewToggle = { list, grid };
     const viewImbalance = [
       Math.abs(list.padding.left - list.padding.right),
@@ -103,7 +109,7 @@ async function checkShop(viewport, label) {
       Math.abs(grid.padding.top - grid.padding.bottom),
     ];
     if (list.delta > maxCenterDelta || grid.delta > maxCenterDelta || viewImbalance.some((value) => value > maxPaddingImbalance)) {
-      fail('View Toggle icons should have balanced optical padding inside each segment', {
+      fail('View Toggle content should have balanced optical padding inside the single mode button', {
         list,
         grid,
         maxCenterDelta,

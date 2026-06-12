@@ -32,9 +32,25 @@ const SETTINGS_ACTION_SURFACE = Platform.select({
   web: 'var(--settings-action-surface)',
   default: undefined,
 });
+const SETTINGS_SUPPORT_ROW_SURFACE = Platform.select({
+  web: 'var(--settings-support-row-surface)',
+  default: undefined,
+});
+const SETTINGS_SUPPORT_ROW_BORDER = Platform.select({
+  web: 'var(--settings-support-row-border)',
+  default: undefined,
+});
 
 function getSettingsActionSurface(colors: typeof Colors.light) {
   return SETTINGS_ACTION_SURFACE ?? colors.surface3;
+}
+
+function getSettingsSupportRowSurface(colors: typeof Colors.light) {
+  return SETTINGS_SUPPORT_ROW_SURFACE ?? colors.surface;
+}
+
+function getSettingsSupportRowBorder(colors: typeof Colors.light) {
+  return SETTINGS_SUPPORT_ROW_BORDER ?? colors.border;
 }
 
 export default function SettingsScreen() {
@@ -95,7 +111,6 @@ export default function SettingsScreen() {
               email={user?.email}
               entitlementCount={entitlementCount}
               onSignOut={signOut}
-              onRefresh={refreshEntitlements}
             />
           </View>
 
@@ -151,7 +166,7 @@ export default function SettingsScreen() {
           {user && (
             <View style={styles.section}>
               <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionLabel}>
-                กู้คืนการสั่งซื้อ
+                การซื้อและการกู้สิทธิ์
               </ThemedText>
               <RestoreSection onRestored={refreshEntitlements} />
             </View>
@@ -608,10 +623,17 @@ function RestoreSection({ onRestored }: { onRestored: () => Promise<void> }) {
     <ThemedView type="backgroundElement" style={restoreStyles.card}>
       <View style={restoreStyles.headerRow}>
         <FiPackage size={18} color={Accent.base} />
-        <ThemedText type="defaultSemiBold">ซื้อด้วย email อื่น?</ThemedText>
+        <ThemedText type="defaultSemiBold">กู้สิทธิ์ที่ซื้อไว้</ThemedText>
       </View>
       <ThemedText type="small" themeColor="textSecondary" style={restoreStyles.subtitle}>
-        ใส่ Payhip Order ID + email ที่ใช้ตอนซื้อ — ระบบจะผูก SKU เข้า account นี้ให้
+        ใช้เฉพาะตอนซื้อแล้วสินค้ายังไม่ขึ้นใน Shop หรือซื้อก่อนสมัครบัญชี
+      </ThemedText>
+      <RestoreBtn onRefresh={onRestored} borderColor={colors.border} textColor={colors.text} />
+
+      <View style={restoreStyles.divider} />
+
+      <ThemedText type="small" themeColor="textSecondary" style={restoreStyles.subtitle}>
+        ถ้าซื้อด้วย email อื่น ให้ใส่ Payhip Order ID + email ที่ใช้ตอนซื้อ — ระบบจะผูกสิทธิ์เข้า account นี้ให้
       </ThemedText>
 
       <View style={[restoreStyles.inputWrap, { borderColor: colors.border, backgroundColor: colors.background }]}>
@@ -673,6 +695,11 @@ const restoreStyles = StyleSheet.create({
     gap: Spacing.two,
   },
   subtitle: { lineHeight: 18 },
+  divider: {
+    height: 1,
+    opacity: 0.18,
+    backgroundColor: Accent.base,
+  },
   inputWrap: {
     borderWidth: 1,
     borderRadius: Radii.sm,
@@ -1070,7 +1097,8 @@ function SupportLinkRow({
   onPress: () => void;
 }) {
   const Icon = icon === 'mail' ? FiMail : icon === 'package' ? FiPackage : FiShield;
-  const actionSurface = getSettingsActionSurface(colors);
+  const rowSurface = getSettingsSupportRowSurface(colors);
+  const rowBorder = getSettingsSupportRowBorder(colors);
   return (
     <Pressable
       onPress={onPress}
@@ -1078,17 +1106,21 @@ function SupportLinkRow({
       accessibilityLabel={`ติดต่อ support เรื่อง ${title}`}
       style={({ pressed }) => [
         safetyStyles.supportRow,
-        { borderColor: actionSurface, backgroundColor: actionSurface },
+        { borderColor: rowBorder, backgroundColor: rowSurface },
         pressed && { opacity: 0.85 },
       ]}>
-      <Icon size={16} color={Accent.base} />
+      <View style={[safetyStyles.supportIconShell, { backgroundColor: Accent.base }]}>
+        <Icon size={16} color="#fff" strokeWidth={2.4} />
+      </View>
       <View style={{ flex: 1, gap: 2 }}>
         <ThemedText type="defaultSemiBold">{title}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {hint}
         </ThemedText>
       </View>
-      <FiExternalLink size={15} color={Accent.base} />
+      <View style={safetyStyles.supportExternalShell}>
+        <FiExternalLink size={15} color={Accent.base} strokeWidth={2.4} />
+      </View>
     </Pressable>
   );
 }
@@ -1163,11 +1195,24 @@ const safetyStyles = StyleSheet.create({
   supportRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.three,
     borderWidth: 1,
     borderRadius: Radii.sm,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+  },
+  supportIconShell: {
+    width: 44,
+    height: 44,
+    borderRadius: Radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supportExternalShell: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
@@ -1176,13 +1221,11 @@ function AccountCard({
   email,
   entitlementCount,
   onSignOut,
-  onRefresh,
 }: {
   status: 'loading' | 'signed-in' | 'signed-out';
   email?: string;
   entitlementCount: number;
   onSignOut: () => Promise<unknown>;
-  onRefresh: () => Promise<void>;
 }) {
   const colors = useThemePalette();
 
@@ -1232,7 +1275,6 @@ function AccountCard({
         </View>
       </View>
       <View style={styles.accountActionsRow}>
-        <RestoreBtn onRefresh={onRefresh} borderColor={colors.border} textColor={colors.text} />
         <SignOutBtn
           onPress={async () => {
             await onSignOut();
@@ -1269,7 +1311,7 @@ function RestoreBtn({
   const label =
     state === 'loading' ? 'กำลังตรวจสอบ…' :
     state === 'done'    ? 'ตรวจแล้ว' :
-                          'ตรวจสิทธิ์ / Restore';
+                          'ตรวจสิทธิ์การซื้อ';
 
   const IconCmp = state === 'done' ? FiCheck : FiRefreshCw;
   const color = state === 'done' ? Accent.base : textColor;

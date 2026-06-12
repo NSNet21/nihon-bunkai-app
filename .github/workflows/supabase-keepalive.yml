@@ -1,0 +1,28 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    # Mon/Thu/Sat at 03:17 UTC keeps the free project warm every 2-3 days.
+    - cron: '17 3 * * 1,4,6'
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Touch Supabase REST health_check
+        run: node tools/supabase-keepalive.mjs

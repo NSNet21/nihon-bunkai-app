@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  requestPasswordResetEmail,
   resendSignUpConfirmationEmail,
   signInWithExistingUserMagicLink,
   signInWithConfirmedPassword,
   signUpWithEmailConfirmation,
+  updateRecoveredPassword,
 } from './auth-email-actions';
 
 describe('auth email actions', () => {
@@ -78,6 +80,32 @@ describe('auth email actions', () => {
         shouldCreateUser: false,
       },
     });
+    expect(result).toEqual({ error: null });
+  });
+
+  it('requests a password reset email with the reset-password redirect', async () => {
+    const resetPasswordForEmail = vi.fn().mockResolvedValue({ error: null });
+    const client = { auth: { resetPasswordForEmail } };
+
+    const result = await requestPasswordResetEmail(
+      client,
+      'learner@example.com',
+      'https://app.nihon-bunkai.com/login',
+    );
+
+    expect(resetPasswordForEmail).toHaveBeenCalledWith('learner@example.com', {
+      redirectTo: 'https://app.nihon-bunkai.com/reset-password',
+    });
+    expect(result).toEqual({ error: null });
+  });
+
+  it('updates the password after Supabase opens a recovery session', async () => {
+    const updateUser = vi.fn().mockResolvedValue({ error: null });
+    const client = { auth: { updateUser } };
+
+    const result = await updateRecoveredPassword(client, 'Newpass1!');
+
+    expect(updateUser).toHaveBeenCalledWith({ password: 'Newpass1!' });
     expect(result).toEqual({ error: null });
   });
 });

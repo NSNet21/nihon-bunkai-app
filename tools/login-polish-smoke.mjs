@@ -27,7 +27,11 @@ async function checkLogin(viewport, label) {
 
   await page.goto(new URL('/login', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 90_000 });
   await page.getByText('เข้าสู่ระบบ', { exact: true }).first().waitFor({ timeout: 30_000 });
-  await page.getByText('มีบัญชีอยู่แล้ว ใช้อีเมลและรหัสผ่านเพื่อกลับเข้า Browse').waitFor({ timeout: 15_000 });
+  await page.getByText('ใช้อีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ Companion App').waitFor({ timeout: 15_000 });
+  await page.locator('input[placeholder="อีเมลของคุณ"]').first().waitFor({ timeout: 15_000 });
+  const magicLinkTabCount = await page.getByText('ลิงก์อีเมล', { exact: true }).count();
+  if (magicLinkTabCount !== 0) fail(`${label}: magic link tab should be hidden for launch`, { magicLinkTabCount });
+  await page.getByText('ลืมรหัสผ่าน?', { exact: true }).waitFor({ timeout: 15_000 });
   await page.getByText('สมัครบัญชีใหม่', { exact: true }).waitFor({ timeout: 15_000 });
 
   const passwordInput = page.getByLabel('รหัสผ่าน').first();
@@ -47,6 +51,69 @@ async function checkLogin(viewport, label) {
   await expectNoHorizontalOverflow(page, label);
   await context.close();
   return { label, viewport, consoleErrors };
+}
+
+async function checkPasswordRecoveryRoutes() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context.addInitScript(() => {
+    localStorage.setItem('nb.onboarded', 'true');
+  });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto(new URL('/login', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 90_000 });
+  await page.getByText('ลืมรหัสผ่าน?', { exact: true }).click();
+  await page.waitForURL(/\/forgot-password/, { timeout: 15_000 });
+  await page.getByText('รีเซ็ตรหัสผ่าน', { exact: true }).waitFor({ timeout: 15_000 });
+  await page.locator('input[placeholder="อีเมลของคุณ"]').last().waitFor({ timeout: 15_000 });
+  await page.getByText('ส่งลิงก์รีเซ็ตรหัสผ่าน', { exact: true }).waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(350);
+  await expectNoHorizontalOverflow(page, 'forgot-password-mobile');
+
+  await page.goto(new URL('/reset-password', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 90_000 });
+  await page.getByText('ตั้งรหัสผ่านใหม่', { exact: true }).waitFor({ timeout: 15_000 });
+  await page.locator('input[placeholder="รหัสผ่านใหม่"]').first().waitFor({ timeout: 15_000 });
+  await page.getByText('บันทึกรหัสผ่านใหม่', { exact: true }).waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(350);
+  await expectNoHorizontalOverflow(page, 'reset-password-mobile');
+
+  await context.close();
+  return { label: 'password-recovery-routes', consoleErrors };
+}
+
+async function checkExpiredConfirmationLink() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await context.addInitScript(() => {
+    localStorage.setItem('nb.onboarded', 'true');
+  });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => consoleErrors.push(error.message));
+
+  await page.goto(
+    new URL('/login#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired', baseUrl).toString(),
+    { waitUntil: 'networkidle', timeout: 90_000 },
+  );
+  await page.getByText('ลิงก์ยืนยันหมดอายุ', { exact: true }).waitFor({ timeout: 30_000 });
+  await page.getByText('ลิงก์นี้ถูกใช้งานแล้วหรือหมดอายุ กรุณากรอกอีเมลเดิมเพื่อรับลิงก์ยืนยันใหม่อีกครั้ง').waitFor({ timeout: 15_000 });
+  await page.getByText('ส่งลิงก์ยืนยันใหม่', { exact: true }).waitFor({ timeout: 15_000 });
+
+  const passwordInputCount = await page.getByLabel('รหัสผ่าน').count();
+  if (passwordInputCount !== 0) fail('expired-link: password input should be hidden', { passwordInputCount });
+
+  const duplicateResendLinkCount = await page.getByText('ส่งอีเมลยืนยันใหม่อีกครั้ง', { exact: true }).count();
+  if (duplicateResendLinkCount !== 0) fail('expired-link: duplicate inline resend link should be hidden', { duplicateResendLinkCount });
+
+  await expectNoHorizontalOverflow(page, 'expired-link-mobile');
+  await context.close();
+  return { label: 'expired-link-mobile', consoleErrors };
 }
 
 async function checkSignup(viewport, label) {
@@ -71,7 +138,7 @@ async function checkSignup(viewport, label) {
   await page.getByText('สัญลักษณ์').waitFor({ timeout: 15_000 });
 
   const passwordInput = page.getByLabel('รหัสผ่าน').first();
-  await page.getByLabel('อีเมล').fill('learner@example.com');
+  await page.locator('input[placeholder="อีเมลของคุณ"]').first().fill('learner@example.com');
   await passwordInput.fill('abc');
   await page.getByText('สมัครสมาชิก', { exact: true }).click();
   await page.getByText('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร, ตัวอักษร, ตัวเลข และสัญลักษณ์').waitFor({ timeout: 15_000 });
@@ -117,6 +184,8 @@ try {
     await checkSignup({ width: 412, height: 700 }, 'signup-mobile'),
     await checkSignup({ width: 1365, height: 768 }, 'signup-desktop'),
     await checkSettingsEntry(),
+    await checkExpiredConfirmationLink(),
+    await checkPasswordRecoveryRoutes(),
   ];
   const consoleErrors = results.flatMap((result) => result.consoleErrors);
   console.log(JSON.stringify({ baseUrl, results, consoleErrors }, null, 2));

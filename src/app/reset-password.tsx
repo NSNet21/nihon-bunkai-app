@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { createElement, useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { FiAlertCircle, FiCheck, FiEye, FiEyeOff, FiLock, FiMail } from 'react-icons/fi';
+import { FiAlertCircle, FiCheck, FiEye, FiEyeOff, FiLock } from 'react-icons/fi';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -15,27 +15,21 @@ import { ThemedView } from '@/components/themed-view';
 import { Accent, Radii, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
-import { getEmailConfirmationSentMessage } from '@/lib/auth-email-confirmation';
 import {
   getPasswordRequirementState,
-  normalizeLoginEmail,
   validateLaunchPassword,
   type PasswordRequirementId,
 } from '@/lib/login-validation';
 
-type Phase = 'idle' | 'sending' | 'sent' | 'error';
-type PendingAction = 'signup' | 'resend-confirmation' | null;
+type Phase = 'idle' | 'saving' | 'saved' | 'error';
 
-export default function SignupScreen() {
+export default function ResetPasswordScreen() {
   const router = useRouter();
-  const { status, signUpWithPassword, resendSignUpConfirmation } = useAuth();
-  const [email, setEmail] = useState('');
+  const { updatePassword } = useAuth();
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
-  const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const screenEntry = useSharedValue(0);
 
   useEffect(() => {
@@ -44,68 +38,27 @@ export default function SignupScreen() {
 
   const screenEntryStyle = useAnimatedStyle(() => ({
     opacity: screenEntry.value,
-    transform: [{ translateX: (1 - screenEntry.value) * 14 }],
+    transform: [{ translateX: (1 - screenEntry.value) * -14 }],
   }));
 
-  useEffect(() => {
-    if (status === 'signed-in') router.replace('/');
-  }, [status, router]);
-
-  function validateEmail() {
-    const result = normalizeLoginEmail(email);
-    if (!result.ok) {
-      setErrMsg(result.message);
-      setPhase('error');
-      return null;
-    }
-    return result.value;
-  }
-
-  async function onPasswordSignUp() {
-    const trimmed = validateEmail();
-    if (!trimmed) return;
+  async function onUpdatePassword() {
     const passwordResult = validateLaunchPassword(password);
     if (!passwordResult.ok) {
-      setErrMsg(passwordResult.message);
+      setMessage(passwordResult.message);
       setPhase('error');
       return;
     }
-    setPhase('sending');
-    setPendingAction('signup');
-    setErrMsg(null);
-    const { error, needsEmailConfirm } = await signUpWithPassword(trimmed, password);
+    setPhase('saving');
+    setMessage(null);
+    const { error } = await updatePassword(password);
     if (error) {
-      setErrMsg(error);
+      setMessage('ลิงก์รีเซ็ตอาจหมดอายุแล้ว กรุณาขอลิงก์ใหม่อีกครั้ง');
       setPhase('error');
-      setPendingAction(null);
       return;
     }
-    setConfirmationEmail(trimmed);
-    setErrMsg(
-      needsEmailConfirm
-        ? getEmailConfirmationSentMessage(trimmed)
-        : 'สมัครสมาชิกสำเร็จ • โปรดตรวจสอบอีเมลเพื่อยืนยันบัญชี',
-    );
-    setPhase('sent');
-    setPendingAction(null);
-  }
-
-  async function onResendConfirmation() {
-    const targetEmail = confirmationEmail ?? validateEmail();
-    if (!targetEmail) return;
-    setPendingAction('resend-confirmation');
-    setErrMsg(null);
-    const { error } = await resendSignUpConfirmation(targetEmail);
-    if (error) {
-      setErrMsg(error);
-      setPhase('sent');
-      setPendingAction(null);
-      return;
-    }
-    setConfirmationEmail(targetEmail);
-    setErrMsg(`ส่งอีเมลยืนยันไปที่ ${targetEmail} อีกครั้งแล้ว`);
-    setPhase('sent');
-    setPendingAction(null);
+    setPassword('');
+    setMessage('ตั้งรหัสผ่านใหม่แล้ว');
+    setPhase('saved');
   }
 
   return (
@@ -114,74 +67,53 @@ export default function SignupScreen() {
         <Animated.View style={[styles.content, screenEntryStyle]}>
           <View style={styles.hero}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.eyebrow}>
-              SIGN UP · 日本分解
+              PASSWORD · 日本分解
             </ThemedText>
             <ThemedText type="title" style={styles.title}>
-              สมัครบัญชีใหม่
+              ตั้งรหัสผ่านใหม่
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              ระบบจะส่งลิงก์ยืนยันตัวตนไปยังอีเมลของคุณ
+              ใช้รหัสผ่านใหม่สำหรับเข้าสู่ระบบ Companion App
             </ThemedText>
           </View>
 
-          {phase === 'sent' ? (
+          {phase === 'saved' ? (
             <ThemedView type="backgroundElement" style={styles.successCard}>
-              <ThemedText type="defaultSemiBold">{errMsg}</ThemedText>
+              <ThemedText type="defaultSemiBold">{message ?? 'ตั้งรหัสผ่านใหม่แล้ว'}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                เราได้ส่งอีเมลยืนยันให้คุณแล้ว กรุณาคลิกลิงก์จาก Nihon Bunkai เพื่อเปิดใช้งานบัญชีและเข้าสู่ระบบ
+                ตอนนี้บัญชีนี้เข้าสู่ระบบอยู่แล้ว คุณสามารถกลับไป Browse และใช้งานต่อได้ทันที
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                หากไม่พบอีเมล ลองเช็กในแท็บโปรโมชันหรือจดหมายขยะ (Spam)
-              </ThemedText>
-              <Pressable
-                onPress={onResendConfirmation}
-                disabled={pendingAction === 'resend-confirmation'}
-                accessibilityRole="button"
-                accessibilityLabel="ส่งอีเมลยืนยันอีกครั้ง"
-                style={({ pressed }) => [
-                  styles.successResend,
-                  pressed && pendingAction !== 'resend-confirmation' && { opacity: 0.72 },
-                  pendingAction === 'resend-confirmation' && { opacity: 0.58 },
-                ]}>
-                <ThemedText type="small" style={{ color: Accent.base }}>
-                  {pendingAction === 'resend-confirmation' ? 'กำลังส่งอีกครั้ง…' : 'ส่งอีเมลยืนยันอีกครั้ง'}
-                </ThemedText>
-              </Pressable>
-              <Pressable onPress={() => router.replace('/login')} style={styles.successBack}>
-                <ThemedText type="small" style={{ color: Accent.base }}>
-                  กลับหน้าเข้าสู่ระบบ
-                </ThemedText>
-              </Pressable>
+              <PrimaryButton onPress={() => router.replace('/')} label="กลับ Browse" />
             </ThemedView>
           ) : (
-            <WebForm onSubmit={onPasswordSignUp}>
+            <WebForm onSubmit={onUpdatePassword}>
               <View style={styles.form}>
-                <EmailField value={email} onChange={(t) => { setEmail(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} invalid={phase === 'error' && !!errMsg && errMsg.includes('อีเมล')} />
                 <PasswordField
                   value={password}
-                  onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }}
-                  disabled={phase === 'sending'}
-                  invalid={phase === 'error' && !!errMsg && errMsg.includes('รหัสผ่าน')}
+                  onChange={(t) => {
+                    setPassword(t);
+                    if (phase === 'error') setPhase('idle');
+                  }}
+                  disabled={phase === 'saving'}
+                  invalid={phase === 'error'}
                   visible={passwordVisible}
                   onToggleVisible={() => setPasswordVisible((v) => !v)}
                 />
                 <PasswordRequirements password={password} />
-                {errMsg ? <StatusMessage tone="error" message={errMsg} /> : null}
-                <PrimaryButton onPress={onPasswordSignUp} disabled={phase === 'sending'} label={pendingAction === 'signup' ? 'กำลังสมัคร…' : 'สมัครสมาชิก'} />
-                <Pressable onPress={() => router.replace('/login')} style={styles.loginLink}>
+                {message ? <StatusMessage tone={phase === 'error' ? 'error' : 'info'} message={message} /> : null}
+                <PrimaryButton
+                  onPress={onUpdatePassword}
+                  disabled={phase === 'saving'}
+                  label={phase === 'saving' ? 'กำลังบันทึก…' : 'บันทึกรหัสผ่านใหม่'}
+                />
+                <Pressable onPress={() => router.replace('/forgot-password')} style={styles.secondaryLink}>
                   <ThemedText type="small" style={{ color: Accent.base }}>
-                    กลับหน้าเข้าสู่ระบบ
+                    ขอลิงก์รีเซ็ตใหม่
                   </ThemedText>
                 </Pressable>
               </View>
             </WebForm>
           )}
-
-          <Pressable onPress={() => router.replace('/')} style={styles.cancel}>
-            <ThemedText type="small" themeColor="textSecondary">
-              ← กลับ Browse
-            </ThemedText>
-          </Pressable>
         </Animated.View>
       </SafeAreaView>
     </ThemedView>
@@ -204,47 +136,6 @@ function WebForm({ onSubmit, children }: { onSubmit: () => void; children: React
       'aria-hidden': true,
       tabIndex: -1,
     }),
-  );
-}
-
-function EmailField({
-  value,
-  onChange,
-  disabled,
-  invalid,
-}: {
-  value: string;
-  onChange: (s: string) => void;
-  disabled?: boolean;
-  invalid?: boolean;
-}) {
-  const colors = useThemePalette();
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={[
-      styles.inputWrap,
-      {
-        borderBottomColor: invalid ? Accent.base : focused ? Accent.base : colors.border,
-        backgroundColor: invalid ? Accent.bg : 'transparent',
-      },
-    ]}>
-      <FiMail size={16} color={invalid || focused ? Accent.base : colors.textSecondary} />
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder="อีเมลของคุณ"
-        placeholderTextColor={colors.textHint}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
-        autoComplete="email"
-        editable={!disabled}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        accessibilityLabel="อีเมล"
-        style={[styles.input, { color: colors.text }]}
-      />
-    </View>
   );
 }
 
@@ -278,7 +169,7 @@ function PasswordField({
       <TextInput
         value={value}
         onChangeText={onChange}
-        placeholder="รหัสผ่าน"
+        placeholder="รหัสผ่านใหม่"
         placeholderTextColor={colors.textHint}
         secureTextEntry={!visible}
         autoCapitalize="none"
@@ -287,7 +178,7 @@ function PasswordField({
         editable={!disabled}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        accessibilityLabel="รหัสผ่าน"
+        accessibilityLabel="รหัสผ่านใหม่"
         style={[styles.input, { color: colors.text }]}
       />
       <Pressable
@@ -318,7 +209,7 @@ function PasswordRequirements({ password }: { password: string }) {
   ];
 
   return (
-    <View style={styles.requirementsLine} accessibilityLabel="เงื่อนไขรหัสผ่านสำหรับสมัครใหม่">
+    <View style={styles.requirementsLine} accessibilityLabel="เงื่อนไขรหัสผ่านใหม่">
       <View style={styles.requirementsHeader}>
         <FiLock size={13} color={Accent.base} />
         <ThemedText type="small" themeColor="textSecondary">
@@ -370,7 +261,7 @@ function PrimaryButton({ onPress, disabled, label }: { onPress: () => void; disa
       <Pressable
         onPress={onPress}
         disabled={disabled}
-        onPressIn={() => { scale.value = withTiming(0.97, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
+        onPressIn={() => { scale.value = withTiming(0.96, { duration: 90, easing: Easing.bezier(0.4, 0, 0.2, 1) }); }}
         onPressOut={() => { scale.value = withTiming(1, { duration: 180, easing: Easing.bezier(0.2, 0, 0, 1) }); }}
         style={({ pressed }) => [styles.primaryBtn, { backgroundColor: Accent.base, opacity: disabled ? 0.6 : pressed ? 0.88 : 1 }]}>
         <ThemedText type="defaultSemiBold" style={styles.primaryBtnLabel}>
@@ -398,15 +289,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Radii.sm,
   },
-  requirementsLine: {
-    gap: Spacing.one,
-    paddingTop: Spacing.one,
-  },
-  requirementsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-  },
+  requirementsLine: { gap: Spacing.one, paddingTop: Spacing.one },
+  requirementsHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   requirementList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -436,9 +320,6 @@ const styles = StyleSheet.create({
   },
   primaryBtn: { paddingVertical: Spacing.three, paddingHorizontal: Spacing.four, borderRadius: Radii.sm, alignItems: 'center' },
   primaryBtnLabel: { color: '#fff' },
-  loginLink: { alignItems: 'center', paddingVertical: Spacing.two },
   successCard: { padding: Spacing.four, borderRadius: Radii.md, gap: Spacing.two },
-  successResend: { alignSelf: 'flex-start', paddingVertical: Spacing.two },
-  successBack: { marginTop: Spacing.two },
-  cancel: { alignItems: 'center', paddingVertical: Spacing.three },
+  secondaryLink: { alignItems: 'center', paddingVertical: Spacing.two },
 });

@@ -4,10 +4,12 @@ import { Platform } from 'react-native';
 
 import { useToast } from '@/components/toast';
 import {
+  requestPasswordResetEmail,
   resendSignUpConfirmationEmail,
   signInWithConfirmedPassword,
   signInWithExistingUserMagicLink,
   signUpWithEmailConfirmation,
+  updateRecoveredPassword,
 } from '@/lib/auth-email-actions';
 import { clearAllSrsData } from '@/lib/srs-store';
 import { startSync, stopSync } from '@/lib/srs-sync';
@@ -28,6 +30,8 @@ type AuthContextValue = {
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signUpWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirm: boolean }>;
   resendSignUpConfirmation: (email: string) => Promise<{ error: string | null }>;
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
   refreshEntitlements: () => Promise<void>;
 };
@@ -163,6 +167,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async resendSignUpConfirmation(email) {
         const currentUrl = typeof window !== 'undefined' ? window.location.href : undefined;
         return resendSignUpConfirmationEmail(supabase, email, currentUrl);
+      },
+      async requestPasswordReset(email) {
+        const currentUrl = typeof window !== 'undefined' ? window.location.href : undefined;
+        return requestPasswordResetEmail(supabase, email, currentUrl);
+      },
+      async updatePassword(password) {
+        return updateRecoveredPassword(supabase, password);
       },
       async signOut() {
         /* Stop sync BEFORE clearing local data — prevents listeners

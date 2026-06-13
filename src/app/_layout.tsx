@@ -32,7 +32,7 @@ function OnboardingGate() {
     const inOnboarding = root === 'onboarding';
     /* Login must stay reachable even when not yet onboarded, otherwise the
        SIGN IN link on the welcome screen would redirect right back to it. */
-    const inAuthFlow = root === 'login';
+    const inAuthFlow = root === 'login' || root === 'signup' || root === 'forgot-password' || root === 'reset-password';
     if (!onboarded && !inOnboarding && !inAuthFlow) {
       router.replace('/onboarding/welcome');
     }
@@ -65,6 +65,9 @@ function WebDocumentTitle() {
       : pathname === '/search' ? 'Search'
       : pathname === '/settings' ? 'Settings'
       : pathname === '/login' ? 'Login'
+      : pathname === '/signup' ? 'Sign up'
+      : pathname === '/forgot-password' ? 'Forgot password'
+      : pathname === '/reset-password' ? 'Reset password'
       : pathname.startsWith('/deck/') ? 'Deck'
       : pathname.startsWith('/onboarding/') ? 'Onboarding'
       : pathname === '/group-picker' ? 'Multi-deck Study'
@@ -102,6 +105,9 @@ function ThemedRoot() {
         <Stack.Screen name="group-picker" />
         <Stack.Screen name="term" />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="signup" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="forgot-password" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="reset-password" options={{ presentation: 'modal' }} />
       </Stack>
     </NavThemeProvider>
   );

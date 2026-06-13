@@ -14,18 +14,17 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/context/auth';
 import { useThemePalette } from '@/context/theme';
+import { parseAuthEmailLinkIssue, type AuthEmailLinkIssue } from '@/lib/auth-email-confirmation';
 import { normalizeLoginEmail } from '@/lib/login-validation';
 import { Accent, Radii, Spacing } from '@/constants/theme';
 
-type Mode = 'magic' | 'password';
 type Phase = 'idle' | 'sending' | 'sent' | 'error';
-type PendingAction = 'magic' | 'signin' | 'resend-confirmation' | null;
+type PendingAction = 'signin' | 'resend-confirmation' | null;
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { status, signInWithMagicLink, signInWithPassword, resendSignUpConfirmation } = useAuth();
+  const { status, signInWithPassword, resendSignUpConfirmation } = useAuth();
 
-  const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -33,7 +32,16 @@ export default function LoginScreen() {
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const [emailLinkIssue, setEmailLinkIssue] = useState<AuthEmailLinkIssue | null>(null);
   const screenEntry = useSharedValue(0);
+  const passwordSubmit = emailLinkIssue ? onResendConfirmation : onPasswordSignIn;
+  const passwordPrimaryLabel = emailLinkIssue
+    ? pendingAction === 'resend-confirmation'
+      ? 'กำลังส่งลิงก์ยืนยัน…'
+      : 'ส่งลิงก์ยืนยันใหม่'
+    : pendingAction === 'signin'
+      ? 'กำลังเข้าสู่ระบบ…'
+      : 'เข้าสู่ระบบ';
 
   useEffect(() => {
     screenEntry.value = withTiming(1, { duration: 210, easing: Easing.bezier(0.2, 0, 0, 1) });
@@ -48,6 +56,11 @@ export default function LoginScreen() {
     if (status === 'signed-in') router.replace('/');
   }, [status, router]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    setEmailLinkIssue(parseAuthEmailLinkIssue(window.location.href));
+  }, []);
+
   function validateEmail() {
     const result = normalizeLoginEmail(email);
     if (!result.ok) {
@@ -56,24 +69,6 @@ export default function LoginScreen() {
       return null;
     }
     return result.value;
-  }
-
-  async function onMagicLink() {
-    const trimmed = validateEmail();
-    if (!trimmed) return;
-    setPhase('sending');
-    setPendingAction('magic');
-    setErrMsg(null);
-    const { error } = await signInWithMagicLink(trimmed);
-    if (error) {
-      setErrMsg(error);
-      setPhase('error');
-      setPendingAction(null);
-      return;
-    }
-    setUnconfirmedEmail(null);
-    setPhase('sent');
-    setPendingAction(null);
   }
 
   async function onPasswordSignIn() {
@@ -94,6 +89,7 @@ export default function LoginScreen() {
       setUnconfirmedEmail(error.includes('ยังไม่ได้ยืนยัน') ? trimmed : null);
     } else {
       setUnconfirmedEmail(null);
+      setEmailLinkIssue(null);
     }
     setPendingAction(null);
   }
@@ -111,6 +107,7 @@ export default function LoginScreen() {
       return;
     }
     setUnconfirmedEmail(targetEmail);
+    setEmailLinkIssue(null);
     setErrMsg(`ส่งอีเมลยืนยันไปที่ ${targetEmail} อีกครั้งแล้ว`);
     setPhase('idle');
     setPendingAction(null);
@@ -128,11 +125,11 @@ export default function LoginScreen() {
               เข้าสู่ระบบ
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              มีบัญชีอยู่แล้ว ใช้อีเมลและรหัสผ่านเพื่อกลับเข้า Browse
+              ใช้อีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ Companion App
             </ThemedText>
           </View>
 
-          <ModeTabs mode={mode} onChange={(m) => { setMode(m); setPhase('idle'); setPendingAction(null); setErrMsg(null); setUnconfirmedEmail(null); }} />
+          {emailLinkIssue ? <EmailLinkIssueCard issue={emailLinkIssue} /> : null}
 
           {phase === 'sent' ? (
             <SuccessCard
@@ -140,67 +137,56 @@ export default function LoginScreen() {
               onBack={() => router.replace('/')}
             />
           ) : (
-            <WebForm onSubmit={mode === 'magic' ? onMagicLink : onPasswordSignIn}>
+            <WebForm onSubmit={passwordSubmit}>
               <View style={styles.form}>
-                {/* Email field stays stable across mode swaps so focus + value
-                    survive the swipe. Only the mode-specific block (password
-                    row, action cluster, fineprint) swipes horizontally. */}
                 <EmailField value={email} onChange={(t) => { setEmail(t); if (phase === 'error') setPhase('idle'); }} disabled={phase === 'sending'} invalid={phase === 'error' && !!errMsg && errMsg.includes('อีเมล')} />
 
-                {/* Carousel container — both panels render absolute-positioned
-                    inside; each lives at its tab-side "home" position when
-                    inactive. Switching tabs slides the previous panel back to
-                    its home (off to the side, opacity 0) while the next slides
-                    in from its own home toward centre. Reads as the next panel
-                    being revealed beneath. */}
-                <View style={styles.modePanelContainer}>
-                  <ModePanel active={mode === 'password'} side="left">
-                    <PasswordField
-                      value={password}
-                      onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }}
-                      disabled={phase === 'sending'}
-                      invalid={phase === 'error' && !!errMsg && errMsg.includes('รหัสผ่าน')}
-                      visible={passwordVisible}
-                      onToggleVisible={() => setPasswordVisible((v) => !v)}
-                    />
-                    {mode === 'password' && errMsg && (
-                      <StatusMessage tone={phase === 'error' ? 'error' : 'info'} message={errMsg} />
-                    )}
-                    {mode === 'password' && unconfirmedEmail && (
-                      <Pressable
-                        onPress={onResendConfirmation}
-                        disabled={pendingAction === 'resend-confirmation'}
-                        accessibilityRole="button"
-                        accessibilityLabel="ส่งอีเมลยืนยันอีกครั้ง"
-                        style={({ pressed }) => [
-                          styles.inlineRecovery,
-                          pressed && pendingAction !== 'resend-confirmation' && { opacity: 0.72 },
-                          pendingAction === 'resend-confirmation' && { opacity: 0.58 },
-                        ]}>
-                        <ThemedText type="small" style={{ color: Accent.base }}>
-                          {pendingAction === 'resend-confirmation' ? 'กำลังส่งอีเมลยืนยัน…' : 'ส่งอีเมลยืนยันอีกครั้ง'}
-                        </ThemedText>
-                      </Pressable>
-                    )}
-                    <View style={styles.passwordActions}>
-                      <PrimaryButton onPress={onPasswordSignIn} disabled={phase === 'sending'} label={pendingAction === 'signin' ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'} />
-                    </View>
-                    <Pressable onPress={() => router.push('/signup')} style={styles.signupLink}>
-                      <ThemedText type="small" style={{ color: Accent.base }}>
-                        สมัครบัญชีใหม่
-                      </ThemedText>
-                    </Pressable>
-                  </ModePanel>
-                  <ModePanel active={mode === 'magic'} side="right">
-                    {mode === 'magic' && errMsg && (
-                      <StatusMessage tone={phase === 'error' ? 'error' : 'info'} message={errMsg} />
-                    )}
-                    <PrimaryButton onPress={onMagicLink} disabled={phase === 'sending'} label={pendingAction === 'magic' ? 'กำลังส่ง…' : 'ส่งลิงก์'} />
-                    <ThemedText type="small" themeColor="textHint" style={styles.fineprint}>
-                      การกดส่งลิงก์ = ยอมรับเงื่อนไขใน landing page
+                {!emailLinkIssue ? (
+                  <PasswordField
+                    value={password}
+                    onChange={(t) => { setPassword(t); if (phase === 'error') setPhase('idle'); }}
+                    disabled={phase === 'sending'}
+                    invalid={phase === 'error' && !!errMsg && errMsg.includes('รหัสผ่าน')}
+                    visible={passwordVisible}
+                    onToggleVisible={() => setPasswordVisible((v) => !v)}
+                  />
+                ) : null}
+                {errMsg ? <StatusMessage tone={phase === 'error' ? 'error' : 'info'} message={errMsg} /> : null}
+                {unconfirmedEmail && !emailLinkIssue ? (
+                  <Pressable
+                    onPress={onResendConfirmation}
+                    disabled={pendingAction === 'resend-confirmation'}
+                    accessibilityRole="button"
+                    accessibilityLabel="ส่งอีเมลยืนยันอีกครั้ง"
+                    style={({ pressed }) => [
+                      styles.inlineRecovery,
+                      pressed && pendingAction !== 'resend-confirmation' && { opacity: 0.72 },
+                      pendingAction === 'resend-confirmation' && { opacity: 0.58 },
+                    ]}>
+                    <ThemedText type="small" style={{ color: Accent.base }}>
+                      {pendingAction === 'resend-confirmation' ? 'กำลังส่งอีเมลยืนยัน…' : 'ส่งอีเมลยืนยันอีกครั้ง'}
                     </ThemedText>
-                  </ModePanel>
+                  </Pressable>
+                ) : null}
+                <View style={styles.passwordActions}>
+                  <PrimaryButton
+                    onPress={passwordSubmit}
+                    disabled={phase === 'sending' || pendingAction === 'resend-confirmation'}
+                    label={passwordPrimaryLabel}
+                  />
                 </View>
+                {!emailLinkIssue ? (
+                  <Pressable onPress={() => router.push('/forgot-password')} style={styles.recoveryLink}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      ลืมรหัสผ่าน?
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+                <Pressable onPress={() => router.push('/signup')} style={styles.signupLink}>
+                  <ThemedText type="small" style={{ color: Accent.base }}>
+                    สมัครบัญชีใหม่
+                  </ThemedText>
+                </Pressable>
               </View>
             </WebForm>
           )}
@@ -213,6 +199,22 @@ export default function LoginScreen() {
         </Animated.View>
       </SafeAreaView>
     </ThemedView>
+  );
+}
+
+function EmailLinkIssueCard({ issue }: { issue: AuthEmailLinkIssue }) {
+  return (
+    <View style={styles.emailLinkIssueCard}>
+      <View style={styles.emailLinkIssueHeader}>
+        <FiAlertCircle size={15} color={Accent.base} />
+        <ThemedText type="small" style={{ color: Accent.base, fontWeight: '700' }}>
+          {issue.title}
+        </ThemedText>
+      </View>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.emailLinkIssueBody}>
+        {issue.message}
+      </ThemedText>
+    </View>
   );
 }
 
@@ -237,66 +239,6 @@ function WebForm({ onSubmit, children }: { onSubmit: () => void; children: React
       'aria-hidden': true,
       tabIndex: -1,
     }),
-  );
-}
-
-/* Carousel panel — password lives left, magic lives right. Active panel
-   sits at centre (translateX 0 + opacity 1); inactive panel parks at its
-   home (translateX ±32 + opacity 0). Switching tabs animates both panels
-   simultaneously so the user feels the next one revealed beneath. Subtle
-   32px translate keeps the motion editorial-restrained, not carousel-y.
-   Both panels render absolute-positioned inside a min-height container
-   sized for the taller (password) mode so the back-to-Browse link below
-   doesn't jump on mode swap. */
-function ModePanel({ active, side, children }: { active: boolean; side: 'left' | 'right'; children: React.ReactNode }) {
-  const home = side === 'left' ? -32 : 32;
-  const tx = useSharedValue(active ? 0 : home);
-  const opacity = useSharedValue(active ? 1 : 0);
-
-  useEffect(() => {
-    tx.value = withTiming(active ? 0 : home, { duration: 220, easing: Easing.bezier(0.2, 0, 0, 1) });
-    opacity.value = withTiming(active ? 1 : 0, { duration: 220, easing: Easing.bezier(0.2, 0, 0, 1) });
-  }, [active, home, tx, opacity]);
-
-  const aStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: tx.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View style={[styles.modePanel, aStyle, { pointerEvents: active ? 'auto' : 'none' }]}>
-      {children}
-    </Animated.View>
-  );
-}
-
-function ModeTabs({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  return (
-    <View style={styles.modeTabs}>
-      <ModeTab active={mode === 'password'} onPress={() => onChange('password')} label="รหัสผ่าน" />
-      <ModeTab active={mode === 'magic'} onPress={() => onChange('magic')} label="ลิงก์อีเมล" />
-    </View>
-  );
-}
-
-function ModeTab({ active, onPress, label }: { active: boolean; onPress: () => void; label: string }) {
-  const colors = useThemePalette();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.modeTab,
-        {
-          borderBottomColor: active ? Accent.base : colors.border,
-          borderBottomWidth: active ? 2 : 1,
-        },
-      ]}>
-      <ThemedText
-        type="small"
-        style={{ color: active ? Accent.base : colors.textMuted, fontWeight: active ? '600' : '400' }}>
-        {label}
-      </ThemedText>
-    </Pressable>
   );
 }
 
@@ -325,7 +267,7 @@ function EmailField({
       <TextInput
         value={value}
         onChangeText={onChange}
-        placeholder="you@example.com"
+        placeholder="อีเมลของคุณ"
         placeholderTextColor={colors.textHint}
         keyboardType="email-address"
         autoCapitalize="none"
@@ -481,13 +423,24 @@ const styles = StyleSheet.create({
   hero: { gap: Spacing.two },
   eyebrow: { letterSpacing: 2, textTransform: 'uppercase' },
   title: { fontSize: 32 },
-  modeTabs: { flexDirection: 'row', gap: Spacing.three },
-  modeTab: { flex: 1, paddingVertical: Spacing.three, alignItems: 'center' },
   form: { gap: Spacing.four },
-  /* minHeight reserves space for password + helper + status + actions
-     so the back-to-Browse link beneath doesn't overlap on compact mobile. */
-  modePanelContainer: { position: 'relative', minHeight: 230, overflow: 'hidden' },
-  modePanel: { position: 'absolute', top: 0, left: 0, right: 0, gap: Spacing.four },
+  emailLinkIssueCard: {
+    borderWidth: 1,
+    borderColor: Accent.soft,
+    backgroundColor: Accent.bg,
+    borderRadius: Radii.md,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    gap: Spacing.one,
+  },
+  emailLinkIssueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  emailLinkIssueBody: {
+    lineHeight: 20,
+  },
   inputWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, borderBottomWidth: 1, paddingHorizontal: 0, paddingVertical: Spacing.three },
   input: { flex: 1, fontSize: 16, outlineStyle: 'none' as any },
   passwordReveal: {
@@ -508,10 +461,10 @@ const styles = StyleSheet.create({
   },
   passwordActions: { flexDirection: 'row', gap: Spacing.two },
   inlineRecovery: { alignSelf: 'flex-start', paddingVertical: Spacing.one },
+  recoveryLink: { alignItems: 'center', paddingVertical: Spacing.one },
   signupLink: { alignItems: 'center', paddingVertical: Spacing.two },
   primaryBtn: { paddingVertical: Spacing.three, paddingHorizontal: Spacing.four, borderRadius: Radii.sm, alignItems: 'center' },
   primaryBtnLabel: { color: '#fff' },
-  fineprint: { textAlign: 'center' },
   successCard: { padding: Spacing.four, borderRadius: Radii.md, gap: Spacing.two },
   successResend: { alignSelf: 'flex-start', paddingVertical: Spacing.two },
   successBack: { marginTop: Spacing.two },

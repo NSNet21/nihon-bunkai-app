@@ -1,5 +1,6 @@
 import {
   buildAuthEmailRedirectTo,
+  buildAuthPasswordResetRedirectTo,
   mapAuthEmailError,
 } from './auth-email-confirmation';
 
@@ -40,6 +41,21 @@ type SupabasePasswordClient = {
       email: string;
       password: string;
     }) => Promise<{ error: AuthErrorLike }>;
+  };
+};
+
+type SupabasePasswordResetClient = {
+  auth: {
+    resetPasswordForEmail: (
+      email: string,
+      options?: { redirectTo?: string },
+    ) => Promise<{ error: AuthErrorLike }>;
+  };
+};
+
+type SupabaseUpdatePasswordClient = {
+  auth: {
+    updateUser: (attributes: { password: string }) => Promise<{ error: AuthErrorLike }>;
   };
 };
 
@@ -92,5 +108,24 @@ export async function signInWithConfirmedPassword(
   password: string,
 ): Promise<{ error: string | null }> {
   const { error } = await client.auth.signInWithPassword({ email, password });
+  return { error: mapAuthEmailError(error?.message) };
+}
+
+export async function requestPasswordResetEmail(
+  client: SupabasePasswordResetClient,
+  email: string,
+  currentUrl?: string | null,
+): Promise<{ error: string | null }> {
+  const { error } = await client.auth.resetPasswordForEmail(email, {
+    redirectTo: buildAuthPasswordResetRedirectTo(currentUrl),
+  });
+  return { error: mapAuthEmailError(error?.message) };
+}
+
+export async function updateRecoveredPassword(
+  client: SupabaseUpdatePasswordClient,
+  password: string,
+): Promise<{ error: string | null }> {
+  const { error } = await client.auth.updateUser({ password });
   return { error: mapAuthEmailError(error?.message) };
 }

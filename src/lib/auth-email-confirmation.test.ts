@@ -4,6 +4,7 @@ import {
   buildAuthEmailRedirectTo,
   getEmailConfirmationSentMessage,
   mapAuthEmailError,
+  parseAuthEmailLinkIssue,
 } from './auth-email-confirmation';
 
 describe('auth email confirmation helpers', () => {
@@ -33,5 +34,21 @@ describe('auth email confirmation helpers', () => {
 
   it('keeps unrelated auth errors unchanged', () => {
     expect(mapAuthEmailError('Invalid login credentials')).toBe('Invalid login credentials');
+  });
+
+  it('maps expired Supabase confirmation link hashes to an actionable Thai notice', () => {
+    expect(
+      parseAuthEmailLinkIssue(
+        'https://app.nihon-bunkai.com/login#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+      ),
+    ).toEqual({
+      code: 'otp_expired',
+      title: 'ลิงก์ยืนยันหมดอายุ',
+      message: 'ลิงก์นี้ถูกใช้งานแล้วหรือหมดอายุ กรุณากรอกอีเมลเดิมเพื่อรับลิงก์ยืนยันใหม่อีกครั้ง',
+    });
+  });
+
+  it('ignores normal login URLs without auth link errors', () => {
+    expect(parseAuthEmailLinkIssue('https://app.nihon-bunkai.com/login')).toBeNull();
   });
 });
